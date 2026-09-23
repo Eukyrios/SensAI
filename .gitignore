@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environnements
+venv/
+.venv/
+.env
+
+# Données générées (ne pas commit)
+data/chroma_db/
+data/sessions/
+data/profile.json
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

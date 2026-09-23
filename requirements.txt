@@ -1,0 +1,12 @@
+# Appels Ollama (HTTP direct, pas de framework LLM)
+requests>=2.31
+
+# Config
+pyyaml>=6.0
+
+# RAG
+chromadb>=0.5
+
+# Web UI backend
+fastapi>=0.110
+uvicorn[standard]>=0.29

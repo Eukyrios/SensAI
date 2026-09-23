@@ -1,0 +1,49 @@
+# ─── Ollama ───────────────────────────────────────────
+ollama:
+  url: "http://localhost:11434"
+  model: "qwen3.5:9b"          # surchargeable via --model
+  fallback_model: "qwen3.5:4b"
+  think: false                 # désactive le mode thinking (plus rapide)
+  temperature: 0.3
+  timeout: 60                  # secondes
+
+# ─── Mémoire (M1) ─────────────────────────────────────
+memory:
+  sessions_dir: "data/sessions"
+  profile_path: "data/profile.json"
+  max_history_turns: 20
+
+# ─── RAG (R1) ─────────────────────────────────────────
+rag:
+  mails_dir: "data/mails"
+  embed_model: "nomic-embed-text"
+  chroma_path: "data/chroma_db"
+  collection: "mails"
+  chunk_size: 500              # caractères
+  chunk_overlap: 50
+  top_k: 5
+
+# ─── Persona (A5) ─────────────────────────────────────
+persona:
+  default: "formal"
+  dir: "personas"              # un fichier .yaml par persona
+
+# ─── Guardrails (EV2) ─────────────────────────────────
+guardrails:
+  enabled: true
+  mask_emails: true
+  mask_phones: true
+  mask_iban: true
+
+# ─── Outils & confirmation (T1 / A3) ──────────────────
+tools:
+  require_confirmation:        # actions irréversibles → A3
+    - send_email
+    - delete_email
+
+# ─── API (X1) ─────────────────────────────────────────
+api:
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins:
+    - "http://localhost:5173"
