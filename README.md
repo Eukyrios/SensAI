@@ -4,7 +4,7 @@ A multi-agent AI assistant for learning Japanese, running 100% locally through O
 No data ever leaves the machine.
 
 📄 Full work plan: [`doc/work_plan.pdf`](doc/work_plan.pdf)
-🗺️ Detailed architecture: [`doc/architecture.png`](doc/architecture.png)
+🗺️ Architecture: [overview](doc/architecture_overview.png) · [detailed](doc/architecture_detailed.png)
 🗂️ Previous README: [`doc/README_old.md`](doc/README_old.md)
 
 ## Architecture
@@ -22,7 +22,13 @@ Every learner turn goes through six stages:
 
 Stage 4 can loop back to stage 2 ("another hop"), and stage 5 is read back on the next turn.
 
-![Architecture](doc/architecture.png)
+**Overview**
+
+![Architecture overview](doc/architecture_overview.png)
+
+**Detailed** — same flow, with every component inside each stage
+
+![Architecture detailed](doc/architecture_detailed.png)
 
 ## Requirements
 
@@ -112,7 +118,7 @@ sensai/      Python code (agents, memory, RAG, tools, guardrails)
 api/         FastAPI backend
 frontend/    React interface
 tests/       pytest tests
-doc/         work plan, architecture diagram, previous README
+doc/         work plan, architecture diagrams, previous README
 data/        demo data
 personas/    persona configurations
 ```
