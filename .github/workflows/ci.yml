@@ -1,0 +1,91 @@
+name: CI
+
+# Le repo mirror (Eukyrios/SensAI) est le point d'entrée : on y pousse le code.
+# Tests + couverture (bloquant sous 85 %), puis si tout passe sur main,
+# l'historique complet est poussé sur le repo Epitech.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TARGET_REPO: git@github.com:EpitechPGE3-2026/G-AIA-500-PAR-5-1-sensai-4.git
+  COVERAGE_MIN: 85
+
+jobs:
+  test:
+    name: Tests & coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: |
+          mkdir -p reports
+          set -o pipefail
+          python -m pytest \
+            --junitxml=reports/junit.xml \
+            --cov --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=xml:reports/coverage.xml \
+            --cov-report=html:reports/htmlcov \
+            --cov-fail-under=${COVERAGE_MIN} \
+            2>&1 | tee reports/pytest.log
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Coverage (min ${COVERAGE_MIN} %)"
+            echo '```'
+            python -m coverage report 2>/dev/null || echo "pas de données de couverture"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ github.sha }}
+          path: reports/
+          retention-days: 90
+
+  mirror:
+    name: Push to Epitech repo
+    needs: test
+    if: github.repository == 'Eukyrios/SensAI' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # historique complet : tous les commits sont conservés
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.GIT_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+
+      - name: Push main
+        run: |
+          git remote add target "$TARGET_REPO"
+          git push target HEAD:refs/heads/main
+          git push target --tags
