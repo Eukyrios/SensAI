@@ -1,10 +1,9 @@
-"""Direct HTTP calls to Ollama. One client per server; each call takes the agent's spec."""
+"""Direct HTTP calls to Ollama. One client per server; each call says which model and options to use."""
 import json
 from collections.abc import Iterator
 
 import requests
 
-from ..core.agent_spec import AgentSpec
 from ..core.errors import ErrorKind
 from ..core.messages import Message
 
@@ -20,17 +19,19 @@ class OllamaClient:
         self.url = url.rstrip("/")
         self.timeout_s = timeout_s
 
-    def chat_stream(self, spec: AgentSpec, messages: list[Message]) -> Iterator[str]:
+    def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
+                    temperature: float = 0.3, think: bool = False) -> Iterator[str]:
+        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default."""
         payload = {
-            "model": spec.model,
+            "model": model,
             "messages": messages,
             "stream": True,
-            "think": spec.think,
-            "options": {"temperature": spec.temperature, "num_ctx": spec.num_ctx},
+            "think": think,
+            "options": {"temperature": temperature, "num_ctx": num_ctx},
         }
-        r = self._post("/api/chat", payload, stream=True, timeout=spec.timeout_s)
+        r = self._post("/api/chat", payload, stream=True)
         if r.status_code == 404:
-            raise OllamaError("model_missing", f"Model '{spec.model}' not found (run `ollama pull {spec.model}`)")
+            raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
         if r.status_code == 400:
             raise OllamaError("bad_request", f"Ollama rejected the request: {r.text}")
         if not r.ok:
@@ -54,10 +55,9 @@ class OllamaClient:
             raise OllamaError("bad_request", f"Embedding error {r.status_code}: {r.text}")
         return r.json()["embeddings"][0]
 
-    def _post(self, path: str, payload: dict, stream: bool = False, timeout: int | None = None):
+    def _post(self, path: str, payload: dict, stream: bool = False):
         try:
-            return requests.post(f"{self.url}{path}", json=payload, stream=stream,
-                                 timeout=timeout or self.timeout_s)
+            return requests.post(f"{self.url}{path}", json=payload, stream=stream, timeout=self.timeout_s)
         except requests.ConnectionError:
             raise OllamaError("connection", f"Cannot reach Ollama at {self.url} (is `ollama serve` running?)") from None
         except requests.Timeout:

@@ -48,13 +48,6 @@ def test_missing_config(monkeypatch):
         run(monkeypatch, [], argv=["--config", "/nope.toml"])
 
 
-def test_bad_agent(monkeypatch, tmp_path):
-    p = tmp_path / "c.toml"
-    p.write_text('[agents]\ndefault = "nobody"\n', encoding="utf-8")
-    with pytest.raises(SystemExit, match="unknown agent"):
-        run(monkeypatch, [], argv=["--config", str(p)])
-
-
 def test_ctrl_c_at_prompt(monkeypatch, capsys):
     run(monkeypatch, [KeyboardInterrupt], argv=["--config", str(CONFIG_PATH)])
     assert "Sensai" in capsys.readouterr().out

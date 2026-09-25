@@ -1,14 +1,15 @@
 # Sensai configuration. Overrides the built-in defaults in sensai/core/config.py.
-# Model and num_ctx are set per agent in agents/<name>.toml, never here.
 
 [ollama]
 url = "http://localhost:11434"
 timeout_s = 60
+model = "qwen3.5:4b"         # final choice comes from the layer 2 bake-off
+num_ctx = 8192               # always explicit: never rely on Ollama's default
+temperature = 0.3
+think = false
 
-[agents]
-dir = "agents"
-default = "sensei"
-model_override = ""          # set by --model; empty = use each agent's own model
+[chat]
+system_prompt = "You are Sensai, a patient Japanese teacher. Answer in the learner's language and give examples in Japanese."
 
 [storage]
 db_path = "data/sensai.db"

@@ -13,8 +13,10 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "config.toml"
 
 DEFAULTS: dict[str, dict[str, Any]] = {
-    "ollama": {"url": "http://localhost:11434", "timeout_s": 60},
-    "agents": {"dir": "agents", "default": "sensei", "model_override": ""},
+    "ollama": {"url": "http://localhost:11434", "timeout_s": 60,
+               "model": "qwen3.5:4b", "num_ctx": 8192, "temperature": 0.3, "think": False},
+    "chat": {"system_prompt": "You are Sensai, a patient Japanese teacher. "
+                              "Answer in the learner's language and give examples in Japanese."},
     "storage": {"db_path": "data/sensai.db"},
     "memory": {"max_history_turns": 20},
     "guardrails": {"enabled": True},

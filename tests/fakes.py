@@ -18,8 +18,8 @@ class FakeClient:
         self.error = error
         self.calls = []
 
-    def chat_stream(self, spec, messages):
-        self.calls.append((spec, messages))
+    def chat_stream(self, model, messages, **options):
+        self.calls.append((model, messages, options))
         if self.error:
             raise self.error
         yield from self.tokens

@@ -16,12 +16,14 @@ def test_defaults_when_no_file(monkeypatch, tmp_path):
 
 
 def test_repo_config_toml_loads():
-    assert load_config()["agents"]["default"] == "sensei"
+    c = load_config()
+    assert c["ollama"]["model"] and c["ollama"]["num_ctx"] > 0
 
 
 def test_file_overrides_defaults(tmp_path):
     p = write(tmp_path, '[ollama]\nurl = "http://file"\ntimeout_s = 5\n')
-    assert load_config(p)["ollama"] == {"url": "http://file", "timeout_s": 5}
+    o = load_config(p)["ollama"]
+    assert (o["url"], o["timeout_s"]) == ("http://file", 5)
 
 
 def test_file_keeps_unset_defaults_and_adds_sections(tmp_path):
@@ -36,5 +38,5 @@ def test_explicit_missing_file_raises(tmp_path):
 
 
 def test_resolve():
-    assert resolve("agents") == cfg.ROOT / "agents"
+    assert resolve("data") == cfg.ROOT / "data"
     assert resolve("/abs") == cfg.Path("/abs")

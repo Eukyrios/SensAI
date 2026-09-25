@@ -2,7 +2,6 @@
 import argparse
 import sys
 
-from ..core.agent_spec import SpecError
 from ..core.config import load_config
 from ..llm.ollama import OllamaError
 from ..orchestration.chat import Chat
@@ -12,21 +11,19 @@ HELP = "Commands: /reset  /quit"
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sensai", description="Sensai, a local Japanese tutor")
-    parser.add_argument("--model", help="Ollama model for every agent (overrides the agent specs)")
+    parser.add_argument("--model", help="Ollama model to use (overrides config.toml)")
     parser.add_argument("--config", help="path to a config.toml")
     args = parser.parse_args(argv)
 
     try:
         config = load_config(args.config)
         if args.model:
-            config["agents"]["model_override"] = args.model
+            config["ollama"]["model"] = args.model
         chat = Chat(config)
     except FileNotFoundError as e:
         sys.exit(f"[error] config not found: {e.filename}")
-    except SpecError as e:
-        sys.exit(f"[error] {e}")
 
-    print(f"Sensai ({chat.spec.model}) — {HELP}")
+    print(f"Sensai ({chat.model}) — {HELP}")
     while True:
         try:
             msg = input("\n> ").strip()

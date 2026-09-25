@@ -3,11 +3,10 @@ import json
 import pytest
 import requests
 
-from sensai.core.agent_spec import AgentSpec
 from sensai.llm import ollama
 from sensai.llm.ollama import OllamaClient, OllamaError
 
-SPEC = AgentSpec(name="t", model="m", num_ctx=2048, temperature=0.1)
+OPTS = {"num_ctx": 2048, "temperature": 0.1}
 
 
 class FakeResponse:
@@ -43,11 +42,11 @@ def patch_post(monkeypatch, result):
     return sent
 
 
-def test_chat_stream_sends_spec_and_yields_tokens(monkeypatch, client):
+def test_chat_stream_sends_options_and_yields_tokens(monkeypatch, client):
     lines = [{"message": {"content": "a"}}, b"", {"message": {"content": ""}},
              {"message": {"content": "b"}, "done": True}, {"message": {"content": "c"}}]
     sent = patch_post(monkeypatch, FakeResponse(lines=lines))
-    assert list(client.chat_stream(SPEC, [])) == ["a", "b"]
+    assert list(client.chat_stream("m", [], **OPTS)) == ["a", "b"]
     assert sent["url"] == "http://ollama:11434/api/chat"
     assert sent["json"]["model"] == "m"
     assert sent["json"]["options"] == {"temperature": 0.1, "num_ctx": 2048}
@@ -60,7 +59,7 @@ def test_chat_stream_sends_spec_and_yields_tokens(monkeypatch, client):
 def test_network_errors(monkeypatch, client, exc, kind):
     patch_post(monkeypatch, exc)
     with pytest.raises(OllamaError) as e:
-        list(client.chat_stream(SPEC, []))
+        list(client.chat_stream("m", [], **OPTS))
     assert e.value.kind == kind
 
 
@@ -68,14 +67,14 @@ def test_network_errors(monkeypatch, client, exc, kind):
 def test_http_errors(monkeypatch, client, status, kind):
     patch_post(monkeypatch, FakeResponse(status=status, text="boom"))
     with pytest.raises(OllamaError) as e:
-        list(client.chat_stream(SPEC, []))
+        list(client.chat_stream("m", [], **OPTS))
     assert e.value.kind == kind
 
 
 def test_mid_stream_error(monkeypatch, client):
     patch_post(monkeypatch, FakeResponse(lines=[{"message": {"content": "a"}}, {"error": "bad"}]))
     with pytest.raises(OllamaError, match="bad") as e:
-        list(client.chat_stream(SPEC, []))
+        list(client.chat_stream("m", [], **OPTS))
     assert e.value.kind == "stream"
 
 

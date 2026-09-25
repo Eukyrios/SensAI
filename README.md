@@ -46,15 +46,15 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
 
-ollama pull qwen3.5:4b      # default agent model until the bake-off (layer 2)
+ollama pull qwen3.5:4b      # default model until the bake-off (layer 2)
 ollama pull bge-m3          # RAG embeddings (layer 5)
 ```
 
 ## Usage
 
 ```bash
-python -m sensai                          # chat with the default agent
-python -m sensai --model qwen3.5:9b       # use another model for every agent
+python -m sensai                          # start the chat
+python -m sensai --model qwen3.5:9b       # use another model
 python -m sensai --config my-config.toml  # use another config file
 ```
 
@@ -63,10 +63,10 @@ In the chat: `/reset` clears the history, `/quit` exits.
 ## Configuration
 
 Settings come from the built-in defaults (`sensai/core/config.py`), overridden by `config.toml`.
-`--model` overrides the model of every agent for one run.
+`--model` overrides the model for one run.
 
-Each agent is described in `agents/<name>.toml` (model, `num_ctx`, prompt, tools, output schema).
-`model` and `num_ctx` are always explicit there: we never inherit Ollama's defaults.
+`model` and `num_ctx` are always explicit: we never inherit Ollama's defaults.
+From layer 1, each agent gets its own `agents/<name>.toml` spec.
 
 ## Features
 
@@ -120,14 +120,14 @@ so new code always has an obvious home.
 
 ```
 sensai/
-  core/           shared contracts: agent specs, messages, errors, config      (A)
+  core/           shared contracts: messages, errors, config, events, specs    (A)
   llm/            Ollama HTTP transport, the only code that calls the model    (C)
   orchestration/  turn loop, executor, orchestrator, router                     (A)
   memory/         SQLite storage, sessions, ledger, context budgeting           (B)
   knowledge/      tools, MCP client, RAG pipeline                               (C)
   trust/          guardrails, judge, logging, metrics                           (D)
   surfaces/       CLI and web UI                                                (D)
-agents/           one TOML spec per agent (sensei, corrector, judge, ...)
+agents/           one TOML spec per agent (sensei, corrector, judge, ...)      (from layer 1)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
@@ -139,10 +139,10 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
 
 - **Dependencies point inward.** Every package may import `core`; `core` imports nothing from the
   others. `surfaces` never contains business logic.
-- **Agents are data, not code.** An agent is a TOML file loaded into an `AgentSpec` (model, `num_ctx`,
-  prompt, tools, output schema). Adding the corrector or the judge means adding a file.
-- **One transport for every agent.** `OllamaClient.chat_stream(spec, messages)` takes the agent's
-  spec on each call, so agents with different models share one client. Errors carry a `kind`
+- **Agents are data, not code.** From layer 1, an agent is a TOML file loaded into an `AgentSpec`
+  (model, `num_ctx`, prompt, tools, output schema). Adding the corrector or the judge means adding a file.
+- **One transport for every agent.** `OllamaClient.chat_stream(model, messages, num_ctx=...)` takes the
+  model and options on each call, so agents with different models share one client. Errors carry a `kind`
   (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display.
 - **Surfaces only subscribe.** From layer 1, the turn loop emits events (`core/events.py`) and the
   CLI, the logger, the trace view and the web UI only consume them.

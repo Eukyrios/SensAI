@@ -19,9 +19,10 @@ def test_streams_and_records_history(chat):
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "Konnichiwa"},
     ]
-    spec, messages = chat.client.calls[0]
-    assert spec.name == "sensei"
-    assert messages[0] == {"role": "system", "content": spec.system_prompt}
+    model, messages, options = chat.client.calls[0]
+    assert model == chat.config["ollama"]["model"]
+    assert options["num_ctx"] == chat.config["ollama"]["num_ctx"]
+    assert messages[0] == {"role": "system", "content": chat.config["chat"]["system_prompt"]}
 
 
 def test_empty_message_rejected(chat):
