@@ -8,19 +8,19 @@ coverage.xml
 htmlcov/
 reports/
 
-# Environnements
+# Environments
 venv/
 .venv/
 .env
 
-# Données générées (ne pas commit)
-data/chroma_db/
-data/sessions/
-data/profile.json
+# Runtime data (never commit)
+data/*.db
+data/*.db-*
+logs/
 
-# Frontend
-frontend/node_modules/
-frontend/dist/
+# Web frontend (layer 7)
+node_modules/
+dist/
 
 # IDE / OS
 .vscode/

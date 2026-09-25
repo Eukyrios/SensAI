@@ -1,28 +1,32 @@
-"""CLI — point d'entrée : python -m sensai.main"""
+"""Command-line chat. Run with: python -m sensai"""
 import argparse
 import sys
 
-from .config import load_config
-from .chat import Agent
-from .ollama_client import OllamaError
+from ..core.agent_spec import SpecError
+from ..core.config import load_config
+from ..llm.ollama import OllamaError
+from ..orchestration.chat import Chat
 
-HELP = "Commandes : /persona <nom>  /reset  /quit"
+HELP = "Commands: /reset  /quit"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Sensai — assistant mail local")
-    parser.add_argument("--model", help="modèle Ollama (écrase config.yaml)")
-    parser.add_argument("--config", help="chemin vers config.yaml")
-    args = parser.parse_args()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="sensai", description="Sensai, a local Japanese tutor")
+    parser.add_argument("--model", help="Ollama model for every agent (overrides the agent specs)")
+    parser.add_argument("--config", help="path to a config.toml")
+    args = parser.parse_args(argv)
 
     try:
-        config = load_config(args.config) if args.config else load_config()
+        config = load_config(args.config)
+        if args.model:
+            config["agents"]["model_override"] = args.model
+        chat = Chat(config)
     except FileNotFoundError as e:
-        sys.exit(f"[erreur] config introuvable : {e.filename}")
+        sys.exit(f"[error] config not found: {e.filename}")
+    except SpecError as e:
+        sys.exit(f"[error] {e}")
 
-    agent = Agent(config, model=args.model)
-    print(f"Sensai ({agent.client.model}) — {HELP}")
-
+    print(f"Sensai ({chat.spec.model}) — {HELP}")
     while True:
         try:
             msg = input("\n> ").strip()
@@ -35,26 +39,18 @@ def main() -> None:
         if msg == "/quit":
             break
         if msg == "/reset":
-            agent.reset()
-            print("Historique effacé.")
-            continue
-        if msg.startswith("/persona"):
-            parts = msg.split(maxsplit=1)
-            if len(parts) == 2:
-                agent.set_persona(parts[1])
-                print(f"Persona : {parts[1]}")
-            else:
-                print(f"Persona actuel : {agent.persona}")
+            chat.reset()
+            print("History cleared.")
             continue
 
         try:
-            for token in agent.chat(msg):
+            for token in chat.send(msg):
                 print(token, end="", flush=True)
             print()
         except OllamaError as e:
-            print(f"\n[erreur] {e}", file=sys.stderr)
+            print(f"\n[error] {e}", file=sys.stderr)
         except KeyboardInterrupt:
-            print("\n[interrompu]")
+            print("\n[interrupted]")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 name: CI
 
-# Le repo mirror (Eukyrios/SensAI) est le point d'entrée : on y pousse le code.
-# Tests + couverture (bloquant sous 85 %), puis si tout passe sur main,
-# l'historique complet est poussé sur le repo Epitech.
+# The mirror repo (Eukyrios/SensAI) is where code is pushed.
+# Tests + coverage (blocking under 85%), then, if everything passes on main,
+# the full history is pushed to the Epitech repo.
 
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
           {
             echo "## Coverage (min ${COVERAGE_MIN} %)"
             echo '```'
-            python -m coverage report 2>/dev/null || echo "pas de données de couverture"
+            python -m coverage report 2>/dev/null || echo "no coverage data"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # historique complet : tous les commits sont conservés
+          fetch-depth: 0   # full history: every commit is kept
 
       - name: Setup SSH
         env:

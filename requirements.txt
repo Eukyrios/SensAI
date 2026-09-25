@@ -1,12 +1,9 @@
-# Appels Ollama (HTTP direct, pas de framework LLM)
+# Ollama calls (direct HTTP, no LLM framework)
 requests>=2.31
 
-# Config
-pyyaml>=6.0
+# TOML config (built into Python 3.11+)
+tomli>=2.0; python_version < "3.11"
 
-# RAG
-chromadb>=0.5
-
-# Web UI backend
+# Web UI backend (layer 7)
 fastapi>=0.110
 uvicorn[standard]>=0.29

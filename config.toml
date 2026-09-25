@@ -1,49 +1,24 @@
-# ─── Ollama ───────────────────────────────────────────
-ollama:
-  url: "http://localhost:11434"
-  model: "qwen3.5:9b"          # surchargeable via --model
-  fallback_model: "qwen3.5:4b"
-  think: false                 # désactive le mode thinking (plus rapide)
-  temperature: 0.3
-  timeout: 60                  # secondes
+# Sensai configuration. Overrides the built-in defaults in sensai/core/config.py.
+# Model and num_ctx are set per agent in agents/<name>.toml, never here.
 
-# ─── Mémoire (M1) ─────────────────────────────────────
-memory:
-  sessions_dir: "data/sessions"
-  profile_path: "data/profile.json"
-  max_history_turns: 20
+[ollama]
+url = "http://localhost:11434"
+timeout_s = 60
 
-# ─── RAG (R1) ─────────────────────────────────────────
-rag:
-  mails_dir: "data/mails"
-  embed_model: "nomic-embed-text"
-  chroma_path: "data/chroma_db"
-  collection: "mails"
-  chunk_size: 500              # caractères
-  chunk_overlap: 50
-  top_k: 5
+[agents]
+dir = "agents"
+default = "sensei"
+model_override = ""          # set by --model; empty = use each agent's own model
 
-# ─── Persona (A5) ─────────────────────────────────────
-persona:
-  default: "formal"
-  dir: "personas"              # un fichier .yaml par persona
+[storage]
+db_path = "data/sensai.db"
 
-# ─── Guardrails (EV2) ─────────────────────────────────
-guardrails:
-  enabled: true
-  mask_emails: true
-  mask_phones: true
-  mask_iban: true
+[memory]
+max_history_turns = 20
 
-# ─── Outils & confirmation (T1 / A3) ──────────────────
-tools:
-  require_confirmation:        # actions irréversibles → A3
-    - send_email
-    - delete_email
+[guardrails]
+enabled = true
 
-# ─── API (X1) ─────────────────────────────────────────
-api:
-  host: "127.0.0.1"
-  port: 8000
-  cors_origins:
-    - "http://localhost:5173"
+[logging]
+level = "INFO"
+path = "logs/sensai.jsonl"

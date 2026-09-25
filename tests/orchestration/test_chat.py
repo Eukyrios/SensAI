@@ -1,58 +1,49 @@
 import pytest
 
-from sensai.chat import Agent, DEFAULT_SYSTEM
-from tests.conftest import FakeClient
+from sensai.orchestration.chat import Chat
+from tests.fakes import FakeClient, make_config
 
 
 @pytest.fixture
-def agent(config):
-    a = Agent(config)
-    a.client = FakeClient()
-    return a
+def chat():
+    return Chat(make_config(), client=FakeClient())
 
 
-def test_model_override(config):
-    assert Agent(config, model="autre").client.model == "autre"
-    assert Agent(config).client.model == config["ollama"]["model"]
+def test_builds_real_client_by_default():
+    assert Chat(make_config()).client.url == "http://localhost:11434"
 
 
-def test_chat_streams_and_records_history(agent):
-    assert "".join(agent.chat("  salut  ")) == "Bonjour"
-    assert agent.history == [
-        {"role": "user", "content": "salut"},
-        {"role": "assistant", "content": "Bonjour"},
+def test_streams_and_records_history(chat):
+    assert "".join(chat.send("  hello  ")) == "Konnichiwa"
+    assert chat.history == [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "Konnichiwa"},
     ]
-    assert agent.client.calls[0][0] == {"role": "system", "content": DEFAULT_SYSTEM}
+    spec, messages = chat.client.calls[0]
+    assert spec.name == "sensei"
+    assert messages[0] == {"role": "system", "content": spec.system_prompt}
 
 
-def test_empty_message_rejected(agent):
+def test_empty_message_rejected(chat):
     with pytest.raises(ValueError):
-        list(agent.chat("   "))
+        list(chat.send("   "))
 
 
-def test_failure_removes_user_message(agent):
-    agent.client = FakeClient(error=RuntimeError("down"))
+def test_failure_drops_user_message(chat):
+    chat.client = FakeClient(error=RuntimeError("down"))
     with pytest.raises(RuntimeError):
-        list(agent.chat("salut"))
-    assert agent.history == []
+        list(chat.send("hello"))
+    assert chat.history == []
 
 
-def test_history_is_truncated(agent):
-    agent.config["memory"]["max_history_turns"] = 1
+def test_history_is_truncated():
+    chat = Chat(make_config(memory={"max_history_turns": 1}), client=FakeClient())
     for i in range(3):
-        list(agent.chat(f"m{i}"))
-    sent = agent.client.calls[-1]
-    assert [m["content"] for m in sent[1:]] == ["Bonjour", "m2"]
+        list(chat.send(f"m{i}"))
+    assert [m["content"] for m in chat.client.calls[-1][1][1:]] == ["Konnichiwa", "m2"]
 
 
-def test_persona_confirm_reset(agent):
-    agent.set_persona("casual")
-    assert agent.persona == "casual"
-    assert agent.pending_action() is None
-    agent._pending = {"tool": "send_email", "args": {}, "summary": "s"}
-    assert agent.confirm(True) == "Action confirmée."
-    assert agent.pending_action() is None
-    assert agent.confirm(False) == "Action annulée."
-    list(agent.chat("x"))
-    agent.reset()
-    assert agent.history == []
+def test_reset(chat):
+    list(chat.send("x"))
+    chat.reset()
+    assert chat.history == []

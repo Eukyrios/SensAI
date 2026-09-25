@@ -34,7 +34,7 @@ Stage 4 can loop back to stage 2 ("another hop"), and stage 5 is read back on th
 
 - Python 3.10+
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
-- Node.js 18+ (for the web UI)
+- Node.js 18+ (only for the web UI, layer 7)
 
 ## Installation
 
@@ -46,28 +46,27 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
 
-ollama pull qwen3.5:9b      # final model decided by the bake-off (layer 2)
-ollama pull bge-m3          # RAG embeddings
+ollama pull qwen3.5:4b      # default agent model until the bake-off (layer 2)
+ollama pull bge-m3          # RAG embeddings (layer 5)
 ```
 
 ## Usage
 
-**CLI**
 ```bash
-python -m sensai.main
-python -m sensai.main --model qwen3.5:4b    # another model
+python -m sensai                          # chat with the default agent
+python -m sensai --model qwen3.5:9b       # use another model for every agent
+python -m sensai --config my-config.toml  # use another config file
 ```
 
-**Web UI**
-```bash
-uvicorn api.main:app --reload               # backend: http://127.0.0.1:8000
-cd frontend && npm install && npm run dev   # frontend: http://localhost:5173
-```
+In the chat: `/reset` clears the history, `/quit` exits.
 
 ## Configuration
 
-Everything is set in `config.yaml` (model, RAG, persona, guardrails…) without touching the code.
-`model` and `num_ctx` are always explicit: we never inherit Ollama's defaults.
+Settings come from the built-in defaults (`sensai/core/config.py`), overridden by `config.toml`.
+`--model` overrides the model of every agent for one run.
+
+Each agent is described in `agents/<name>.toml` (model, `num_ctx`, prompt, tools, output schema).
+`model` and `num_ctx` are always explicit there: we never inherit Ollama's defaults.
 
 ## Features
 
@@ -111,17 +110,55 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 
 Rule: never start a layer until the previous layer's contracts are **merged**.
 
-## Structure
+## Code architecture
+
+### Packages
+
+One package per domain, each owned by one member so parallel branches rarely touch the same files.
+Each package's `__init__.py` lists the modules that belong in it and the layer that adds them,
+so new code always has an obvious home.
 
 ```
-sensai/      Python code (agents, memory, RAG, tools, guardrails)
-api/         FastAPI backend
-frontend/    React interface
-tests/       pytest tests
-doc/         work plan, architecture diagrams, previous README
-data/        demo data
-personas/    persona configurations
+sensai/
+  core/           shared contracts: agent specs, messages, errors, config      (A)
+  llm/            Ollama HTTP transport, the only code that calls the model    (C)
+  orchestration/  turn loop, executor, orchestrator, router                     (A)
+  memory/         SQLite storage, sessions, ledger, context budgeting           (B)
+  knowledge/      tools, MCP client, RAG pipeline                               (C)
+  trust/          guardrails, judge, logging, metrics                           (D)
+  surfaces/       CLI and web UI                                                (D)
+agents/           one TOML spec per agent (sensei, corrector, judge, ...)
+tests/            one folder per package, mirroring sensai/
+doc/              work plan, architecture diagrams, previous README
+config.toml       project configuration
 ```
+
+Runtime files (`data/*.db`, `logs/`) are created on first run and never committed.
+
+### Rules that keep it stable
+
+- **Dependencies point inward.** Every package may import `core`; `core` imports nothing from the
+  others. `surfaces` never contains business logic.
+- **Agents are data, not code.** An agent is a TOML file loaded into an `AgentSpec` (model, `num_ctx`,
+  prompt, tools, output schema). Adding the corrector or the judge means adding a file.
+- **One transport for every agent.** `OllamaClient.chat_stream(spec, messages)` takes the agent's
+  spec on each call, so agents with different models share one client. Errors carry a `kind`
+  (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display.
+- **Surfaces only subscribe.** From layer 1, the turn loop emits events (`core/events.py`) and the
+  CLI, the logger, the trace view and the web UI only consume them.
+
+### How a turn flows
+
+| Stage | Package |
+|-------|---------|
+| 1 · Input | `surfaces` → `trust` (input guardrails) |
+| 2 · Decide | `orchestration` (orchestrator, router) |
+| 3 · Build the prompt | `memory` (context builder, budget) with the agent's spec from `core` |
+| 4 · Run the loop | `orchestration` (executor) → `llm`, `knowledge` (tools, RAG) |
+| 5 · Remember | `memory` (sessions, ledger) |
+| 6 · Check and show | `trust` (judge, output guardrails, logging) → events → `surfaces` |
+
+Today the base loop is `orchestration/chat.py`: one agent, streaming, in-session history.
 
 ## Organisation
 

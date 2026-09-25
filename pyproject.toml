@@ -3,7 +3,7 @@ testpaths = ["tests"]
 addopts = "-ra"
 
 [tool.coverage.run]
-source = ["sensai", "api"]
+source = ["sensai"]
 branch = true
 
 [tool.coverage.report]

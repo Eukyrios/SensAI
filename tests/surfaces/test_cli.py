@@ -1,10 +1,10 @@
-import sys
-
 import pytest
 
-from sensai import main as cli
-from sensai.ollama_client import OllamaError
-from tests.conftest import FakeClient
+from sensai.core.config import CONFIG_PATH
+from sensai.llm.ollama import OllamaError
+from sensai.orchestration.chat import Chat
+from sensai.surfaces import cli
+from tests.fakes import FakeClient
 
 
 def run(monkeypatch, inputs, argv=(), client=None):
@@ -12,59 +12,56 @@ def run(monkeypatch, inputs, argv=(), client=None):
 
     def fake_input(prompt=""):
         item = next(it, EOFError)
-        if isinstance(item, type) and issubclass(item, BaseException):
-            raise item
-        if isinstance(item, BaseException):
+        if isinstance(item, BaseException) or (isinstance(item, type) and issubclass(item, BaseException)):
             raise item
         return item
 
     monkeypatch.setattr("builtins.input", fake_input)
-    monkeypatch.setattr(sys, "argv", ["sensai", *argv])
     if client is not None:
-        monkeypatch.setattr(cli.Agent, "__init__", _init_with(client))
-    cli.main()
-
-
-def _init_with(client):
-    orig = cli.Agent.__init__
-
-    def init(self, config, model=None):
-        orig(self, config, model)
-        self.client = client
-    return init
+        monkeypatch.setattr(cli, "Chat", lambda config: Chat(config, client=client))
+    cli.main(list(argv))
 
 
 def test_full_session(monkeypatch, capsys):
-    run(monkeypatch, ["", "/persona", "/persona casual", "salut", "/reset", "/quit"],
-        client=FakeClient())
+    run(monkeypatch, ["", "hello", "/reset", "/quit"], client=FakeClient())
     out = capsys.readouterr().out
-    assert "Persona actuel : formal" in out
-    assert "Persona : casual" in out
-    assert "Bonjour" in out
-    assert "Historique effacé." in out
+    assert "Konnichiwa" in out and "History cleared." in out
 
 
-def test_eof_exits(monkeypatch, capsys):
+def test_model_flag_and_eof(monkeypatch, capsys):
     run(monkeypatch, [], argv=["--model", "x"])
     assert "Sensai (x)" in capsys.readouterr().out
 
 
 def test_ollama_error_printed(monkeypatch, capsys):
-    run(monkeypatch, ["salut"], client=FakeClient(error=OllamaError("down")))
-    assert "[erreur] down" in capsys.readouterr().err
+    run(monkeypatch, ["hello"], client=FakeClient(error=OllamaError("connection", "down")))
+    assert "[error] down" in capsys.readouterr().err
 
 
-def test_keyboard_interrupt_during_reply(monkeypatch, capsys):
-    run(monkeypatch, ["salut"], client=FakeClient(error=KeyboardInterrupt()))
-    assert "[interrompu]" in capsys.readouterr().out
+def test_interrupt_during_reply(monkeypatch, capsys):
+    run(monkeypatch, ["hello"], client=FakeClient(error=KeyboardInterrupt()))
+    assert "[interrupted]" in capsys.readouterr().out
 
 
 def test_missing_config(monkeypatch):
-    with pytest.raises(SystemExit, match="config introuvable"):
-        run(monkeypatch, [], argv=["--config", "/nope.yaml"])
+    with pytest.raises(SystemExit, match="config not found"):
+        run(monkeypatch, [], argv=["--config", "/nope.toml"])
 
 
-def test_custom_config(monkeypatch, capsys):
-    from sensai.config import CONFIG_PATH
+def test_bad_agent(monkeypatch, tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[agents]\ndefault = "nobody"\n', encoding="utf-8")
+    with pytest.raises(SystemExit, match="unknown agent"):
+        run(monkeypatch, [], argv=["--config", str(p)])
+
+
+def test_ctrl_c_at_prompt(monkeypatch, capsys):
     run(monkeypatch, [KeyboardInterrupt], argv=["--config", str(CONFIG_PATH)])
     assert "Sensai" in capsys.readouterr().out
+
+
+def test_module_entrypoint(monkeypatch):
+    import runpy
+    monkeypatch.setattr("sys.argv", ["sensai"])
+    monkeypatch.setattr("builtins.input", lambda p="": (_ for _ in ()).throw(EOFError))
+    runpy.run_module("sensai", run_name="__main__")

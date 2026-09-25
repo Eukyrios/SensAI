@@ -1,9 +1,8 @@
-"""Filtrage PII entrée/sortie — propriétaire : A
-STUB : laisse tout passer."""
+"""Input/output PII and scope filtering. STUB: lets everything through until layer 6."""
 
 
 def filter_input(text: str, config: dict) -> str:
-    """Masque les données personnelles avant envoi au modèle."""
+    """Mask personal data before it reaches the model."""
     return text
 
 

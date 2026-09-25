@@ -3,8 +3,11 @@ import json
 import pytest
 import requests
 
-from sensai import ollama_client
-from sensai.ollama_client import OllamaClient, OllamaError
+from sensai.core.agent_spec import AgentSpec
+from sensai.llm import ollama
+from sensai.llm.ollama import OllamaClient, OllamaError
+
+SPEC = AgentSpec(name="t", model="m", num_ctx=2048, temperature=0.1)
 
 
 class FakeResponse:
@@ -25,68 +28,63 @@ class FakeResponse:
 
 @pytest.fixture
 def client():
-    return OllamaClient("http://ollama:11434/", "m")
+    return OllamaClient("http://ollama:11434/")
 
 
 def patch_post(monkeypatch, result):
-    def fake_post(*args, **kwargs):
+    sent = {}
+
+    def fake_post(url, **kwargs):
+        sent.update(url=url, **kwargs)
         if isinstance(result, Exception):
             raise result
         return result
-    monkeypatch.setattr(ollama_client.requests, "post", fake_post)
+    monkeypatch.setattr(ollama.requests, "post", fake_post)
+    return sent
 
 
-def test_url_trailing_slash_removed(client):
-    assert client.url == "http://ollama:11434"
-
-
-def test_chat_stream_yields_tokens(monkeypatch, client):
+def test_chat_stream_sends_spec_and_yields_tokens(monkeypatch, client):
     lines = [{"message": {"content": "a"}}, b"", {"message": {"content": ""}},
              {"message": {"content": "b"}, "done": True}, {"message": {"content": "c"}}]
-    patch_post(monkeypatch, FakeResponse(lines=lines))
-    assert list(client.chat_stream([])) == ["a", "b"]
+    sent = patch_post(monkeypatch, FakeResponse(lines=lines))
+    assert list(client.chat_stream(SPEC, [])) == ["a", "b"]
+    assert sent["url"] == "http://ollama:11434/api/chat"
+    assert sent["json"]["model"] == "m"
+    assert sent["json"]["options"] == {"temperature": 0.1, "num_ctx": 2048}
 
 
-@pytest.mark.parametrize("exc, msg", [
-    (requests.ConnectionError(), "injoignable"),
+@pytest.mark.parametrize("exc, kind", [
+    (requests.ConnectionError(), "connection"),
     (requests.Timeout(), "timeout"),
 ])
-def test_chat_stream_network_errors(monkeypatch, client, exc, msg):
+def test_network_errors(monkeypatch, client, exc, kind):
     patch_post(monkeypatch, exc)
-    with pytest.raises(OllamaError, match=msg):
-        list(client.chat_stream([]))
+    with pytest.raises(OllamaError) as e:
+        list(client.chat_stream(SPEC, []))
+    assert e.value.kind == kind
 
 
-def test_chat_stream_model_not_found(monkeypatch, client):
-    patch_post(monkeypatch, FakeResponse(status=404))
-    with pytest.raises(OllamaError, match="introuvable"):
-        list(client.chat_stream([]))
+@pytest.mark.parametrize("status, kind", [(404, "model_missing"), (400, "bad_request"), (500, "stream")])
+def test_http_errors(monkeypatch, client, status, kind):
+    patch_post(monkeypatch, FakeResponse(status=status, text="boom"))
+    with pytest.raises(OllamaError) as e:
+        list(client.chat_stream(SPEC, []))
+    assert e.value.kind == kind
 
 
-def test_chat_stream_http_error(monkeypatch, client):
-    patch_post(monkeypatch, FakeResponse(status=500, text="boom"))
-    with pytest.raises(OllamaError, match="500"):
-        list(client.chat_stream([]))
+def test_mid_stream_error(monkeypatch, client):
+    patch_post(monkeypatch, FakeResponse(lines=[{"message": {"content": "a"}}, {"error": "bad"}]))
+    with pytest.raises(OllamaError, match="bad") as e:
+        list(client.chat_stream(SPEC, []))
+    assert e.value.kind == "stream"
 
 
-def test_chat_stream_error_chunk(monkeypatch, client):
-    patch_post(monkeypatch, FakeResponse(lines=[{"error": "bad"}]))
-    with pytest.raises(OllamaError, match="bad"):
-        list(client.chat_stream([]))
-
-
-def test_embed_ok(monkeypatch, client):
+def test_embed(monkeypatch, client):
     patch_post(monkeypatch, FakeResponse(payload={"embeddings": [[0.1, 0.2]]}))
     assert client.embed("x", "e") == [0.1, 0.2]
 
 
-def test_embed_connection_error(monkeypatch, client):
-    patch_post(monkeypatch, requests.ConnectionError())
-    with pytest.raises(OllamaError, match="injoignable"):
-        client.embed("x", "e")
-
-
-def test_embed_http_error(monkeypatch, client):
+def test_embed_error(monkeypatch, client):
     patch_post(monkeypatch, FakeResponse(status=500, text="boom"))
-    with pytest.raises(OllamaError, match="embedding"):
+    with pytest.raises(OllamaError, match="Embedding"):
         client.embed("x", "e")

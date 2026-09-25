@@ -1,51 +1,47 @@
-"""Appels HTTP directs à Ollama — propriétaire : A"""
+"""Direct HTTP calls to Ollama. One client per server; each call takes the agent's spec."""
 import json
-from typing import Iterator
+from collections.abc import Iterator
+
 import requests
 
-from .interfaces import Message
+from ..core.agent_spec import AgentSpec
+from ..core.errors import ErrorKind
+from ..core.messages import Message
 
 
 class OllamaError(RuntimeError):
-    pass
+    def __init__(self, kind: ErrorKind, message: str):
+        super().__init__(message)
+        self.kind = kind
 
 
 class OllamaClient:
-    def __init__(self, url: str, model: str, think: bool = False,
-                 temperature: float = 0.3, timeout: int = 60):
+    def __init__(self, url: str, timeout_s: int = 60):
         self.url = url.rstrip("/")
-        self.model = model
-        self.think = think
-        self.temperature = temperature
-        self.timeout = timeout
+        self.timeout_s = timeout_s
 
-    def chat_stream(self, messages: list[Message]) -> Iterator[str]:
+    def chat_stream(self, spec: AgentSpec, messages: list[Message]) -> Iterator[str]:
         payload = {
-            "model": self.model,
+            "model": spec.model,
             "messages": messages,
             "stream": True,
-            "think": self.think,
-            "options": {"temperature": self.temperature},
+            "think": spec.think,
+            "options": {"temperature": spec.temperature, "num_ctx": spec.num_ctx},
         }
-        try:
-            r = requests.post(f"{self.url}/api/chat", json=payload,
-                              stream=True, timeout=self.timeout)
-        except requests.ConnectionError:
-            raise OllamaError(f"Ollama injoignable sur {self.url} (lance `ollama serve`)")
-        except requests.Timeout:
-            raise OllamaError("Ollama ne répond pas (timeout)")
-
+        r = self._post("/api/chat", payload, stream=True, timeout=spec.timeout_s)
         if r.status_code == 404:
-            raise OllamaError(f"Modèle '{self.model}' introuvable (`ollama pull {self.model}`)")
+            raise OllamaError("model_missing", f"Model '{spec.model}' not found (run `ollama pull {spec.model}`)")
+        if r.status_code == 400:
+            raise OllamaError("bad_request", f"Ollama rejected the request: {r.text}")
         if not r.ok:
-            raise OllamaError(f"Erreur Ollama {r.status_code}: {r.text}")
+            raise OllamaError("stream", f"Ollama error {r.status_code}: {r.text}")
 
         for line in r.iter_lines():
             if not line:
                 continue
             chunk = json.loads(line)
-            if "error" in chunk:
-                raise OllamaError(chunk["error"])
+            if "error" in chunk:        # can arrive mid-stream while HTTP is still 200
+                raise OllamaError("stream", chunk["error"])
             token = chunk.get("message", {}).get("content", "")
             if token:
                 yield token
@@ -53,13 +49,16 @@ class OllamaClient:
                 break
 
     def embed(self, text: str, model: str) -> list[float]:
-        """Utilisé par le RAG (B)."""
-        try:
-            r = requests.post(f"{self.url}/api/embed",
-                              json={"model": model, "input": text},
-                              timeout=self.timeout)
-        except requests.ConnectionError:
-            raise OllamaError(f"Ollama injoignable sur {self.url}")
+        r = self._post("/api/embed", {"model": model, "input": text})
         if not r.ok:
-            raise OllamaError(f"Erreur embedding {r.status_code}: {r.text}")
+            raise OllamaError("bad_request", f"Embedding error {r.status_code}: {r.text}")
         return r.json()["embeddings"][0]
+
+    def _post(self, path: str, payload: dict, stream: bool = False, timeout: int | None = None):
+        try:
+            return requests.post(f"{self.url}{path}", json=payload, stream=stream,
+                                 timeout=timeout or self.timeout_s)
+        except requests.ConnectionError:
+            raise OllamaError("connection", f"Cannot reach Ollama at {self.url} (is `ollama serve` running?)") from None
+        except requests.Timeout:
+            raise OllamaError("timeout", "Ollama did not answer in time") from None
