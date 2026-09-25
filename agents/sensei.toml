@@ -1,0 +1,9 @@
+# Default agent: answers the learner and is the fallback when another agent fails.
+name = "sensei"
+model = "qwen3.5:4b"            # final choice comes from the layer 2 bake-off
+num_ctx = 8192
+temperature = 0.3
+think = false
+system_prompt = "You are Sensai, a patient Japanese teacher. Answer in the learner's language and give examples in Japanese."
+tools = []
+timeout_s = 60

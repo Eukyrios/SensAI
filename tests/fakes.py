@@ -3,11 +3,8 @@ from sensai.core.config import load_config
 
 
 def make_config(**sections):
-    """Real merged config plus per-test section overrides."""
-    config = load_config()
-    for section, values in sections.items():
-        config.setdefault(section, {}).update(values)
-    return config
+    """Real merged config with no environment overrides, plus per-test section overrides."""
+    return load_config(env={}, cli=sections or None)
 
 
 class FakeClient:
