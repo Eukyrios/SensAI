@@ -123,6 +123,42 @@ data/        demo data
 personas/    persona configurations
 ```
 
+## Organisation
+
+### Branches
+
+Every sub-issue has its own branch, named `layerN/<owner letter>-<task>` (e.g. `layer1/c-ollama-transport`).
+Each layer also has an integration branch, `layer1/integration` through `layer8/integration`, where the four
+tasks of the layer are merged and checked together before reaching `main`.
+
+> Git does not allow a branch called `layer1` while branches like `layer1/a-…` exist, so each integration
+> branch sits in its layer's folder next to the task branches.
+
+### Workflow
+
+```
+layer1/a-core-contracts-…   ─┐
+layer1/b-sqlite-schema-…    ─┤  PR  →  layer1/integration  ──  PR  →  main  →  Epitech repo
+layer1/c-ollama-transport   ─┤         (merge all 4 and check)
+layer1/d-cli-renderer-…     ─┘
+```
+
+1. Each person opens a PR from their task branch into `layerN/integration`.
+2. When all four are merged, test the layer together on that branch and check its "Done when" condition.
+3. Open one PR from `layerN/integration` into `main`. Once it merges, the CI pushes to the Epitech repo.
+
+The CI runs the tests and the 85% coverage check on every push and every PR to any branch.
+The push to Epitech only happens from `main`, so nothing on an integration branch reaches the Epitech repo early.
+
+### Before starting a layer
+
+The integration branches for layers 2–8 were created from an early `main`. Before starting a layer,
+update its integration branch and the task branches from `main` so they include the previous layer's work:
+
+```bash
+git switch layer2/integration && git merge main && git push
+```
+
 ## CI
 
 Code is pushed to the mirror repo. Every push runs the tests with coverage
