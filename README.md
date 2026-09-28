@@ -42,7 +42,7 @@ Stage 4 can loop back to stage 2 ("another hop"), and stage 5 is read back on th
 git clone <repo-url>
 cd G-AIA-500-PAR-5-1-sensai-4
 
-python -m venv venv
+python3 -m venv venv        # on Ubuntu, `python` only exists inside the venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
 
@@ -58,7 +58,48 @@ python -m sensai --model qwen3.5:9b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 ```
 
-In the chat: `/reset` clears the history, `/quit` exits.
+At startup Sensai checks that Ollama is reachable and the model is installed, and stops with the
+exact `ollama pull` command if it isn't.
+
+### Chat commands
+
+| Command | What it does |
+|---------|--------------|
+| `/help` | list the commands |
+| `/model` | show the current model and the installed ones |
+| `/model <name>` | switch model mid-session; the history is kept |
+| `/reset` | clear the conversation history |
+| `/quit` | exit (Ctrl-D works too) |
+
+Anything else starting with `/` is rejected as an unknown command and never sent to the model.
+Ctrl-C stops a reply mid-stream without leaving the chat.
+
+### Example
+
+```
+$ python -m sensai
+Sensai (qwen3.5:4b) — Commands: /help  /model [name]  /reset  /quit
+
+> how to say hi in japanese
+Hello! In Japanese, you say "hi" as:
+
+こんにちは (konnichiwa) — hello.
+
+It is the most common way to greet people during the day.
+
+> /model qwen3.5:9b
+Model: qwen3.5:9b (history kept)
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `zsh: command not found: python` | create the venv with `python3`, then `python` works inside it |
+| `[error] Model '…' not found` | run the `ollama pull …` command shown in the message |
+| `[error] Cannot reach Ollama` | start it: `ollama serve` or `sudo systemctl start ollama` |
+| answers are slow, `ollama ps` shows `100% CPU` | the NVIDIA driver isn't loaded; check `nvidia-smi` (after a kernel update, install the matching `linux-modules-nvidia-…` package and reboot) |
+| `ollama pull` fails with `no space left on device` | models are stored on the root partition; point Ollama to a bigger one with `OLLAMA_MODELS` in a systemd override |
 
 ## Configuration
 
