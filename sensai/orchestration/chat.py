@@ -1,5 +1,6 @@
 """Base single-agent loop (B1) with in-session history. Replaced by run_turn() in layer 2."""
 from collections.abc import Iterator
+from dataclasses import replace
 
 from ..core.agent_spec import AgentSpec, spec_for
 from ..core.messages import Message
@@ -39,6 +40,11 @@ class Chat:
             self.history.pop()      # drop the unanswered message
             raise
         self.history.append({"role": "assistant", "content": reply})
+
+    def set_model(self, model: str) -> None:
+        """Switch model mid-session, keeping the history. Raises OllamaError if it isn't installed."""
+        self.client.require_model(model)
+        self.spec = replace(self.spec, model=model)
 
     def reset(self) -> None:
         self.history.clear()

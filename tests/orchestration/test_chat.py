@@ -49,3 +49,20 @@ def test_reset(chat):
     list(chat.send("x"))
     chat.reset()
     assert chat.history == []
+
+
+def test_set_model_keeps_history(chat):
+    list(chat.send("hello"))
+    chat.set_model("qwen3.5:9b")
+    list(chat.send("again"))
+    model, messages, _ = chat.client.calls[-1]
+    assert model == "qwen3.5:9b"
+    assert [m["content"] for m in messages[1:]] == ["hello", "Konnichiwa", "again"]
+
+
+def test_set_model_rejects_missing(chat):
+    from sensai.llm.ollama import OllamaError
+    before = chat.spec.model
+    with pytest.raises(OllamaError):
+        chat.set_model("nope")
+    assert chat.spec.model == before

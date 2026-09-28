@@ -84,3 +84,36 @@ def test_module_entrypoint(monkeypatch):
     monkeypatch.setattr("sys.argv", ["sensai"])
     monkeypatch.setattr("builtins.input", lambda p="": (_ for _ in ()).throw(EOFError))
     runpy.run_module("sensai", run_name="__main__")
+
+
+def test_model_command(monkeypatch, capsys):
+    client = FakeClient()
+    run(monkeypatch, ["/model", "/model qwen3.5:9b", "hello", "/model nope"], client=client)
+    out, err = capsys.readouterr()
+    assert "Model: qwen3.5:4b" in out and "Installed: qwen3.5:4b, qwen3.5:9b" in out
+    assert "Model: qwen3.5:9b (history kept)" in out
+    assert client.calls[-1][0] == "qwen3.5:9b"
+    assert "ollama pull nope" in err
+
+
+def test_model_command_lists_none(monkeypatch, capsys):
+    client = FakeClient()
+    client.list_models = lambda: []
+    run(monkeypatch, ["/model"], client=client)
+    assert "Installed: none" in capsys.readouterr().out
+
+
+def test_unknown_command_not_sent_to_model(monkeypatch, capsys):
+    client = FakeClient()
+    run(monkeypatch, ["/nope"], client=client)
+    assert "Unknown command /nope. Type /help" in capsys.readouterr().out
+    assert client.calls == []
+
+
+def test_help_lists_every_command(monkeypatch, capsys):
+    client = FakeClient()
+    run(monkeypatch, ["/help"], client=client)
+    out = capsys.readouterr().out
+    for usage, text in cli.COMMANDS.values():
+        assert usage in out and text in out
+    assert client.calls == []
