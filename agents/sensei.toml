@@ -1,6 +1,6 @@
 # Default agent: answers the learner and is the fallback when another agent fails.
 name = "sensei"
-model = "qwen3.5:4b"            # final choice comes from the layer 2 bake-off
+model = "qwen3.5:9b"            # best fit for an 8 GB GPU so far; confirmed by the layer 2 bake-off
 num_ctx = 8192
 temperature = 0.3
 think = false

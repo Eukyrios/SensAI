@@ -88,11 +88,11 @@ def test_module_entrypoint(monkeypatch):
 
 def test_model_command(monkeypatch, capsys):
     client = FakeClient()
-    run(monkeypatch, ["/model", "/model qwen3.5:9b", "hello", "/model nope"], client=client)
+    run(monkeypatch, ["/model", "/model qwen3.5:4b", "hello", "/model nope"], client=client)
     out, err = capsys.readouterr()
-    assert "Model: qwen3.5:4b" in out and "Installed: qwen3.5:4b, qwen3.5:9b" in out
-    assert "Model: qwen3.5:9b (history kept)" in out
-    assert client.calls[-1][0] == "qwen3.5:9b"
+    assert "Model: qwen3.5:9b" in out and "Installed: qwen3.5:4b, qwen3.5:9b" in out
+    assert "Model: qwen3.5:4b (history kept)" in out
+    assert client.calls[-1][0] == "qwen3.5:4b"
     assert "ollama pull nope" in err
 
 

@@ -46,7 +46,7 @@ python3 -m venv venv        # on Ubuntu, `python` only exists inside the venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
 
-ollama pull qwen3.5:4b      # default model until the bake-off (layer 2)
+ollama pull qwen3.5:9b      # default model (fits an 8 GB GPU); lighter option: qwen3.5:4b
 ollama pull bge-m3          # RAG embeddings (layer 5)
 ```
 
@@ -54,7 +54,7 @@ ollama pull bge-m3          # RAG embeddings (layer 5)
 
 ```bash
 python -m sensai                          # start the chat
-python -m sensai --model qwen3.5:9b       # use another model for every agent
+python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 ```
 
@@ -78,7 +78,7 @@ Ctrl-C stops a reply mid-stream without leaving the chat.
 
 ```
 $ python -m sensai
-Sensai (qwen3.5:4b) — Commands: /help  /model [name]  /reset  /quit
+Sensai (qwen3.5:9b) — Commands: /help  /model [name]  /reset  /quit
 
 > how to say hi in japanese
 Hello! In Japanese, you say "hi" as:
@@ -87,8 +87,8 @@ Hello! In Japanese, you say "hi" as:
 
 It is the most common way to greet people during the day.
 
-> /model qwen3.5:9b
-Model: qwen3.5:9b (history kept)
+> /model qwen3.5:4b
+Model: qwen3.5:4b (history kept)
 ```
 
 ### Troubleshooting

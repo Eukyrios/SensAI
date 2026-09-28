@@ -53,10 +53,10 @@ def test_reset(chat):
 
 def test_set_model_keeps_history(chat):
     list(chat.send("hello"))
-    chat.set_model("qwen3.5:9b")
+    chat.set_model("qwen3.5:4b")
     list(chat.send("again"))
     model, messages, _ = chat.client.calls[-1]
-    assert model == "qwen3.5:9b"
+    assert model == "qwen3.5:4b"
     assert [m["content"] for m in messages[1:]] == ["hello", "Konnichiwa", "again"]
 
 
