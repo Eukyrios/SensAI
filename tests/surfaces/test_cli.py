@@ -1,10 +1,16 @@
 import pytest
 
 from sensai.core.config import CONFIG_PATH
-from sensai.llm.ollama import OllamaError
+from sensai.llm.ollama import OllamaClient, OllamaError
 from sensai.orchestration.chat import Chat
 from sensai.surfaces import cli
 from tests.fakes import FakeClient
+
+
+@pytest.fixture(autouse=True)
+def installed_models(monkeypatch):
+    """Tests never reach a real Ollama: pretend every model is installed."""
+    monkeypatch.setattr(OllamaClient, "require_model", lambda self, model: None)
 
 
 def run(monkeypatch, inputs, argv=(), client=None):
@@ -46,6 +52,19 @@ def test_interrupt_during_reply(monkeypatch, capsys):
 def test_missing_config(monkeypatch):
     with pytest.raises(SystemExit, match="config not found"):
         run(monkeypatch, [], argv=["--config", "/nope.toml"])
+
+
+@pytest.mark.parametrize("error, shown", [
+    (OllamaError("model_missing", "Model 'x' not found (run `ollama pull x`)"), "ollama pull x"),
+    (OllamaError("connection", "Cannot reach Ollama"), "Cannot reach Ollama"),
+])
+def test_startup_check_stops_before_prompt(monkeypatch, error, shown):
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda p="": asked.append(p))
+    monkeypatch.setattr(cli, "Chat", lambda config: Chat(config, client=FakeClient(startup_error=error)))
+    with pytest.raises(SystemExit, match=shown):
+        cli.main([])
+    assert asked == []          # the prompt never appeared
 
 
 def test_bad_agent(monkeypatch, tmp_path):

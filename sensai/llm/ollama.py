@@ -49,6 +49,19 @@ class OllamaClient:
             if chunk.get("done"):
                 break
 
+    def list_models(self) -> list[str]:
+        """Names of the installed models, e.g. ["llama3.2:latest"] (GET /api/tags)."""
+        r = self._request("GET", "/api/tags")
+        if not r.ok:
+            raise OllamaError("bad_request", f"Cannot list models ({r.status_code}): {r.text}")
+        return [m["name"] for m in r.json().get("models", [])]
+
+    def require_model(self, model: str) -> None:
+        """Raise model_missing unless the model is installed. A name without a tag means ':latest'."""
+        wanted = model if ":" in model else f"{model}:latest"
+        if wanted not in self.list_models():
+            raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
+
     def embed(self, text: str, model: str) -> list[float]:
         r = self._post("/api/embed", {"model": model, "input": text})
         if not r.ok:
@@ -56,8 +69,11 @@ class OllamaClient:
         return r.json()["embeddings"][0]
 
     def _post(self, path: str, payload: dict, stream: bool = False):
+        return self._request("POST", path, json=payload, stream=stream)
+
+    def _request(self, method: str, path: str, **kwargs):
         try:
-            return requests.post(f"{self.url}{path}", json=payload, stream=stream, timeout=self.timeout_s)
+            return requests.request(method, f"{self.url}{path}", timeout=self.timeout_s, **kwargs)
         except requests.ConnectionError:
             raise OllamaError("connection", f"Cannot reach Ollama at {self.url} (is `ollama serve` running?)") from None
         except requests.Timeout:

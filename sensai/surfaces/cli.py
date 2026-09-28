@@ -19,9 +19,10 @@ def main(argv: list[str] | None = None) -> None:
     try:
         config = load_config(args.config, cli={"agents": {"model_override": args.model}})
         chat = Chat(config)
+        chat.client.require_model(chat.spec.model)     # fail now, not on the first message
     except FileNotFoundError as e:
         sys.exit(f"[error] config not found: {e.filename}")
-    except SpecError as e:
+    except (SpecError, OllamaError) as e:
         sys.exit(f"[error] {e}")
 
     print(f"Sensai ({chat.spec.model}) — {HELP}")
