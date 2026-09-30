@@ -287,7 +287,7 @@ python -m pytest --cov          # locally
 
 ## User stories
 
-Two user stories per feature, written when the feature is specced: see [`user_stories.md`](user_stories.md).
+Two user stories per feature, with acceptance criteria and how each one is verified: see [`doc/user_stories.md`](doc/user_stories.md).
 
 ## Team
 
