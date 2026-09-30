@@ -114,6 +114,34 @@ Each agent is described in `agents/<name>.toml` (model, `num_ctx`, prompt, tools
 `model` and `num_ctx` are always explicit there: we never inherit Ollama's defaults.
 `--model` overrides the model of every agent for one run.
 
+## Persistence
+
+`sensai/memory/` stores sessions and history in SQLite, at the path from `[storage].db_path`
+in `config.toml` (`:memory:` for tests).
+
+- **Connection** (`db.py`): one `connect(path)` with `PRAGMA foreign_keys = ON`,
+  `journal_mode = WAL`, and `row_factory = sqlite3.Row`.
+- **Schema** (`migrations/001_init.sql`): `sessions` → `messages` (FK, cascade) → `turns`
+  (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
+  per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
+  Indexed on `messages.session_id`, `turns.session_id` and `agent_runs.turn_id`. `messages.parent_id`
+  and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
+  place so a later layer can branch a message (edits/retries) or nest an agent run without a
+  migration.
+- **Migrations** (`migrate.py`): applies every `NNN_*.sql` file above the DB's
+  `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
+- **Access pattern** (`repository.py`): a synchronous `SessionRepository`
+  (`create_session`, `add_message`, `list_messages`, `record_turn`, `record_agent_run`) plus an
+  `AsyncSessionRepository` facade that runs each call through `asyncio.to_thread`. We chose that
+  over `aiosqlite` because it needs no new dependency, keeps the storage logic in one place that
+  stays trivial to unit-test synchronously, and the thread-pool overhead is irrelevant at
+  Sensai's scale (one learner, a handful of DB calls per turn) — the web UI (layer 7) can await
+  the facade without blocking its event loop.
+
+Wiring `orchestration/chat.py` to load and save history through the repository lands with
+`run_turn()` in layer 2, per the rule above: `chat.py` is already marked as replaced there, so
+the base loop keeps its current in-session-only history until that layer starts.
+
 ## Features
 
 Committed: six of the seven ★★★ features (T2 is declined on purpose — a Japanese tutor has no honest use for running generated code).
