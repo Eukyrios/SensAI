@@ -2,7 +2,7 @@ import pytest
 
 from sensai.core.config import CONFIG_PATH
 from sensai.llm.ollama import OllamaClient, OllamaError
-from sensai.orchestration.chat import Chat
+from sensai.orchestration.session import Session
 from sensai.surfaces import cli
 from tests.fakes import FakeClient
 
@@ -24,7 +24,7 @@ def run(monkeypatch, inputs, argv=(), client=None):
 
     monkeypatch.setattr("builtins.input", fake_input)
     if client is not None:
-        monkeypatch.setattr(cli, "Chat", lambda config: Chat(config, client=client))
+        monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=client))
     cli.main(list(argv))
 
 
@@ -61,7 +61,7 @@ def test_missing_config(monkeypatch):
 def test_startup_check_stops_before_prompt(monkeypatch, error, shown):
     asked = []
     monkeypatch.setattr("builtins.input", lambda p="": asked.append(p))
-    monkeypatch.setattr(cli, "Chat", lambda config: Chat(config, client=FakeClient(startup_error=error)))
+    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient(startup_error=error)))
     with pytest.raises(SystemExit, match=shown):
         cli.main([])
     assert asked == []          # the prompt never appeared
