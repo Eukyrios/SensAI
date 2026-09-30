@@ -20,9 +20,10 @@ def test_streams_and_records_history(chat):
         {"role": "assistant", "content": "Konnichiwa"},
     ]
     model, messages, options = chat.client.calls[0]
-    assert model == chat.config["ollama"]["model"]
-    assert options["num_ctx"] == chat.config["ollama"]["num_ctx"]
-    assert messages[0] == {"role": "system", "content": chat.config["chat"]["system_prompt"]}
+    assert model == chat.spec.model and chat.spec.name == "sensei"
+    assert options == {"num_ctx": chat.spec.num_ctx, "temperature": chat.spec.temperature,
+                       "think": chat.spec.think}
+    assert messages[0] == {"role": "system", "content": chat.spec.system_prompt}
 
 
 def test_empty_message_rejected(chat):
@@ -48,3 +49,20 @@ def test_reset(chat):
     list(chat.send("x"))
     chat.reset()
     assert chat.history == []
+
+
+def test_set_model_keeps_history(chat):
+    list(chat.send("hello"))
+    chat.set_model("qwen3.5:4b")
+    list(chat.send("again"))
+    model, messages, _ = chat.client.calls[-1]
+    assert model == "qwen3.5:4b"
+    assert [m["content"] for m in messages[1:]] == ["hello", "Konnichiwa", "again"]
+
+
+def test_set_model_rejects_missing(chat):
+    from sensai.llm.ollama import OllamaError
+    before = chat.spec.model
+    with pytest.raises(OllamaError):
+        chat.set_model("nope")
+    assert chat.spec.model == before

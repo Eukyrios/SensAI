@@ -43,3 +43,12 @@ def test_migrate_skips_already_applied_versions():
         assert tables == set()
     finally:
         conn.close()
+
+
+def test_ids_are_text_primary_keys(conn):
+    for table in ("sessions", "messages", "turns", "agent_runs"):
+        cols = {row["name"]: row for row in conn.execute(f"PRAGMA table_info({table})")}
+        assert cols["id"]["type"] == "TEXT" and cols["id"]["pk"] == 1
+        for name, col in cols.items():
+            if name.endswith("_id"):
+                assert col["type"] == "TEXT", f"{table}.{name}"

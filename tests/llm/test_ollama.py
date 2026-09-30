@@ -33,12 +33,12 @@ def client():
 def patch_post(monkeypatch, result):
     sent = {}
 
-    def fake_post(url, **kwargs):
-        sent.update(url=url, **kwargs)
+    def fake_request(method, url, **kwargs):
+        sent.update(method=method, url=url, **kwargs)
         if isinstance(result, Exception):
             raise result
         return result
-    monkeypatch.setattr(ollama.requests, "post", fake_post)
+    monkeypatch.setattr(ollama.requests, "request", fake_request)
     return sent
 
 
@@ -87,3 +87,39 @@ def test_embed_error(monkeypatch, client):
     patch_post(monkeypatch, FakeResponse(status=500, text="boom"))
     with pytest.raises(OllamaError, match="Embedding"):
         client.embed("x", "e")
+
+
+TAGS = {"models": [{"name": "llama3.2:latest"}, {"name": "qwen3.5:4b"}]}
+
+
+def test_list_models(monkeypatch, client):
+    sent = patch_post(monkeypatch, FakeResponse(payload=TAGS))
+    assert client.list_models() == ["llama3.2:latest", "qwen3.5:4b"]
+    assert (sent["method"], sent["url"]) == ("GET", "http://ollama:11434/api/tags")
+
+
+def test_list_models_error(monkeypatch, client):
+    patch_post(monkeypatch, FakeResponse(status=500, text="boom"))
+    with pytest.raises(OllamaError, match="Cannot list models"):
+        client.list_models()
+
+
+@pytest.mark.parametrize("name", ["llama3.2", "llama3.2:latest", "qwen3.5:4b"])
+def test_require_model_found(monkeypatch, client, name):
+    patch_post(monkeypatch, FakeResponse(payload=TAGS))
+    client.require_model(name)
+
+
+@pytest.mark.parametrize("name", ["qwen3.5", "llama3.2:1b", "nope"])
+def test_require_model_missing(monkeypatch, client, name):
+    patch_post(monkeypatch, FakeResponse(payload=TAGS))
+    with pytest.raises(OllamaError, match="ollama pull") as e:
+        client.require_model(name)
+    assert e.value.kind == "model_missing"
+
+
+def test_require_model_server_down(monkeypatch, client):
+    patch_post(monkeypatch, requests.ConnectionError())
+    with pytest.raises(OllamaError) as e:
+        client.require_model("llama3.2")
+    assert e.value.kind == "connection"

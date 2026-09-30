@@ -42,11 +42,11 @@ Stage 4 can loop back to stage 2 ("another hop"), and stage 5 is read back on th
 git clone <repo-url>
 cd G-AIA-500-PAR-5-1-sensai-4
 
-python -m venv venv
+python3 -m venv venv        # on Ubuntu, `python` only exists inside the venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
 
-ollama pull qwen3.5:4b      # default model until the bake-off (layer 2)
+ollama pull qwen3.5:9b      # default model (fits an 8 GB GPU); lighter option: qwen3.5:4b
 ollama pull bge-m3          # RAG embeddings (layer 5)
 ```
 
@@ -54,19 +54,65 @@ ollama pull bge-m3          # RAG embeddings (layer 5)
 
 ```bash
 python -m sensai                          # start the chat
-python -m sensai --model qwen3.5:9b       # use another model
+python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 ```
 
-In the chat: `/reset` clears the history, `/quit` exits.
+At startup Sensai checks that Ollama is reachable and the model is installed, and stops with the
+exact `ollama pull` command if it isn't.
+
+### Chat commands
+
+| Command | What it does |
+|---------|--------------|
+| `/help` | list the commands |
+| `/model` | show the current model and the installed ones |
+| `/model <name>` | switch model mid-session; the history is kept |
+| `/reset` | clear the conversation history |
+| `/quit` | exit (Ctrl-D works too) |
+
+Anything else starting with `/` is rejected as an unknown command and never sent to the model.
+Ctrl-C stops a reply mid-stream without leaving the chat.
+
+### Example
+
+```
+$ python -m sensai
+Sensai (qwen3.5:9b) — Commands: /help  /model [name]  /reset  /quit
+
+> how to say hi in japanese
+Hello! In Japanese, you say "hi" as:
+
+こんにちは (konnichiwa) — hello.
+
+It is the most common way to greet people during the day.
+
+> /model qwen3.5:4b
+Model: qwen3.5:4b (history kept)
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `zsh: command not found: python` | create the venv with `python3`, then `python` works inside it |
+| `[error] Model '…' not found` | run the `ollama pull …` command shown in the message |
+| `[error] Cannot reach Ollama` | start it: `ollama serve` or `sudo systemctl start ollama` |
+| answers are slow, `ollama ps` shows `100% CPU` | the NVIDIA driver isn't loaded; check `nvidia-smi` (after a kernel update, install the matching `linux-modules-nvidia-…` package and reboot) |
+| `ollama pull` fails with `no space left on device` | models are stored on the root partition; point Ollama to a bigger one with `OLLAMA_MODELS` in a systemd override |
 
 ## Configuration
 
-Settings come from the built-in defaults (`sensai/core/config.py`), overridden by `config.toml`.
-`--model` overrides the model for one run.
+Settings are layered, each level overriding the previous one:
 
-`model` and `num_ctx` are always explicit: we never inherit Ollama's defaults.
-From layer 1, each agent gets its own `agents/<name>.toml` spec.
+1. built-in defaults (`sensai/core/config.py`)
+2. `config.toml`
+3. environment variables `SENSAI_<SECTION>__<KEY>`, e.g. `SENSAI_OLLAMA__URL=http://gpu:11434`
+4. CLI arguments, e.g. `--model`
+
+Each agent is described in `agents/<name>.toml` (model, `num_ctx`, prompt, tools, output schema).
+`model` and `num_ctx` are always explicit there: we never inherit Ollama's defaults.
+`--model` overrides the model of every agent for one run.
 
 ## Persistence
 
@@ -78,6 +124,10 @@ in `config.toml` (`:memory:` for tests).
 - **Schema** (`migrations/001_init.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
   per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
+  Ids are **text uuids** from `sensai.core.ids.new_id()`, the same ids the events carry
+  (`session_id`, `turn_id`, `run_id`), so a turn can emit its events before any row exists and
+  logs, trace and database all share one id. `turns.assistant_message_id` is nullable so a turn
+  whose reply failed is still recorded.
   Indexed on `messages.session_id`, `turns.session_id` and `agent_runs.turn_id`. `messages.parent_id`
   and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
   place so a later layer can branch a message (edits/retries) or nest an agent run without a
@@ -85,7 +135,8 @@ in `config.toml` (`:memory:` for tests).
 - **Migrations** (`migrate.py`): applies every `NNN_*.sql` file above the DB's
   `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
 - **Access pattern** (`repository.py`): a synchronous `SessionRepository`
-  (`create_session`, `add_message`, `list_messages`, `record_turn`, `record_agent_run`) plus an
+  (`create_session`, `add_message`, `list_messages`, `record_turn`, `record_agent_run`; each write
+  takes an optional id, generates one otherwise, and returns it) plus an
   `AsyncSessionRepository` facade that runs each call through `asyncio.to_thread`. We chose that
   over `aiosqlite` because it needs no new dependency, keeps the storage logic in one place that
   stays trivial to unit-test synchronously, and the thread-pool overhead is irrelevant at
@@ -155,7 +206,7 @@ sensai/
   knowledge/      tools, MCP client, RAG pipeline                               (C)
   trust/          guardrails, judge, logging, metrics                           (D)
   surfaces/       CLI and web UI                                                (D)
-agents/           one TOML spec per agent (sensei, corrector, judge, ...)      (from layer 1)
+agents/           one TOML spec per agent (sensei, corrector, judge, ...)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
@@ -167,13 +218,13 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
 
 - **Dependencies point inward.** Every package may import `core`; `core` imports nothing from the
   others. `surfaces` never contains business logic.
-- **Agents are data, not code.** From layer 1, an agent is a TOML file loaded into an `AgentSpec`
+- **Agents are data, not code.** An agent is a TOML file loaded into an `AgentSpec`
   (model, `num_ctx`, prompt, tools, output schema). Adding the corrector or the judge means adding a file.
 - **One transport for every agent.** `OllamaClient.chat_stream(model, messages, num_ctx=...)` takes the
   model and options on each call, so agents with different models share one client. Errors carry a `kind`
   (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display.
-- **Surfaces only subscribe.** From layer 1, the turn loop emits events (`core/events.py`) and the
-  CLI, the logger, the trace view and the web UI only consume them.
+- **Surfaces only subscribe.** The turn loop emits events (`core/events.py`) and the CLI, the logger,
+  the trace view and the web UI only consume them (wired in layer 2 with `run_turn()`).
 
 ### How a turn flows
 
@@ -236,7 +287,7 @@ python -m pytest --cov          # locally
 
 ## User stories
 
-Two user stories per feature, written when the feature is specced: see [`user_stories.md`](user_stories.md).
+Two user stories per feature, with acceptance criteria and how each one is verified: see [`doc/user_stories.md`](doc/user_stories.md).
 
 ## Team
 
