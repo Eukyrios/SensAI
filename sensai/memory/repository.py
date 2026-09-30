@@ -11,58 +11,72 @@ per turn). See the README's Persistence section.
 import asyncio
 import sqlite3
 
+from ..core.ids import new_id
 from . import db
 from .migrate import migrate
 
 
 class SessionRepository:
-    """Synchronous CRUD over sessions, messages, turns and agent_runs."""
+    """Synchronous CRUD over sessions, messages, turns and agent_runs.
+
+    Ids are text uuids. Pass the id the events already use (e.g. the turn_id from TurnStarted),
+    or leave it out and one is generated. Every write returns the row's id.
+    """
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
-    def create_session(self, model: str, title: str | None = None) -> int:
+    def create_session(self, model: str, title: str | None = None, *,
+                       session_id: str | None = None) -> str:
+        session_id = session_id or new_id()
         with self.conn:
-            cur = self.conn.execute(
-                "INSERT INTO sessions (model, title) VALUES (?, ?)", (model, title)
+            self.conn.execute(
+                "INSERT INTO sessions (id, model, title) VALUES (?, ?, ?)", (session_id, model, title)
             )
-        return cur.lastrowid
+        return session_id
 
-    def add_message(self, session_id: int, role: str, content: str,
-                     parent_id: int | None = None) -> int:
+    def add_message(self, session_id: str, role: str, content: str,
+                    parent_id: str | None = None, *, message_id: str | None = None) -> str:
+        message_id = message_id or new_id()
         with self.conn:
-            cur = self.conn.execute(
-                "INSERT INTO messages (session_id, role, content, parent_id) VALUES (?, ?, ?, ?)",
-                (session_id, role, content, parent_id),
+            self.conn.execute(
+                "INSERT INTO messages (id, session_id, role, content, parent_id) VALUES (?, ?, ?, ?, ?)",
+                (message_id, session_id, role, content, parent_id),
             )
-        return cur.lastrowid
+        return message_id
 
-    def list_messages(self, session_id: int) -> list[sqlite3.Row]:
+    def list_messages(self, session_id: str) -> list[sqlite3.Row]:
+        """Messages in insertion order (rowid: uuids are random, so they can't order rows)."""
         return self.conn.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY id", (session_id,)
+            "SELECT * FROM messages WHERE session_id = ? ORDER BY rowid", (session_id,)
         ).fetchall()
 
-    def record_turn(self, session_id: int, user_message_id: int, assistant_message_id: int,
-                     latency_ms: int | None = None, tokens: int | None = None) -> int:
+    def record_turn(self, session_id: str, user_message_id: str,
+                    assistant_message_id: str | None = None,
+                    latency_ms: int | None = None, tokens: int | None = None, *,
+                    turn_id: str | None = None) -> str:
+        """Record a turn. assistant_message_id is None when the reply failed."""
+        turn_id = turn_id or new_id()
         with self.conn:
-            cur = self.conn.execute(
-                "INSERT INTO turns (session_id, user_message_id, assistant_message_id, "
-                "latency_ms, tokens) VALUES (?, ?, ?, ?, ?)",
-                (session_id, user_message_id, assistant_message_id, latency_ms, tokens),
+            self.conn.execute(
+                "INSERT INTO turns (id, session_id, user_message_id, assistant_message_id, "
+                "latency_ms, tokens) VALUES (?, ?, ?, ?, ?, ?)",
+                (turn_id, session_id, user_message_id, assistant_message_id, latency_ms, tokens),
             )
-        return cur.lastrowid
+        return turn_id
 
-    def record_agent_run(self, turn_id: int, kind: str, status: str,
-                          input: str | None = None, output: str | None = None,
-                          duration_ms: int | None = None,
-                          parent_run_id: int | None = None) -> int:
+    def record_agent_run(self, turn_id: str, kind: str, status: str,
+                         input: str | None = None, output: str | None = None,
+                         duration_ms: int | None = None,
+                         parent_run_id: str | None = None, *, run_id: str | None = None) -> str:
+        run_id = run_id or new_id()
         with self.conn:
-            cur = self.conn.execute(
-                "INSERT INTO agent_runs (turn_id, kind, input, output, status, duration_ms, "
-                "parent_run_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (turn_id, kind, input, output, status, duration_ms, parent_run_id),
+            self.conn.execute(
+                "INSERT INTO agent_runs (id, turn_id, kind, input, output, status, duration_ms, "
+                "parent_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (run_id, turn_id, kind, input, output, status, duration_ms, parent_run_id),
             )
-        return cur.lastrowid
+        return run_id
 
 
 class AsyncSessionRepository:
@@ -71,19 +85,19 @@ class AsyncSessionRepository:
     def __init__(self, repo: SessionRepository):
         self.repo = repo
 
-    async def create_session(self, *args, **kwargs) -> int:
+    async def create_session(self, *args, **kwargs) -> str:
         return await asyncio.to_thread(self.repo.create_session, *args, **kwargs)
 
-    async def add_message(self, *args, **kwargs) -> int:
+    async def add_message(self, *args, **kwargs) -> str:
         return await asyncio.to_thread(self.repo.add_message, *args, **kwargs)
 
     async def list_messages(self, *args, **kwargs) -> list[sqlite3.Row]:
         return await asyncio.to_thread(self.repo.list_messages, *args, **kwargs)
 
-    async def record_turn(self, *args, **kwargs) -> int:
+    async def record_turn(self, *args, **kwargs) -> str:
         return await asyncio.to_thread(self.repo.record_turn, *args, **kwargs)
 
-    async def record_agent_run(self, *args, **kwargs) -> int:
+    async def record_agent_run(self, *args, **kwargs) -> str:
         return await asyncio.to_thread(self.repo.record_agent_run, *args, **kwargs)
 
 

@@ -124,6 +124,10 @@ in `config.toml` (`:memory:` for tests).
 - **Schema** (`migrations/001_init.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
   per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
+  Ids are **text uuids** from `sensai.core.ids.new_id()`, the same ids the events carry
+  (`session_id`, `turn_id`, `run_id`), so a turn can emit its events before any row exists and
+  logs, trace and database all share one id. `turns.assistant_message_id` is nullable so a turn
+  whose reply failed is still recorded.
   Indexed on `messages.session_id`, `turns.session_id` and `agent_runs.turn_id`. `messages.parent_id`
   and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
   place so a later layer can branch a message (edits/retries) or nest an agent run without a
@@ -131,7 +135,8 @@ in `config.toml` (`:memory:` for tests).
 - **Migrations** (`migrate.py`): applies every `NNN_*.sql` file above the DB's
   `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
 - **Access pattern** (`repository.py`): a synchronous `SessionRepository`
-  (`create_session`, `add_message`, `list_messages`, `record_turn`, `record_agent_run`) plus an
+  (`create_session`, `add_message`, `list_messages`, `record_turn`, `record_agent_run`; each write
+  takes an optional id, generates one otherwise, and returns it) plus an
   `AsyncSessionRepository` facade that runs each call through `asyncio.to_thread`. We chose that
   over `aiosqlite` because it needs no new dependency, keeps the storage logic in one place that
   stays trivial to unit-test synchronously, and the thread-pool overhead is irrelevant at

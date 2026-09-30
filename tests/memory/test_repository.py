@@ -148,3 +148,48 @@ def test_open_repository_wires_config_to_a_migrated_db():
         assert repo.list_messages(session_id) == []
     finally:
         repo.conn.close()
+
+
+def test_generated_ids_are_uuid_hex(repo):
+    session_id = repo.create_session(model="m")
+    message_id = repo.add_message(session_id, "user", "hello")
+    for value in (session_id, message_id):
+        assert isinstance(value, str) and len(value) == 32
+        int(value, 16)      # hex
+    assert session_id != message_id
+
+
+def test_writes_accept_the_ids_the_events_already_carry(repo):
+    from sensai.core.ids import new_id
+    session_id, user_id, turn_id, run_id, child_id = (new_id() for _ in range(5))
+    assert repo.create_session(model="m", session_id=session_id) == session_id
+    assert repo.add_message(session_id, "user", "hello", message_id=user_id) == user_id
+    assert repo.record_turn(session_id, user_id, turn_id=turn_id) == turn_id
+    assert repo.record_agent_run(turn_id, kind="sensei", status="ok", run_id=run_id) == run_id
+    assert repo.record_agent_run(turn_id, kind="tool", status="ok",
+                                 parent_run_id=run_id, run_id=child_id) == child_id
+    row = repo.conn.execute("SELECT turn_id, parent_run_id FROM agent_runs WHERE id = ?",
+                            (child_id,)).fetchone()
+    assert (row["turn_id"], row["parent_run_id"]) == (turn_id, run_id)
+
+
+def test_failed_turn_is_recorded_without_assistant_message(repo):
+    session_id = repo.create_session(model="m")
+    user_id = repo.add_message(session_id, "user", "hello")
+    turn_id = repo.record_turn(session_id, user_id)
+    row = repo.conn.execute("SELECT assistant_message_id FROM turns WHERE id = ?", (turn_id,)).fetchone()
+    assert row["assistant_message_id"] is None
+
+
+def test_list_messages_keeps_insertion_order_despite_random_ids(repo):
+    session_id = repo.create_session(model="m")
+    ids = ["ffff", "0000", "8888", "1111"]         # deliberately not sorted
+    for i, message_id in enumerate(ids):
+        repo.add_message(session_id, "user", f"m{i}", message_id=message_id)
+    assert [m["id"] for m in repo.list_messages(session_id)] == ids
+
+
+def test_duplicate_id_rejected(repo):
+    session_id = repo.create_session(model="m")
+    with pytest.raises(sqlite3.IntegrityError):
+        repo.create_session(model="m", session_id=session_id)
