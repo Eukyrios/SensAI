@@ -1,14 +1,16 @@
-"""Command-line chat. Run with: python -m sensai"""
+"""Command-line chat interface and CLI renderer."""
 import argparse
 import asyncio
 import sys
+from typing import AsyncGenerator
 
 from ..core.agent_spec import SpecError
 from ..core.config import load_config
-from ..core.events import Error, Token, TurnFinished
+from ..core.events import Error, Event, GuardrailTriggered, Token, TurnFinished
 from ..llm.ollama import OllamaError
 from ..orchestration.session import Session
 from ..orchestration.turn import run_turn
+from ..trust.logging import JsonlLogger
 
 COMMANDS = {
     "/help": ("/help", "list the commands"),
@@ -17,6 +19,22 @@ COMMANDS = {
     "/quit": ("/quit", "exit (Ctrl-D works too)"),
 }
 HELP = "Commands: " + "  ".join(usage for usage, _ in COMMANDS.values())
+
+
+class CLIRenderer:
+    """Consumes events from an Event stream and renders them to the CLI."""
+
+    async def render_stream(self, stream: AsyncGenerator[Event, None]) -> None:
+        async for event in stream:
+            match event:
+                case Token(text=t):
+                    print(t, end="", flush=True)
+                case GuardrailTriggered(reason=r):
+                    print(f"\n[guardrail] {r}", file=sys.stderr)
+                case Error(message=m):
+                    print(f"\n[error] {m}", file=sys.stderr)
+                case TurnFinished():
+                    print()
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -28,11 +46,14 @@ def main(argv: list[str] | None = None) -> None:
     try:
         config = load_config(args.config, cli={"agents": {"model_override": args.model}})
         session = Session(config)
-        session.client.require_model(session.spec.model)     # fail now, not on the first message
+        session.client.require_model(session.spec.model)
     except FileNotFoundError as e:
         sys.exit(f"[error] config not found: {e.filename}")
     except (SpecError, OllamaError) as e:
         sys.exit(f"[error] {e}")
+
+    logger = JsonlLogger("logs/events.jsonl")
+    renderer = CLIRenderer()
 
     print(f"Sensai ({session.spec.model}) — {HELP}")
     while True:
@@ -50,21 +71,12 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         try:
-            asyncio.run(render_turn(session, msg))
+            # Multi-consumer flow: turn stream -> logger pass-through -> CLI renderer
+            event_stream = run_turn(session, msg)
+            logged_stream = logger.log_stream(event_stream)
+            asyncio.run(renderer.render_stream(logged_stream))
         except KeyboardInterrupt:
             print("\n[interrupted]")
-
-
-async def render_turn(session: Session, text: str) -> None:
-    """Print one turn from its events. Minimal renderer until the CLI renderer (#12) replaces it."""
-    async for event in run_turn(session, text):
-        match event:
-            case Token(text=t):
-                print(t, end="", flush=True)
-            case Error(message=m):
-                print(f"\n[error] {m}", file=sys.stderr)
-            case TurnFinished():
-                print()
 
 
 def run_command(session: Session, line: str) -> bool:
