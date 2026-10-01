@@ -244,9 +244,9 @@ class CLIRenderer:
                         out.write("\n")             # a blank line between reasoning and answer
                     answering = True
                     out.write(t)
-                case GuardrailTriggered(reason=r):
+                case GuardrailTriggered(side=side, rule=rule, action=action):
                     out.end_line()
-                    print(f"[guardrail] {r}", file=sys.stderr)
+                    print(f"[guardrail] {side} {action}: {rule}", file=sys.stderr)
                 case Error(message=m):
                     out.end_line()
                     print(f"[error] {m}", file=sys.stderr)

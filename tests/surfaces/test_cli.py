@@ -333,3 +333,12 @@ def test_model_switch_reports_thinking_turned_off(monkeypatch, capsys):
 def test_dim_lines_dims_each_line(monkeypatch):
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
     assert cli.dim_lines("a\n\nb") == "\033[2ma\033[0m\n\n\033[2mb\033[0m"
+
+
+async def test_renderer_shows_guardrail_events(capsys):
+    from sensai.core import events as ev
+
+    async def stream():
+        yield ev.GuardrailTriggered(turn_id="t", side="input", rule="pii", action="redact")
+    await cli.CLIRenderer().render_stream(stream())
+    assert "[guardrail] input redact: pii" in capsys.readouterr().err
