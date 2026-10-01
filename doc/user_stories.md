@@ -43,7 +43,7 @@ myself or waiting for the whole answer.
 - [x] `/reset` clears the history; the next question no longer knows the earlier turns.
 - [x] Ctrl-C stops a reply mid-stream, the prompt comes back, and no half answer stays in the history.
 
-**Verified by:** `tests/orchestration/test_chat.py`, `tests/surfaces/test_cli.py`; demo: two related questions, then `/reset`.
+**Verified by:** `tests/orchestration/test_turn.py`, `tests/surfaces/test_cli.py`; demo: two related questions, then `/reset`.
 
 ### B1-2 · Clear errors and a model I can choose
 **As a** learner on a small laptop, **I want** to pick a lighter model and get clear messages when

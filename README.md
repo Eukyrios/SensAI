@@ -143,9 +143,9 @@ in `config.toml` (`:memory:` for tests).
   Sensai's scale (one learner, a handful of DB calls per turn) — the web UI (layer 7) can await
   the facade without blocking its event loop.
 
-Wiring `orchestration/chat.py` to load and save history through the repository lands with
-`run_turn()` in layer 2, per the rule above: `chat.py` is already marked as replaced there, so
-the base loop keeps its current in-session-only history until that layer starts.
+Saving and reloading history through the repository is the next step (#14, layer 2): it hooks into
+`run_turn()` and stores each turn under the `Session.id` and the events' `turn_id`/`run_id`, which
+are the same uuids as the tables' primary keys. Until then, history lives only in the session.
 
 ## Features
 
@@ -224,7 +224,7 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
   model and options on each call, so agents with different models share one client. Errors carry a `kind`
   (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display.
 - **Surfaces only subscribe.** The turn loop emits events (`core/events.py`) and the CLI, the logger,
-  the trace view and the web UI only consume them (wired in layer 2 with `run_turn()`).
+  the trace view and the web UI only consume them.
 
 ### How a turn flows
 
@@ -237,7 +237,10 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
 | 5 · Remember | `memory` (sessions, ledger) |
 | 6 · Check and show | `trust` (judge, output guardrails, logging) → events → `surfaces` |
 
-Today the base loop is `orchestration/chat.py`: one agent, streaming, in-session history.
+Today a turn is `run_turn(session, text)` in `orchestration/turn.py`: an async generator that yields
+`TurnStarted → AgentRunStarted → Token… → AgentRunFinished → TurnFinished` (with `Error` and
+`GuardrailTriggered` when they apply) for one agent. `Session` (`orchestration/session.py`) holds the
+active agent, the history and the client. The CLI renders those events; it never calls the model.
 
 ## Organisation
 
