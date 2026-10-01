@@ -9,12 +9,12 @@ from .cli import CLIRenderer
 
 async def stub_event_stream():
     """Simulates an event stream for a single turn."""
-    yield TurnStarted(session_id="test-session", turn_id="turn-123", user_input="hello")
+    yield TurnStarted(turn_id="turn-123", session_id="test-session", user_input="hello")
     yield AgentRunStarted(turn_id="turn-123", run_id="run-1", agent="sensei")
     yield Token(turn_id="turn-123", run_id="run-1", text="Konnichiwa ")
     yield Token(turn_id="turn-123", run_id="run-1", text="means ")
     yield Token(turn_id="turn-123", run_id="run-1", text="Hello!")
-    yield AgentRunFinished(run_id="run-1", status="success", duration_ms=120)
+    yield AgentRunFinished(turn_id="turn-123", run_id="run-1", agent="sensei", ok=True)
     yield TurnFinished(turn_id="turn-123", model="qwen3.5:9b")
 
 
