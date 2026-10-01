@@ -11,7 +11,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from ..core.agent_spec import SpecError
-from ..core.config import load_config
+from ..core.config import load_config, resolve
 from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, Thinking, Token,
                            TurnFinished)
 from ..llm.ollama import OllamaError
@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> None:
     except (SpecError, OllamaError) as e:
         sys.exit(f"[error] {e}")
 
-    logger = JsonlLogger("logs/events.jsonl")
+    logger = JsonlLogger(resolve(config["logging"]["path"]))     # [logging] path in config.toml
     print(f"Sensai ({session.spec.model}) — type /help for commands")
     if sys.stdin.isatty() and sys.stdout.isatty():
         asyncio.run(live_chat(session, logger))

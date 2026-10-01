@@ -8,6 +8,14 @@ from tests.fakes import FakeClient
 
 
 @pytest.fixture(autouse=True)
+def event_log(monkeypatch, tmp_path):
+    """Tests never write into the repository's logs/ folder."""
+    path = tmp_path / "events.jsonl"
+    monkeypatch.setenv("SENSAI_LOGGING__PATH", str(path))
+    return path
+
+
+@pytest.fixture(autouse=True)
 def installed_models(monkeypatch):
     """Tests never reach a real Ollama: pretend every model is installed."""
     monkeypatch.setattr(OllamaClient, "require_model", lambda self, model: None)
@@ -342,3 +350,12 @@ async def test_renderer_shows_guardrail_events(capsys):
         yield ev.GuardrailTriggered(turn_id="t", side="input", rule="pii", action="redact")
     await cli.CLIRenderer().render_stream(stream())
     assert "[guardrail] input redact: pii" in capsys.readouterr().err
+
+
+def test_events_are_logged_to_the_configured_path(monkeypatch, event_log):
+    import json
+    run(monkeypatch, ["hello"], client=FakeClient(stats=STATS))
+    records = [json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()]
+    kinds = [r["event_type"] for r in records]
+    assert kinds[0] == "TurnStarted" and kinds[-1] == "TurnFinished" and "Token" in kinds
+    assert len({r["turn_id"] for r in records}) == 1
