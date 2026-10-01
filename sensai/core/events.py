@@ -43,6 +43,13 @@ class Token(_Base):
 
 
 @dataclass(frozen=True, kw_only=True)
+class Thinking(_Base):
+    """A piece of the model's reasoning, before its answer. Never part of the reply or the history."""
+    run_id: str
+    text: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class ToolCall(_Base):
     run_id: str
     name: str
@@ -86,5 +93,5 @@ class TurnFinished(_Base):
     ttft_ms: float | None = None
 
 
-Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Token | ToolCall | ToolResult
+Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | ToolCall | ToolResult
          | HandoffEvent | GuardrailTriggered | Error | TurnFinished)
