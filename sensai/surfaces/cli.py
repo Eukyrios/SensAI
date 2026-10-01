@@ -1,11 +1,14 @@
 """Command-line chat. Run with: python -m sensai"""
 import argparse
+import asyncio
 import sys
 
 from ..core.agent_spec import SpecError
 from ..core.config import load_config
+from ..core.events import Error, Token, TurnFinished
 from ..llm.ollama import OllamaError
-from ..orchestration.chat import Chat
+from ..orchestration.session import Session
+from ..orchestration.turn import run_turn
 
 COMMANDS = {
     "/help": ("/help", "list the commands"),
@@ -24,14 +27,14 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         config = load_config(args.config, cli={"agents": {"model_override": args.model}})
-        chat = Chat(config)
-        chat.client.require_model(chat.spec.model)     # fail now, not on the first message
+        session = Session(config)
+        session.client.require_model(session.spec.model)     # fail now, not on the first message
     except FileNotFoundError as e:
         sys.exit(f"[error] config not found: {e.filename}")
     except (SpecError, OllamaError) as e:
         sys.exit(f"[error] {e}")
 
-    print(f"Sensai ({chat.spec.model}) — {HELP}")
+    print(f"Sensai ({session.spec.model}) — {HELP}")
     while True:
         try:
             msg = input("\n> ").strip()
@@ -42,21 +45,29 @@ def main(argv: list[str] | None = None) -> None:
         if not msg:
             continue
         if msg.startswith("/"):
-            if not run_command(chat, msg):
+            if not run_command(session, msg):
                 break
             continue
 
         try:
-            for token in chat.send(msg):
-                print(token, end="", flush=True)
-            print()
-        except OllamaError as e:
-            print(f"\n[error] {e}", file=sys.stderr)
+            asyncio.run(render_turn(session, msg))
         except KeyboardInterrupt:
             print("\n[interrupted]")
 
 
-def run_command(chat: Chat, line: str) -> bool:
+async def render_turn(session: Session, text: str) -> None:
+    """Print one turn from its events. Minimal renderer until the CLI renderer (#12) replaces it."""
+    async for event in run_turn(session, text):
+        match event:
+            case Token(text=t):
+                print(t, end="", flush=True)
+            case Error(message=m):
+                print(f"\n[error] {m}", file=sys.stderr)
+            case TurnFinished():
+                print()
+
+
+def run_command(session: Session, line: str) -> bool:
     """Handle a /command. Returns False when the chat should stop."""
     name, _, arg = line.partition(" ")
     arg = arg.strip()
@@ -66,16 +77,16 @@ def run_command(chat: Chat, line: str) -> bool:
         width = max(len(usage) for usage, _ in COMMANDS.values())
         print("\n".join(f"  {usage:<{width}}  {text}" for usage, text in COMMANDS.values()))
     elif name == "/reset":
-        chat.reset()
+        session.reset()
         print("History cleared.")
     elif name == "/model":
         try:
             if arg:
-                chat.set_model(arg)
+                session.set_model(arg)
                 print(f"Model: {arg} (history kept)")
             else:
-                installed = ", ".join(chat.client.list_models()) or "none"
-                print(f"Model: {chat.spec.model}\nInstalled: {installed}")
+                installed = ", ".join(session.client.list_models()) or "none"
+                print(f"Model: {session.spec.model}\nInstalled: {installed}")
         except OllamaError as e:
             print(f"[error] {e}", file=sys.stderr)
     else:
