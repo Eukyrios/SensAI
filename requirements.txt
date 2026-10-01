@@ -1,6 +1,9 @@
 # Ollama calls (direct HTTP, no LLM framework)
 requests>=2.31
 
+# Terminal input line that stays usable while a reply streams
+prompt_toolkit>=3.0
+
 # TOML config (built into Python 3.11+)
 tomli>=2.0; python_version < "3.11"
 
