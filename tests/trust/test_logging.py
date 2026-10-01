@@ -15,7 +15,7 @@ async def test_jsonl_logger_writes_events(tmp_path: Path):
     async def mock_stream():
         yield TurnStarted(session_id="s1", turn_id="t1", user_input="Hello")
         yield Token(turn_id="t1", run_id="r1", text="Hello")
-        yield TurnFinished(turn_id="t1")
+        yield TurnFinished(turn_id="t1", model="qwen3.5:9b")
 
     events = []
     async for event in logger.log_stream(mock_stream()):
