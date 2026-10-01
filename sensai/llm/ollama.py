@@ -1,6 +1,6 @@
 """Direct HTTP calls to Ollama. One client per server; each call says which model and options to use."""
 import json
-from collections.abc import Generator, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import requests
@@ -17,20 +17,18 @@ class OllamaError(RuntimeError):
 
 @dataclass(frozen=True)
 class Thought:
-    """A piece of the model's reasoning, sent before the answer when thinking is on."""
     text: str
 
 
 @dataclass(frozen=True)
 class ChatStats:
-    """Telemetry from Ollama's final chunk ("done": true). Durations are in nanoseconds."""
-    prompt_eval_count: int = 0          # tokens in the prompt
-    eval_count: int = 0                 # tokens generated
+    prompt_eval_count: int = 0
+    eval_count: int = 0
     total_duration_ns: int = 0
-    load_duration_ns: int = 0           # time spent loading the model
+    load_duration_ns: int = 0
     prompt_eval_duration_ns: int = 0
     eval_duration_ns: int = 0
-    done_reason: str | None = None      # "stop", "length", ...
+    done_reason: str = ""
 
     @classmethod
     def from_chunk(cls, chunk: dict) -> "ChatStats":
@@ -41,7 +39,7 @@ class ChatStats:
             load_duration_ns=chunk.get("load_duration", 0),
             prompt_eval_duration_ns=chunk.get("prompt_eval_duration", 0),
             eval_duration_ns=chunk.get("eval_duration", 0),
-            done_reason=chunk.get("done_reason"),
+            done_reason=chunk.get("done_reason", "")
         )
 
 
@@ -49,18 +47,11 @@ class OllamaClient:
     def __init__(self, url: str, timeout_s: int = 60):
         self.url = url.rstrip("/")
         self.timeout_s = timeout_s
-        self._shown: dict[str, dict] = {}       # /api/show results per model
+        self._show_cache: dict[str, dict] = {}
 
     def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
-                    temperature: float = 0.3, think: bool = False
-                    ) -> Generator[str | Thought, None, ChatStats | None]:
-        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default.
-
-        Yields the answer as plain str tokens. When the model reasons first (think=True), its
-        reasoning comes as Thought items before the answer, never mixed into the text.
-        The return value is the ChatStats of the final chunk (None if the stream ended without one):
-        `stats = yield from client.chat_stream(...)`, or StopIteration.value when iterating by hand.
-        """
+                    temperature: float = 0.3, think: bool = False) -> Iterator[str | Thought]:
+        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default."""
         payload = {
             "model": model,
             "messages": messages,
@@ -70,26 +61,47 @@ class OllamaClient:
         }
         r = self._post("/api/chat", payload, stream=True)
         if r.status_code == 404:
+            r.close()
             raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
         if r.status_code == 400:
-            raise OllamaError("bad_request", f"Ollama rejected the request: {r.text}")
+            text = r.text
+            r.close()
+            raise OllamaError("bad_request", f"Ollama rejected the request: {text}")
         if not r.ok:
-            raise OllamaError("stream", f"Ollama error {r.status_code}: {r.text}")
+            text = r.text
+            r.close()
+            raise OllamaError("stream", f"Ollama error {r.status_code}: {text}")
 
         try:
-            for chunk in _chunks(r):
-                if "error" in chunk:        # can arrive mid-stream while HTTP is still 200
+            for line in r.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    raise OllamaError("stream", "malformed json")
+
+                if "error" in chunk:
                     raise OllamaError("stream", chunk["error"])
-                message = chunk.get("message", {})
-                if message.get("thinking"):
-                    yield Thought(message["thinking"])
-                if message.get("content"):
-                    yield message["content"]
+
+                msg = chunk.get("message", {})
+                
+                thinking = msg.get("thinking", "")
+                if thinking:
+                    yield Thought(thinking)
+
+                token = msg.get("content", "")
+                if token:
+                    yield token
+
                 if chunk.get("done"):
                     return ChatStats.from_chunk(chunk)
+        except (requests.exceptions.ChunkedEncodingError, requests.ConnectionError):
+            raise OllamaError("connection", "Connection broken in the middle of the reply")
+        except requests.exceptions.ReadTimeout:
+            raise OllamaError("timeout", "Timeout in the middle of the reply")
         finally:
-            r.close()                       # also on early exit: frees the connection, stops Ollama
-        return None
+            r.close()
 
     def list_models(self) -> list[str]:
         """Names of the installed models, e.g. ["llama3.2:latest"] (GET /api/tags)."""
@@ -104,33 +116,35 @@ class OllamaClient:
         if wanted not in self.list_models():
             raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
 
-    def show(self, model: str) -> dict:
-        """Model details from POST /api/show, cached per model (they only change on `ollama pull`)."""
-        if model not in self._shown:
-            r = self._post("/api/show", {"model": model})
-            if r.status_code == 404:
-                raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
-            if not r.ok:
-                raise OllamaError("bad_request", f"Cannot read model details ({r.status_code}): {r.text}")
-            self._shown[model] = r.json()
-        return self._shown[model]
-
-    def capabilities(self, model: str) -> set[str]:
-        """What the model supports, e.g. {"completion", "tools", "thinking", "vision"}."""
-        return set(self.show(model).get("capabilities") or [])
-
-    def context_length(self, model: str) -> int | None:
-        """The model's maximum context in tokens (an upper bound for num_ctx), if Ollama reports it."""
-        for key, value in self.show(model).get("model_info", {}).items():
-            if key.endswith(".context_length"):
-                return value
-        return None
-
     def embed(self, text: str, model: str) -> list[float]:
         r = self._post("/api/embed", {"model": model, "input": text})
         if not r.ok:
             raise OllamaError("bad_request", f"Embedding error {r.status_code}: {r.text}")
         return r.json()["embeddings"][0]
+
+    def _get_show(self, model: str) -> dict:
+        if model in self._show_cache:
+            return self._show_cache[model]
+        r = self._post("/api/show", {"model": model})
+        if r.status_code == 404:
+            raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
+        if not r.ok:
+            raise OllamaError("bad_request", f"Cannot fetch model details ({r.status_code}): {r.text}")
+        data = r.json()
+        self._show_cache[model] = data
+        return data
+
+    def capabilities(self, model: str) -> set[str]:
+        data = self._get_show(model)
+        return set(data.get("capabilities", []))
+
+    def context_length(self, model: str) -> int | None:
+        data = self._get_show(model)
+        model_info = data.get("model_info", {})
+        arch = model_info.get("general.architecture")
+        if not arch:
+            return None
+        return model_info.get(f"{arch}.context_length")
 
     def _post(self, path: str, payload: dict, stream: bool = False):
         return self._request("POST", path, json=payload, stream=stream)
@@ -142,17 +156,3 @@ class OllamaClient:
             raise OllamaError("connection", f"Cannot reach Ollama at {self.url} (is `ollama serve` running?)") from None
         except requests.Timeout:
             raise OllamaError("timeout", "Ollama did not answer in time") from None
-
-
-def _chunks(r) -> Iterator[dict]:
-    """Parse the NDJSON stream, turning failures in the middle of it into OllamaError."""
-    try:
-        for line in r.iter_lines():
-            if line:
-                yield json.loads(line)
-    except requests.Timeout:
-        raise OllamaError("timeout", "Ollama stopped answering in the middle of the reply") from None
-    except (requests.ConnectionError, requests.exceptions.ChunkedEncodingError):
-        raise OllamaError("connection", "Lost the connection to Ollama in the middle of the reply") from None
-    except json.JSONDecodeError:
-        raise OllamaError("stream", "Ollama sent a malformed line in the reply") from None
