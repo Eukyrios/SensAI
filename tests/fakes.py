@@ -12,12 +12,17 @@ class FakeClient:
     """Stands in for OllamaClient: streams fixed tokens or raises."""
 
     def __init__(self, tokens=("Kon", "nichiwa"), error=None, startup_error=None,
-                 models=("qwen3.5:4b", "qwen3.5:9b")):
+                 models=("qwen3.5:4b", "qwen3.5:9b"), stats=None, thinkers=("qwen3.5:4b", "qwen3.5:9b")):
         self.tokens = tokens
+        self.thinkers = set(thinkers)
+        self.stats = stats
         self.error = error
         self.startup_error = startup_error
         self.models = list(models)
         self.calls = []
+
+    def capabilities(self, model):
+        return {"completion", "thinking"} if model in self.thinkers else {"completion"}
 
     def list_models(self):
         return self.models
@@ -33,3 +38,4 @@ class FakeClient:
         if self.error:
             raise self.error
         yield from self.tokens
+        return self.stats

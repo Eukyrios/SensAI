@@ -38,3 +38,24 @@ def test_reset(session):
     session.history.append({"role": "user", "content": "x"})
     session.reset()
     assert session.history == []
+
+
+def test_set_thinking(session):
+    session.set_thinking(True)
+    assert session.spec.think is True
+    session.set_thinking(False)
+    assert session.spec.think is False
+
+
+def test_set_thinking_rejected_when_model_cannot_reason():
+    s = Session(make_config(), client=FakeClient(thinkers=()))
+    with pytest.raises(ValueError, match="can't reason"):
+        s.set_thinking(True)
+    assert s.spec.think is False
+
+
+def test_switching_to_a_model_that_cannot_reason_turns_thinking_off():
+    s = Session(make_config(), client=FakeClient(thinkers=("qwen3.5:9b",)))
+    s.set_thinking(True)
+    s.set_model("qwen3.5:4b")
+    assert (s.spec.model, s.spec.think) == ("qwen3.5:4b", False)
