@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 
 from ..core.agent_spec import SpecError
 from ..core.config import load_config
+from ..core.errors import ErrorKind
 from ..core.events import Error, Event, GuardrailTriggered, Token, TurnFinished
 from ..llm.ollama import OllamaError
 from ..orchestration.session import Session
@@ -25,16 +26,31 @@ class CLIRenderer:
     """Consumes events from an Event stream and renders them to the CLI."""
 
     async def render_stream(self, stream: AsyncGenerator[Event, None]) -> None:
-        async for event in stream:
-            match event:
-                case Token(text=t):
-                    print(t, end="", flush=True)
-                case GuardrailTriggered(reason=r):
-                    print(f"\n[guardrail] {r}", file=sys.stderr)
-                case Error(message=m):
-                    print(f"\n[error] {m}", file=sys.stderr)
-                case TurnFinished():
-                    print()
+        try:
+            async for event in stream:
+                match event:
+                    case Token(text=t):
+                        print(t, end="", flush=True)
+                    case GuardrailTriggered(rule=r, action=a):
+                        print(f"\n[guardrail] {a}: {r}", file=sys.stderr)
+                    case Error(kind=k, message=m):
+                        self._render_error(k, m)
+                    case TurnFinished():
+                        print()
+        except asyncio.CancelledError:
+            print("\n[interrupted]", file=sys.stderr)
+            raise
+
+    def _render_error(self, kind: ErrorKind | str, message: str) -> None:
+        """Format and print user-friendly error messages based on error kind."""
+        if kind == "model_missing":
+            print(f"\n[error] Model not found. Run:\n  {message}", file=sys.stderr)
+        elif kind == "connection":
+            print(f"\n[error] Cannot reach Ollama. Start it with:\n  ollama serve", file=sys.stderr)
+        elif kind == "timeout":
+            print(f"\n[error] Request timed out: {message}", file=sys.stderr)
+        else:
+            print(f"\n[error] {message}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -71,7 +87,6 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         try:
-            # Multi-consumer flow: turn stream -> logger pass-through -> CLI renderer
             event_stream = run_turn(session, msg)
             logged_stream = logger.log_stream(event_stream)
             asyncio.run(renderer.render_stream(logged_stream))
