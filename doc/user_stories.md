@@ -135,9 +135,9 @@ back until I've mastered them.
 **As a** learner, **I want** the tutor to look words, kanji and conjugations up with real tools,
 **so that** readings, meanings and verb forms are correct.
 
-- [ ] Asking the meaning of 食べる triggers a `dictionary` tool call, visible in the trace, and the answer uses its result.
-- [ ] `conjugate` returns the requested form (e.g. the て-form) and `kanji` returns readings and stroke count.
-- [ ] Tools work both with native tool calling and with the prompted fallback, chosen from `/api/show`.
+- [x] Asking the meaning of 食べる triggers a `dictionary` tool call, visible in the trace, and the answer uses its result.
+- [x] `conjugate` returns the requested form (e.g. the て-form) and `kanji` returns readings and stroke count.
+- [x] Tools work both with native tool calling and with the prompted fallback, chosen from `/api/show`.
 
 **Verified by:** tool unit tests; demo: "what does 食べる mean, and its て-form?".
 
