@@ -4,15 +4,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+
 @dataclass
 class Tool:
     name: str
     description: str
-    parameters: dict[str, Any]  # JSON Schema des arguments
+    parameters: dict[str, Any]
     func: Callable[..., Any]
 
     def to_native_schema(self) -> dict:
-        """Format required by Ollama's native tool calling."""
         return {
             "type": "function",
             "function": {
@@ -34,7 +34,6 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def execute(self, name: str, args: dict) -> str:
-        """Exécute l'outil et renvoie le résultat en texte."""
         tool = self.get(name)
         if not tool:
             return f"Error: Tool '{name}' not found."
@@ -45,11 +44,9 @@ class ToolRegistry:
             return f"Error executing {name}: {str(e)}"
 
     def get_native_tools(self) -> list[dict]:
-        """Retourne la liste des outils pour l'API Ollama."""
         return [tool.to_native_schema() for tool in self._tools.values()]
 
     def get_prompt_instructions(self) -> str:
-        """Retourne les instructions pour le fallback 'prompted' (modèles sans support natif)."""
         instructions = "You have access to the following tools:\n"
         for tool in self._tools.values():
             instructions += f"- {tool.name}: {tool.description}\n"
@@ -58,60 +55,43 @@ class ToolRegistry:
         return instructions
 
 
-# --- Implémentation des outils spécifiques ---
-
 def lookup_dictionary(word: str) -> dict:
-    # TODO: Connecter à un vrai dictionnaire ou un fichier local JSON
     return {"word": word, "meaning": "Définition factice pour le moment"}
 
 def conjugate_verb(verb: str, form: str) -> dict:
-    # TODO: Implémenter la logique de conjugaison japonaise
     return {"verb": verb, "form": form, "result": f"{verb} conjugué au {form}"}
 
 def lookup_kanji(character: str) -> dict:
-    # TODO: Récupérer les lectures On/Kun et la signification
     return {"kanji": character, "onyomi": "ON", "kunyomi": "kun", "meaning": "sens"}
 
 
-# Initialisation du registre global
 registry = ToolRegistry()
 
 registry.register(Tool(
     name="dictionary",
     description="Look up a Japanese word to get its meaning and reading.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "word": {"type": "string", "description": "The Japanese word to look up"}
-        },
-        "required": ["word"]
-    },
+    parameters={"type": "object", "properties": {"word": {"type": "string"}}, "required": ["word"]},
     func=lookup_dictionary
 ))
 
 registry.register(Tool(
     name="conjugate",
     description="Conjugate a Japanese verb into a specific form.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "verb": {"type": "string", "description": "The dictionary form of the verb"},
-            "form": {"type": "string", "description": "The target form (e.g., 'te', 'nai', 'ta', 'polite')"}
-        },
-        "required": ["verb", "form"]
-    },
+    parameters={"type": "object", "properties": {"verb": {"type": "string"}, "form": {"type": "string"}}, "required": ["verb", "form"]},
     func=conjugate_verb
 ))
 
 registry.register(Tool(
     name="kanji",
     description="Get information about a specific Kanji character.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "character": {"type": "string", "description": "A single Kanji character"}
-        },
-        "required": ["character"]
-    },
+    parameters={"type": "object", "properties": {"character": {"type": "string"}}, "required": ["character"]},
     func=lookup_kanji
 ))
+
+def get_tools_for_model(client, model: str) -> dict:
+    """Détermine la voie d'exécution en fonction des capacités du modèle."""
+    capabilities = client.capabilities(model)
+    if "tools" in capabilities:
+        return {"type": "native", "tools": registry.get_native_tools()}
+    else:
+        return {"type": "prompted", "instructions": registry.get_prompt_instructions()}
