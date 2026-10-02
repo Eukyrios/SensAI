@@ -41,7 +41,8 @@ myself or waiting for the whole answer.
 - [x] The reply is printed progressively, token by token, not as one block.
 - [x] A follow-up such as "what did I just ask you?" is answered from the earlier turns.
 - [x] `/reset` clears the history; the next question no longer knows the earlier turns.
-- [x] Ctrl-C stops a reply mid-stream, the prompt comes back, and no half answer stays in the history.
+- [x] Esc stops a reply mid-stream and the chat goes on; the question and the part already written stay in the history.
+- [x] The next question can be typed while a reply streams; it runs as soon as the reply ends.
 
 **Verified by:** `tests/orchestration/test_turn.py`, `tests/surfaces/test_cli.py`; demo: two related questions, then `/reset`.
 

@@ -4,7 +4,7 @@ import threading
 import pytest
 
 from sensai.core import events as ev
-from sensai.llm.ollama import OllamaError
+from sensai.llm.ollama import ChatStats, OllamaError, Thought
 from sensai.orchestration import turn as turn_module
 from sensai.orchestration.session import Session
 from sensai.orchestration.turn import build_context, run_turn, stream_tokens
@@ -115,7 +115,7 @@ async def test_stream_stops_the_producer_when_consumer_leaves(session):
     assert await asyncio.to_thread(closed.wait, 2)
 
 
-async def test_cancellation_rolls_back_history(session):
+async def test_cancellation_before_any_token_drops_the_question(session):
     gate = threading.Event()
 
     def slow(model, messages, **options):
@@ -130,3 +130,58 @@ async def test_cancellation_rolls_back_history(session):
         await task
     gate.set()
     assert session.history == []
+
+
+async def test_turn_finished_carries_ollama_stats():
+    stats = ChatStats(prompt_eval_count=35, eval_count=12, total_duration_ns=500_000_000)
+    session = Session(make_config(), client=FakeClient(stats=stats))
+    events = await collect(session, "hello")
+    finished = events[-1]
+    assert (finished.prompt_eval_count, finished.eval_count) == (35, 12)
+    assert finished.total_duration_ns == 500_000_000
+    assert not any(isinstance(e, ev.Token) and not isinstance(e.text, str) for e in events)
+    assert session.history[-1]["content"] == "Konnichiwa"     # stats never leak into the reply
+
+
+async def test_turn_finished_without_stats_measures_duration(session):
+    finished = (await collect(session, "hello"))[-1]
+    assert (finished.prompt_eval_count, finished.eval_count) == (0, 0)
+    assert finished.total_duration_ns > 0
+
+
+async def test_stream_tokens_yields_stats_last(session):
+    session.client = FakeClient(stats=ChatStats(eval_count=2))
+    items = [i async for i in stream_tokens(session.client, session.spec, [])]
+    assert items == ["Kon", "nichiwa", ChatStats(eval_count=2)]
+
+
+async def test_stopped_turn_keeps_question_and_partial_reply(session):
+    first_token = threading.Event()
+
+    def slow(model, messages, **options):
+        yield "Kon"
+        first_token.set()
+        threading.Event().wait(2)
+        yield "nichiwa"
+
+    session.client.chat_stream = slow
+    task = asyncio.ensure_future(collect(session, "hello"))
+    await asyncio.to_thread(first_token.wait, 2)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert session.history == [{"role": "user", "content": "hello"},
+                               {"role": "assistant", "content": "Kon"}]
+
+
+async def test_thinking_becomes_events_and_stays_out_of_the_reply():
+    client = FakeClient(tokens=(Thought("Is it "), Thought("a greeting?"), "Kon", "nichiwa"))
+    session = Session(make_config(), client=client)
+    events = await collect(session, "hello")
+    assert kinds(events) == ["TurnStarted", "AgentRunStarted", "Thinking", "Thinking", "Token",
+                             "Token", "AgentRunFinished", "TurnFinished"]
+    thinking = [e for e in events if isinstance(e, ev.Thinking)]
+    assert "".join(t.text for t in thinking) == "Is it a greeting?"
+    assert thinking[0].run_id == events[1].run_id
+    assert session.history[-1] == {"role": "assistant", "content": "Konnichiwa"}   # no reasoning

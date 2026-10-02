@@ -21,6 +21,7 @@ def all_events(turn):
     return [
         ev.TurnStarted(turn_id=turn, session_id="s", user_input="hi"),
         ev.AgentRunStarted(turn_id=turn, run_id="r1", agent="sensei"),
+        ev.Thinking(turn_id=turn, run_id="r1", text="hmm"),
         ev.Token(turn_id=turn, run_id="r1", text="a"),
         ev.ToolCall(turn_id=turn, run_id="r1", name="kanji", args={"k": "日"}),
         ev.ToolResult(turn_id=turn, run_id="r1", name="kanji", result="sun"),

@@ -68,17 +68,36 @@ exact `ollama pull` command if it isn't.
 | `/help` | list the commands |
 | `/model` | show the current model and the installed ones |
 | `/model <name>` | switch model mid-session; the history is kept |
+| `/think` | show whether the model reasons before answering |
+| `/think on` / `/think off` | turn the model's reasoning on or off (only for models that can reason) |
 | `/reset` | clear the conversation history |
 | `/quit` | exit (Ctrl-D works too) |
 
 Anything else starting with `/` is rejected as an unknown command and never sent to the model.
-Ctrl-C stops a reply mid-stream without leaving the chat.
+
+In a terminal, the input line stays usable while a reply streams:
+
+- **Type ahead.** Write your next question while the model is answering; Enter queues it, and it runs
+  as soon as the current reply ends (shown as `> question` above its own answer).
+- **Status toolbar.** The bottom line shows `thinking…` until the first token, `replying…` while text
+  streams, and how many questions are queued.
+- **Token usage.** A dim line after each reply shows prompt and reply tokens, time to first token and
+  total time.
+- **Reasoning.** When the model reasons before answering (`/think on`, or `think = true` in the agent
+  spec), its reasoning is shown dim before the answer. It is never part of the reply or the history.
+  Reasoning is off by default: it can take several times longer than the answer itself.
+- **Esc** stops the reply being generated and keeps the chat. The question and the part of the
+  reply already written stay in the history, so the model knows what it had said ("continue" works).
+- **Ctrl-D** (or `/quit`) quits, without running questions still queued. **Ctrl-C** does nothing,
+  so it can't end a lesson by accident.
+
+When input is piped (scripts, tests), Sensai reads one line at a time instead, and Ctrl-C stops a reply.
 
 ### Example
 
 ```
 $ python -m sensai
-Sensai (qwen3.5:9b) — Commands: /help  /model [name]  /reset  /quit
+Sensai (qwen3.5:9b) — type /help for commands
 
 > how to say hi in japanese
 Hello! In Japanese, you say "hi" as:
@@ -222,7 +241,11 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
   (model, `num_ctx`, prompt, tools, output schema). Adding the corrector or the judge means adding a file.
 - **One transport for every agent.** `OllamaClient.chat_stream(model, messages, num_ctx=...)` takes the
   model and options on each call, so agents with different models share one client. Errors carry a `kind`
-  (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display.
+  (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display, including
+  failures in the middle of a reply. The stream yields text only; its return value is a `ChatStats` with
+  the final chunk's token counts and durations, which `run_turn()` puts into `TurnFinished`.
+  `capabilities(model)` and `context_length(model)` read `/api/show` (cached), so tools can choose native
+  or prompted tool calling and specs can be checked against the model's maximum context.
 - **Surfaces only subscribe.** The turn loop emits events (`core/events.py`) and the CLI, the logger,
   the trace view and the web UI only consume them.
 
