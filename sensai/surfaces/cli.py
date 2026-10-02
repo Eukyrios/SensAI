@@ -12,6 +12,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from ..core.agent_spec import SpecError
 from ..core.config import load_config, resolve
+from ..core.errors import ErrorKind
 from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, Thinking, Token,
                            TurnFinished)
 from ..llm.ollama import OllamaError
@@ -26,6 +27,7 @@ COMMANDS = {
     "/reset": ("/reset", "clear the conversation history"),
     "/quit": ("/quit", "exit (Ctrl-D works too)"),
 }
+HELP = "Commands: " + "  ".join(usage for usage, _ in COMMANDS.values())
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -88,24 +90,22 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
         return "  ·  ".join(parts)
 
     def message() -> str:
-        # The line the model is still writing is drawn here, above the input line, and redrawn in
-        # place; finished lines are printed above normally. Printing half a line above a live
-        # prompt would collide with it.
         return ANSI(f"{out.partial}\n> " if out.partial else "> ")
 
     replying = Condition(lambda: state["turn"] is not None and not state["turn"].done())
     keys = KeyBindings()
 
-    @keys.add("escape", filter=replying, eager=True)     # only while a reply runs: normal typing keeps Esc
+    @keys.add("escape", filter=replying, eager=True)
     def _stop_reply(event) -> None:
-        state["turn"].cancel()
+        if state["turn"]:
+            state["turn"].cancel()
 
-    @keys.add("c-c")                    # Ctrl-C does nothing: Esc stops a reply, Ctrl-D quits
+    @keys.add("c-c")
     def _ignore(event) -> None:
         pass
 
     prompt = PromptSession(erase_when_done=True, bottom_toolbar=toolbar, key_bindings=keys)
-    prompt.app.ttimeoutlen = 0.05       # a lone Esc is recognised at once, not after half a second
+    prompt.app.ttimeoutlen = 0.05
 
     def redraw() -> None:
         if prompt.app.is_running:
@@ -121,7 +121,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
         while True:
             try:
                 line = await prompt.prompt_async(message)
-            except EOFError:                # Ctrl-D quits now: stop any reply, skip queued questions
+            except EOFError:
                 state["quit"] = True
                 turn = state["turn"]
                 if turn is not None and not turn.done():
@@ -136,7 +136,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
             while not state["quit"] and (line := await pending.get()) is not None:
                 if not line.strip():
                     continue
-                print(f"\n> {line.strip()}")       # shown when it actually runs
+                print(f"\n> {line.strip()}")
                 state["turn"] = asyncio.create_task(handle_line(session, line, out, set_status, logger))
                 try:
                     keep_going = await state["turn"]
@@ -214,12 +214,7 @@ async def render_turn(session: Session, text: str, out: Output, status: Status |
 
 
 class CLIRenderer:
-    """Consumes events from an Event stream and renders them to the CLI.
-
-    `status` receives "thinking…" until the first token, "replying…" while text streams, then None.
-    The model's reasoning, when there is some, is shown dim before the answer. After each reply,
-    a dim line shows the token usage.
-    """
+    """Consumes events from an Event stream and renders them to the CLI."""
 
     def __init__(self, out: Output | None = None, status: Status | None = None) -> None:
         self.out = out or PlainOutput()
@@ -228,33 +223,48 @@ class CLIRenderer:
     async def render_stream(self, stream: AsyncIterator[Event]) -> None:
         out, status = self.out, self.status
         reasoning, answering = False, False
-        async for event in stream:
-            match event:
-                case AgentRunStarted():
-                    status("thinking…")
-                case Thinking(text=t):
-                    if not reasoning:
-                        out.write(dim("thinking:") + "\n")
-                        reasoning = True
-                    out.write(dim_lines(t))
-                case Token(text=t):
-                    status("replying…")
-                    if reasoning and not answering:
+        try:
+            async for event in stream:
+                match event:
+                    case AgentRunStarted():
+                        status("thinking…")
+                    case Thinking(text=t):
+                        if not reasoning:
+                            out.write(dim("thinking:") + "\n")
+                            reasoning = True
+                        out.write(dim_lines(t))
+                    case Token(text=t):
+                        status("replying…")
+                        if reasoning and not answering:
+                            out.end_line()
+                            out.write("\n")
+                        answering = True
+                        out.write(t)
+                    case GuardrailTriggered(side=side, rule=rule, action=action):
                         out.end_line()
-                        out.write("\n")             # a blank line between reasoning and answer
-                    answering = True
-                    out.write(t)
-                case GuardrailTriggered(side=side, rule=rule, action=action):
-                    out.end_line()
-                    print(f"[guardrail] {side} {action}: {rule}", file=sys.stderr)
-                case Error(message=m):
-                    out.end_line()
-                    print(f"[error] {m}", file=sys.stderr)
-                case TurnFinished() as finished:
-                    status(None)
-                    out.end_line()
-                    if finished.eval_count:
-                        print(dim(usage(finished)))
+                        print(f"[guardrail] {side} {action}: {rule}", file=sys.stderr)
+                    case Error(kind=k, message=m):
+                        out.end_line()
+                        self._render_error(k, m)
+                    case TurnFinished() as finished:
+                        status(None)
+                        out.end_line()
+                        if finished.eval_count:
+                            print(dim(usage(finished)))
+        except asyncio.CancelledError:
+            print("\n[interrupted]", file=sys.stderr)
+            raise
+
+    def _render_error(self, kind: ErrorKind | str, message: str) -> None:
+        """Format and print user-friendly error messages based on error kind."""
+        if kind == "model_missing":
+            print(f"\n[error] Model not found. Run:\n  {message}", file=sys.stderr)
+        elif kind == "connection":
+            print(f"\n[error] Cannot reach Ollama. Start it with:\n  ollama serve", file=sys.stderr)
+        elif kind == "timeout":
+            print(f"\n[error] Request timed out: {message}", file=sys.stderr)
+        else:
+            print(f"\n[error] {message}", file=sys.stderr)
 
 
 def usage(finished: TurnFinished) -> str:
@@ -271,7 +281,6 @@ def dim(text: str) -> str:
 
 
 def dim_lines(text: str) -> str:
-    """Dim each line on its own, so a line printed alone never leaves the terminal dimmed."""
     return "\n".join(dim(part) if part else part for part in text.split("\n"))
 
 
@@ -282,8 +291,8 @@ def run_command(session: Session, line: str) -> bool:
     if name == "/quit":
         return False
     if name == "/help":
-        width = max(len(usage) for usage, _ in COMMANDS.values())
-        print("\n".join(f"  {usage:<{width}}  {text}" for usage, text in COMMANDS.values()))
+        width = max(len(u) for u, _ in COMMANDS.values())
+        print("\n".join(f"  {u:<{width}}  {t}" for u, t in COMMANDS.values()))
     elif name == "/reset":
         session.reset()
         print("History cleared.")
