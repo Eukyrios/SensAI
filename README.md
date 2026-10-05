@@ -58,6 +58,7 @@ python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 python -m sensai --list-sessions          # list the stored sessions (id, date, model, title)
 python -m sensai --session <id>           # resume a stored session
+python -m sensai --agent checker          # talk to another agent from agents/ (here: JSON corrections)
 ```
 
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
@@ -199,12 +200,12 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 
 | Code | Feature | Rating | Layer | Status |
 |------|---------|--------|-------|--------|
-| B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | 🚧 |
-| M1 | Session persistence & profile | ★ | 2 | ⏳ |
-| T5 | Structured output (JSON schema, one repair) | ★ | 3 | ⏳ |
+| B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
+| M1 | Session persistence & profile | ★ | 2 | ✅ |
+| T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ |
 | M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | ⏳ |
-| T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ⏳ |
-| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | ⏳ |
+| T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | 🚧 own tools done, MCP in layer 5 |
+| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | 🚧 JSONL logger done |
 | A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ⏳ |
 | A1 | ReAct (corrector) | ★★★ | 4 | ⏳ |
 | M2 | Token budgeting & compression | ★★ | 4–5 | ⏳ |
@@ -291,6 +292,24 @@ Today a turn is `run_turn(session, text)` in `orchestration/turn.py`: an async g
 `TurnStarted → AgentRunStarted → Token… → AgentRunFinished → TurnFinished` (with `Error` and
 `GuardrailTriggered` when they apply) for one agent. `Session` (`orchestration/session.py`) holds the
 active agent, the history and the client. The CLI renders those events; it never calls the model.
+
+### Structured output (T5)
+
+An agent with an `output_schema` in its spec (e.g. `agents/checker.toml`) replies with JSON data,
+not text. `run_turn()` emits no `Token` for it, but one `StructuredOutput` event with the validated
+data, or `Error(kind="invalid_output")` with the reply that failed.
+
+- **The schema is written into the system prompt**, and `format: "json"` is sent so the reply is
+  always parseable. We measured why: with qwen3.5 and `think = false`, Ollama 0.18 ignores a schema
+  passed in `format` and answers in free prose; it only enforces it when the model reasons first,
+  which takes about a minute per reply. With the schema in the prompt the model follows it in ~4 s.
+  When an agent has `think = true`, the schema itself is sent as `format`.
+- **The reply is validated** against the schema with `jsonschema`; a spec whose schema is itself
+  invalid is rejected when it's loaded.
+- **One repair attempt:** the validation errors are sent back once; if the second reply is still
+  invalid, the turn fails loudly with `invalid_output`, and the question isn't kept in the history.
+- The schema guarantees the shape of the reply, not that it's right: checking the content is the
+  job of the corrector's tools (A1, layer 4) and the judge (EV1, layer 5).
 
 ## Organisation
 

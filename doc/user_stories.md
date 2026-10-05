@@ -9,11 +9,11 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | Code | Feature | Rating | Layer | Owner | Status |
 |------|---------|--------|-------|-------|--------|
 | [B1](#b1--functional-cli-chatbot) | Functional CLI chatbot | 👍 | 1–2 | A · D | ✅ built |
-| [M1](#m1--session-persistence--profile) | Session persistence & profile | ★ | 1–2 | B | 🚧 persistence built |
-| [T5](#t5--structured-output) | Structured output | ★ | 3 | A | ⏳ |
+| [M1](#m1--session-persistence--profile) | Session persistence & profile | ★ | 1–2 | B | ✅ built |
+| [T5](#t5--structured-output) | Structured output | ★ | 3 | A | 🚧 validation built, handoffs in layer 4 |
 | [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | ⏳ |
-| [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | ⏳ |
-| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | ⏳ |
+| [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | 🚧 own tools built, MCP in layer 5 |
+| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | 🚧 JSONL logger built |
 | [A2](#a2--multi-agent-orchestration) | Multi-agent orchestration | ★★★ | 4–5 | A | 🚧 contracts built |
 | [A1](#a1--reasoning-loop-react) | Reasoning loop (ReAct) | ★★★ | 4 | C | ⏳ |
 | [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4–5 | B | ⏳ |
@@ -88,11 +88,12 @@ something is wrong, **so that** I can fix the problem myself instead of facing a
 **As a** learner, **I want** each correction to come as the same fields (my sentence, the error,
 the correction, the rule), **so that** my mistakes can be stored and reviewed later.
 
-- [ ] The corrector's output is validated against its JSON schema.
-- [ ] An invalid output gets exactly one repair attempt with the validation error.
-- [ ] If the repair also fails, an `Error` event appears in the trace and I still get a normal reply.
+- [x] The checker's output (the corrector's, from layer 4) is validated against its JSON schema.
+- [x] An invalid output gets exactly one repair attempt with the validation error.
+- [x] If the repair also fails, an `Error(kind="invalid_output")` event appears in the trace with the invalid reply.
+- [ ] …and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
 
-**Verified by:** tests with valid, repairable and broken model outputs.
+**Verified by:** `tests/orchestration/test_structured.py` (valid, repairable and broken outputs); demo: `python -m sensai --agent checker`, then "私は学校を行きます".
 
 ### T5-2 · Agents that can't corrupt each other
 **As a** developer of the tutor, **I want** every handoff between agents to be validated JSON,
