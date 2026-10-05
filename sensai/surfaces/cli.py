@@ -20,11 +20,13 @@ from ..memory.repository import SessionNotFound, open_repository
 from ..orchestration.session import Session
 from ..orchestration.turn import run_turn
 from ..trust.logging import JsonlLogger
+from ..trust.metrics import compute_turn_metrics
 
 COMMANDS = {
     "/help": ("/help", "list the commands"),
     "/model": ("/model [name]", "show the current and installed models, or switch model (history kept)"),
     "/think": ("/think [on|off]", "show whether the model reasons before answering, or switch it"),
+    "/metrics": ("/metrics", "show token usage, speed, and cost estimation for the last turn"),
     "/reset": ("/reset", "clear the history and start a new session (the old one stays stored)"),
     "/quit": ("/quit", "exit (Ctrl-D works too)"),
 }
@@ -268,6 +270,8 @@ class CLIRenderer:
                         status(None)
                         out.end_line()
                         if finished.eval_count:
+                            metrics = compute_turn_metrics(finished)
+                            self.last_metrics = metrics
                             print(dim(usage(finished)))
         except asyncio.CancelledError:
             print("\n[interrupted]", file=sys.stderr)
@@ -314,6 +318,11 @@ def run_command(session: Session, line: str) -> bool:
     elif name == "/reset":
         session.reset()
         print("History cleared.")
+    elif name == "/metrics":
+        if hasattr(session, "last_metrics") and session.last_metrics:
+            print(session.last_metrics.format_summary())
+        else:
+            print("No metrics recorded yet.")
     elif name == "/think":
         try:
             if arg in ("on", "off"):
