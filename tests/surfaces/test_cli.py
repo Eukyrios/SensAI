@@ -272,3 +272,40 @@ def test_events_are_logged_to_the_configured_path(monkeypatch, event_log):
     kinds = [r["event_type"] for r in records]
     assert kinds[0] == "TurnStarted" and kinds[-1] == "TurnFinished" and "Token" in kinds
     assert len({r["turn_id"] for r in records}) == 1
+
+# --- sessions (#70) ---
+
+from tests.conftest import memory_repository
+
+
+def test_list_sessions(monkeypatch, capsys):
+    repo = memory_repository()
+    sid = repo.create_session("qwen3.5:9b", "Lesson 1")
+    monkeypatch.setattr(cli, "open_repository", lambda config: repo)
+    run_cli_test(monkeypatch, [], argv=["--list-sessions"])
+    out = capsys.readouterr().out
+    assert sid in out and "qwen3.5:9b" in out and "Lesson 1" in out
+
+
+def test_list_sessions_empty(monkeypatch, capsys):
+    run_cli_test(monkeypatch, [], argv=["--list-sessions"])
+    assert "No stored sessions." in capsys.readouterr().out
+
+
+def test_resume_session(monkeypatch, capsys):
+    repo = memory_repository()
+    stored = Session(make_config(), client=FakeClient(), repo=repo)
+    stored.record("user", "earlier")
+    stored.record("assistant", "Konnichiwa")
+    monkeypatch.setattr("sensai.orchestration.session.open_repository", lambda config: repo)
+    seen = []
+    monkeypatch.setattr(cli, "plain_chat", lambda session, logger: seen.append(session))
+    cli.main(["--session", stored.id])
+    assert f"Resumed session {stored.id} (2 messages)" in capsys.readouterr().out
+    assert seen[0].id == stored.id and [m["content"] for m in seen[0].history] == ["earlier", "Konnichiwa"]
+
+
+def test_unknown_session_exits_with_error(monkeypatch):
+    with pytest.raises(SystemExit, match="session not found: nope") as e:
+        cli.main(["--session", "nope"])
+    assert e.value.code not in (0, None)
