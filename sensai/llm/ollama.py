@@ -50,8 +50,13 @@ class OllamaClient:
         self._show_cache: dict[str, dict] = {}
 
     def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
-                    temperature: float = 0.3, think: bool = False) -> Iterator[str | Thought]:
-        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default."""
+                    temperature: float = 0.3, think: bool = False,
+                    format: dict | str | None = None) -> Iterator[str | Thought]:
+        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default.
+
+        `format` constrains the reply: "json" for any JSON object, or a JSON schema. See
+        orchestration/structured.py for when Ollama actually enforces a schema.
+        """
         payload = {
             "model": model,
             "messages": messages,
@@ -59,6 +64,8 @@ class OllamaClient:
             "think": think,
             "options": {"temperature": temperature, "num_ctx": num_ctx},
         }
+        if format is not None:
+            payload["format"] = format
         r = self._post("/api/chat", payload, stream=True)
         if r.status_code == 404:
             r.close()

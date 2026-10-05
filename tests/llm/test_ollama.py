@@ -262,3 +262,16 @@ def test_thinking_comes_as_thoughts_before_the_answer(monkeypatch, client):
 def test_no_thinking_field_means_text_only(monkeypatch, client):
     patch_post(monkeypatch, FakeResponse(lines=[{"message": {"content": "a", "thinking": ""}}, FINAL]))
     assert list(client.chat_stream("m", [], **OPTS)) == ["a"]
+
+
+@pytest.mark.parametrize("fmt", ["json", {"type": "object"}])
+def test_format_is_sent_when_given(monkeypatch, client, fmt):
+    sent = patch_post(monkeypatch, FakeResponse(lines=[FINAL]))
+    list(client.chat_stream("m", [], format=fmt, **OPTS))
+    assert sent["json"]["format"] == fmt
+
+
+def test_no_format_by_default(monkeypatch, client):
+    sent = patch_post(monkeypatch, FakeResponse(lines=[FINAL]))
+    list(client.chat_stream("m", [], **OPTS))
+    assert "format" not in sent["json"]
