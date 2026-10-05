@@ -50,6 +50,14 @@ class Thinking(_Base):
 
 
 @dataclass(frozen=True, kw_only=True)
+class StructuredOutput(_Base):
+    """The validated JSON reply of an agent that has an output_schema (T5)."""
+    run_id: str
+    data: dict
+    attempts: int = 1           # 2 when the first reply needed the repair attempt
+
+
+@dataclass(frozen=True, kw_only=True)
 class ToolCall(_Base):
     run_id: str
     name: str
@@ -93,5 +101,5 @@ class TurnFinished(_Base):
     ttft_ms: float | None = None
 
 
-Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | ToolCall | ToolResult
-         | HandoffEvent | GuardrailTriggered | Error | TurnFinished)
+Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | StructuredOutput
+         | ToolCall | ToolResult | HandoffEvent | GuardrailTriggered | Error | TurnFinished)

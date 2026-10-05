@@ -23,6 +23,7 @@ def all_events(turn):
         ev.AgentRunStarted(turn_id=turn, run_id="r1", agent="sensei"),
         ev.Thinking(turn_id=turn, run_id="r1", text="hmm"),
         ev.Token(turn_id=turn, run_id="r1", text="a"),
+        ev.StructuredOutput(turn_id=turn, run_id="r1", data={"ok": True}),
         ev.ToolCall(turn_id=turn, run_id="r1", name="kanji", args={"k": "日"}),
         ev.ToolResult(turn_id=turn, run_id="r1", name="kanji", result="sun"),
         ev.HandoffEvent(turn_id=turn, handoff=h),
@@ -87,3 +88,16 @@ def test_spec_for_applies_model_override():
 def test_spec_for_unknown_agent():
     with pytest.raises(SpecError, match="unknown agent"):
         spec_for("nobody", make_config())
+
+
+def test_load_spec_rejects_an_invalid_output_schema(tmp_path):
+    p = tmp_path / "bad.toml"
+    p.write_text('name="x"\nmodel="m"\nnum_ctx=1\n[output_schema]\ntype="not-a-type"\n', encoding="utf-8")
+    with pytest.raises(SpecError, match="invalid output_schema"):
+        load_spec(p)
+
+
+def test_load_spec_accepts_a_valid_output_schema(tmp_path):
+    p = tmp_path / "ok.toml"
+    p.write_text('name="x"\nmodel="m"\nnum_ctx=1\n[output_schema]\ntype="object"\n', encoding="utf-8")
+    assert load_spec(p).output_schema == {"type": "object"}

@@ -4,6 +4,9 @@ requests>=2.31
 # Terminal input line that stays usable while a reply streams
 prompt_toolkit>=3.0
 
+# JSON schema validation for structured output (T5)
+jsonschema>=4.18
+
 # TOML config (built into Python 3.11+)
 tomli>=2.0; python_version < "3.11"
 
