@@ -15,6 +15,7 @@ db_path = "data/sensai.db"
 
 [memory]
 max_history_turns = 20
+profile = "default"          # learner profile injected into every prompt (learner_profiles.name)
 
 [guardrails]
 enabled = true

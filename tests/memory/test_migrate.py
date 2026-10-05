@@ -1,12 +1,18 @@
 from sensai.memory import db
-from sensai.memory.migrate import migrate
+from sensai.memory.migrate import MIGRATIONS_DIR, migrate
+
+LATEST = len(list(MIGRATIONS_DIR.glob("*.sql")))
 
 
 def test_migrate_creates_all_tables(conn):
     tables = {row["name"] for row in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table'"
     )}
-    assert {"sessions", "messages", "turns", "agent_runs"} <= tables
+    assert {"sessions", "messages", "turns", "agent_runs", "learner_profiles"} <= tables
+
+
+def test_sessions_have_active_leaf_column(conn):
+    assert "active_leaf_id" in {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
 
 
 def test_messages_and_agent_runs_have_self_referencing_parent_columns(conn):
@@ -24,18 +30,18 @@ def test_migrate_creates_indexes(conn):
 
 
 def test_migrate_sets_user_version(conn):
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == LATEST
 
 
 def test_migrate_is_idempotent(conn):
     migrate(conn)  # rerunning must not raise (e.g. "table already exists")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == LATEST
 
 
 def test_migrate_skips_already_applied_versions():
     conn = db.connect(":memory:")
     try:
-        conn.execute("PRAGMA user_version = 1")
+        conn.execute(f"PRAGMA user_version = {LATEST}")
         migrate(conn)  # nothing pending: must not try to recreate the tables
         tables = {row["name"] for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'"

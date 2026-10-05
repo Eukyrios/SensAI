@@ -185,3 +185,105 @@ async def test_thinking_becomes_events_and_stays_out_of_the_reply():
     assert "".join(t.text for t in thinking) == "Is it a greeting?"
     assert thinking[0].run_id == events[1].run_id
     assert session.history[-1] == {"role": "assistant", "content": "Konnichiwa"}   # no reasoning
+
+
+# --- persistence (#67 #69) ---
+
+from tests.conftest import memory_repository
+
+
+async def test_turn_is_saved_and_reloads_identically(session):
+    await collect(session, "hello")
+    assert session.repo.load_history(session.id) == session.history == [
+        {"role": "user", "content": "hello"}, {"role": "assistant", "content": "Konnichiwa"}]
+
+
+async def test_user_message_is_saved_before_the_model_is_called(session):
+    seen = []
+
+    def spy(model, messages, **options):
+        seen.append(session.repo.load_history(session.id))
+        yield "ok"
+
+    session.client.chat_stream = spy
+    await collect(session, "hello")
+    assert seen == [[{"role": "user", "content": "hello"}]]
+
+
+async def test_resumed_session_continues_the_same_branch():
+    repo = memory_repository()
+    first = Session(make_config(), client=FakeClient(), repo=repo)
+    await collect(first, "one")
+    resumed = Session.resume(make_config(), first.id, client=FakeClient(), repo=repo)
+    await collect(resumed, "two")
+    assert [m["content"] for m in repo.load_history(first.id)] == [
+        "one", "Konnichiwa", "two", "Konnichiwa"]
+    assert [m["content"] for m in resumed.client.calls[0][1][1:]] == ["one", "Konnichiwa", "two"]
+
+
+async def test_profile_is_in_the_prompt_but_never_stored():
+    repo = memory_repository()
+    repo.save_profile("default", "N5 learner, likes anime")
+    session = Session(make_config(), client=FakeClient(), repo=repo)
+    await collect(session, "hello")
+    messages = session.client.calls[0][1]
+    assert messages[0] == {"role": "system", "content": session.spec.system_prompt}
+    assert messages[1]["role"] == "system" and "N5 learner" in messages[1]["content"]
+    assert messages[2] == {"role": "user", "content": "hello"}
+    stored = [m["content"] for m in repo.list_messages(session.id)]
+    assert len(stored) == 2 and not any("N5 learner" in c for c in stored)
+
+
+async def test_failed_turn_leaves_no_orphan_message_in_the_database(session):
+    await collect(session, "first")
+    session.client = FakeClient(error=OllamaError("connection", "down"))
+    await collect(session, "second")
+    assert [m["content"] for m in session.repo.load_history(session.id)] == ["first", "Konnichiwa"]
+    session.client = FakeClient()
+    await collect(session, "third")
+    assert [m["content"] for m in session.repo.load_history(session.id)] == [
+        "first", "Konnichiwa", "third", "Konnichiwa"]
+
+
+async def test_unexpected_error_removes_the_stored_question(session):
+    session.client = FakeClient(error=RuntimeError("bug"))
+    with pytest.raises(RuntimeError):
+        await collect(session, "hello")
+    assert session.repo.load_history(session.id) == []
+
+
+async def test_stopped_turn_stores_question_and_partial_reply(session):
+    first_token = threading.Event()
+
+    def slow(model, messages, **options):
+        yield "Kon"
+        first_token.set()
+        threading.Event().wait(2)
+        yield "nichiwa"
+
+    session.client.chat_stream = slow
+    task = asyncio.ensure_future(collect(session, "hello"))
+    await asyncio.to_thread(first_token.wait, 2)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert session.repo.load_history(session.id) == session.history == [
+        {"role": "user", "content": "hello"}, {"role": "assistant", "content": "Kon"}]
+
+
+async def test_stopped_turn_without_output_removes_the_question(session):
+    gate = threading.Event()
+
+    def slow(model, messages, **options):
+        gate.wait(2)
+        yield "late"
+
+    session.client.chat_stream = slow
+    task = asyncio.ensure_future(collect(session, "hello"))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    gate.set()
+    assert session.repo.load_history(session.id) == []

@@ -193,3 +193,101 @@ def test_duplicate_id_rejected(repo):
     session_id = repo.create_session(model="m")
     with pytest.raises(sqlite3.IntegrityError):
         repo.create_session(model="m", session_id=session_id)
+
+
+# --- session persistence (#67, #68) ---
+
+from sensai.memory.repository import SessionNotFound
+
+
+def _chat(repo, session_id, *texts):
+    """Add alternating user/assistant messages as one chain; return their ids."""
+    ids, parent = [], None
+    for i, text in enumerate(texts):
+        parent = repo.add_message(session_id, "user" if i % 2 == 0 else "assistant", text, parent)
+        ids.append(parent)
+    return ids
+
+
+def test_add_message_moves_active_leaf(repo):
+    session_id = repo.create_session(model="m")
+    first, second = _chat(repo, session_id, "hi", "hello")
+    assert repo.get_session(session_id)["active_leaf_id"] == second
+    assert first != second
+
+
+def test_save_then_reload_gives_same_history(repo):
+    session_id = repo.create_session(model="m")
+    _chat(repo, session_id, "hi", "hello", "how are you", "fine")
+    assert repo.load_history(session_id) == [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+        {"role": "user", "content": "how are you"},
+        {"role": "assistant", "content": "fine"},
+    ]
+
+
+def test_load_history_of_empty_session(repo):
+    assert repo.load_history(repo.create_session(model="m")) == []
+
+
+def test_reload_follows_active_leaf_across_branches(repo):
+    session_id = repo.create_session(model="m")
+    hi, hello = _chat(repo, session_id, "hi", "hello")
+    other = repo.add_message(session_id, "assistant", "hey!", parent_id=hi)   # sibling branch
+    assert [m["content"] for m in repo.load_history(session_id)] == ["hi", "hey!"]
+    repo.set_active_leaf(session_id, hello)
+    assert [m["content"] for m in repo.load_history(session_id)] == ["hi", "hello"]
+    repo.set_active_leaf(session_id, other)
+    assert [m["content"] for m in repo.load_history(session_id)] == ["hi", "hey!"]
+
+
+def test_set_active_leaf_rejects_message_of_another_session(repo):
+    a, b = repo.create_session(model="m"), repo.create_session(model="m")
+    foreign = repo.add_message(b, "user", "x")
+    own = repo.add_message(a, "user", "y")
+    with pytest.raises(SessionNotFound):
+        repo.set_active_leaf(a, foreign)
+    assert repo.get_session(a)["active_leaf_id"] == own
+
+
+def test_unknown_session_raises(repo):
+    for call in (repo.get_session, repo.load_history):
+        with pytest.raises(SessionNotFound):
+            call("nope")
+    with pytest.raises(SessionNotFound):
+        repo.set_active_leaf("nope", "x")
+
+
+def test_list_sessions_most_recent_first(repo):
+    first, second = repo.create_session(model="m"), repo.create_session(model="m")
+    assert [s["id"] for s in repo.list_sessions()] == [second, first]
+
+
+def test_discard_leaf_steps_back_to_parent(repo):
+    session_id = repo.create_session(model="m")
+    hi, hello = _chat(repo, session_id, "hi", "hello")
+    repo.discard_leaf(hello)
+    assert repo.get_session(session_id)["active_leaf_id"] == hi
+    assert [m["content"] for m in repo.load_history(session_id)] == ["hi"]
+    repo.discard_leaf(hi)
+    assert repo.get_session(session_id)["active_leaf_id"] is None
+
+
+# --- learner profile (#69) ---
+
+def test_profile_roundtrip_and_update(repo):
+    assert repo.get_profile() is None
+    repo.save_profile("default", "N5 learner")
+    assert repo.get_profile("default") == "N5 learner"
+    repo.save_profile("default", "N4 learner")
+    assert repo.get_profile("default") == "N4 learner"
+    assert repo.get_profile("other") is None
+
+
+def test_profile_system_message(repo):
+    assert repo.profile_system_message() is None
+    repo.save_profile("default", "N5 learner")
+    msg = repo.profile_system_message()
+    assert msg["role"] == "system" and "N5 learner" in msg["content"]
+    assert repo.profile_system_message("other") is None

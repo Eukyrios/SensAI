@@ -16,6 +16,7 @@ from ..core.errors import ErrorKind
 from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, Thinking, Token,
                            TurnFinished)
 from ..llm.ollama import OllamaError
+from ..memory.repository import SessionNotFound, open_repository
 from ..orchestration.session import Session
 from ..orchestration.turn import run_turn
 from ..trust.logging import JsonlLogger
@@ -24,7 +25,7 @@ COMMANDS = {
     "/help": ("/help", "list the commands"),
     "/model": ("/model [name]", "show the current and installed models, or switch model (history kept)"),
     "/think": ("/think [on|off]", "show whether the model reasons before answering, or switch it"),
-    "/reset": ("/reset", "clear the conversation history"),
+    "/reset": ("/reset", "clear the history and start a new session (the old one stays stored)"),
     "/quit": ("/quit", "exit (Ctrl-D works too)"),
 }
 HELP = "Commands: " + "  ".join(usage for usage, _ in COMMANDS.values())
@@ -34,23 +35,40 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sensai", description="Sensai, a local Japanese tutor")
     parser.add_argument("--model", help="Ollama model for every agent (overrides the agent specs)")
     parser.add_argument("--config", help="path to a config.toml")
+    parser.add_argument("--session", metavar="ID", help="resume a stored session (see --list-sessions)")
+    parser.add_argument("--list-sessions", action="store_true", help="list the stored sessions and exit")
     args = parser.parse_args(argv)
 
     try:
         config = load_config(args.config, cli={"agents": {"model_override": args.model}})
-        session = Session(config)
+        if args.list_sessions:
+            list_sessions(config)
+            return
+        session = Session.resume(config, args.session) if args.session else Session(config)
         session.client.require_model(session.spec.model)     # fail now, not on the first message
     except FileNotFoundError as e:
         sys.exit(f"[error] config not found: {e.filename}")
+    except SessionNotFound:
+        sys.exit(f"[error] session not found: {args.session} (see --list-sessions)")
     except (SpecError, OllamaError) as e:
         sys.exit(f"[error] {e}")
 
     logger = JsonlLogger(resolve(config["logging"]["path"]))     # [logging] path in config.toml
     print(f"Sensai ({session.spec.model}) — type /help for commands")
+    if args.session:
+        print(f"Resumed session {session.id} ({len(session.history)} messages)")
     if sys.stdin.isatty() and sys.stdout.isatty():
         asyncio.run(live_chat(session, logger))
     else:
         plain_chat(session, logger)
+
+
+def list_sessions(config: dict) -> None:
+    sessions = open_repository(config).list_sessions()
+    if not sessions:
+        print("No stored sessions.")
+    for row in sessions:
+        print(f"{row['id']}  {row['created_at']}  {row['model']}  {row['title'] or '-'}")
 
 
 Status = Callable[[str | None], None]

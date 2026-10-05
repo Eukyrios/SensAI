@@ -38,6 +38,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
         yield GuardrailTriggered(turn_id=turn_id, side="input", rule="filter_input", action="redact")
 
     session.history.append({"role": "user", "content": clean})
+    parent_id = session.leaf
+    user_id = session.record("user", clean)         # saved before the model is called
     run_id = new_id()
     yield AgentRunStarted(turn_id=turn_id, run_id=run_id, agent=spec.name)
 
@@ -57,21 +59,26 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
     except OllamaError as e:
         ok = False
         session.history.pop()           # drop the unanswered message
+        session.discard(user_id, parent_id)
         yield Error(turn_id=turn_id, kind=e.kind, message=str(e))
     except (asyncio.CancelledError, KeyboardInterrupt):
         # Stopped by the learner: keep the question and what was already written, so the model
         # knows what it had said ("continue" works). Nothing written yet: drop the question.
         if reply:
             session.history.append({"role": "assistant", "content": reply})
+            session.record("assistant", reply)
         else:
             session.history.pop()
+            session.discard(user_id, parent_id)
         raise
     except BaseException:               # unexpected errors, abandoned stream
         session.history.pop()
+        session.discard(user_id, parent_id)
         raise
 
     if ok:
         session.history.append({"role": "assistant", "content": reply})
+        session.record("assistant", reply)
     yield AgentRunFinished(turn_id=turn_id, run_id=run_id, agent=spec.name, ok=ok)
     yield _turn_finished(turn_id, spec.model, started, ttft_ms, stats)
 
@@ -88,9 +95,11 @@ def _turn_finished(turn_id: str, model: str, started: int, ttft_ms: float | None
 
 
 def build_context(session: Session) -> list[Message]:
-    """System prompt + the last turns. Stub: replaced by the context builder in layer 4."""
+    """System prompt + learner profile + the last turns. Stub: replaced by the context builder in layer 4."""
     max_turns = session.config["memory"]["max_history_turns"]
-    return [{"role": "system", "content": session.spec.system_prompt}] + session.history[-max_turns * 2:]
+    return ([{"role": "system", "content": session.spec.system_prompt}]
+            + ([session.profile] if session.profile else [])
+            + session.history[-max_turns * 2:])
 
 
 class _Failure:

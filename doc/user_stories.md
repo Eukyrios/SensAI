@@ -9,7 +9,7 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | Code | Feature | Rating | Layer | Owner | Status |
 |------|---------|--------|-------|-------|--------|
 | [B1](#b1--functional-cli-chatbot) | Functional CLI chatbot | 👍 | 1–2 | A · D | ✅ built |
-| [M1](#m1--session-persistence--profile) | Session persistence & profile | ★ | 1–2 | B | 🚧 storage built |
+| [M1](#m1--session-persistence--profile) | Session persistence & profile | ★ | 1–2 | B | 🚧 persistence built |
 | [T5](#t5--structured-output) | Structured output | ★ | 3 | A | ⏳ |
 | [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | ⏳ |
 | [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | ⏳ |
@@ -65,7 +65,7 @@ something is wrong, **so that** I can fix the problem myself instead of facing a
 **As a** returning learner, **I want** to resume my previous conversation after restarting Sensai,
 **so that** I don't have to re-explain what we were working on.
 
-- [ ] After quitting and restarting, the previous session's messages are reloaded from the database.
+- [x] After quitting and restarting, `--session <id>` reloads the previous session's messages from the database.
 - [ ] A follow-up that refers to yesterday's lesson is answered correctly.
 - [x] Every turn is stored with the question, the reply and its latency.
 
@@ -75,7 +75,7 @@ something is wrong, **so that** I can fix the problem myself instead of facing a
 **As a** learner preparing the JLPT N5, **I want** Sensai to remember my level and goals,
 **so that** every answer is pitched at me without me repeating it each session.
 
-- [ ] The profile (level, native language, goals) is stored once and injected automatically at the start of every session.
+- [x] The profile (level, native language, goals) is stored once and injected automatically into every prompt, without being saved in the conversation.
 - [ ] Changing the level to N4 changes the difficulty of the examples in the next session.
 
 **Verified by:** a test that the profile appears in the first context of a new session; demo: two sessions with different levels.
