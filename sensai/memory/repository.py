@@ -12,8 +12,13 @@ import asyncio
 import sqlite3
 
 from ..core.ids import new_id
+from ..core.messages import Message
 from . import db
 from .migrate import migrate
+
+
+class SessionNotFound(LookupError):
+    """No session with this id (or the message is not part of it)."""
 
 
 class SessionRepository:
@@ -37,13 +42,85 @@ class SessionRepository:
 
     def add_message(self, session_id: str, role: str, content: str,
                     parent_id: str | None = None, *, message_id: str | None = None) -> str:
+        """Insert a message and move the session's active leaf onto it, atomically."""
         message_id = message_id or new_id()
         with self.conn:
             self.conn.execute(
                 "INSERT INTO messages (id, session_id, role, content, parent_id) VALUES (?, ?, ?, ?, ?)",
                 (message_id, session_id, role, content, parent_id),
             )
+            self.conn.execute(
+                "UPDATE sessions SET active_leaf_id = ? WHERE id = ?", (message_id, session_id)
+            )
         return message_id
+
+    def discard_leaf(self, message_id: str) -> None:
+        """Delete a message nobody replied to, and step the active leaf back onto its parent."""
+        with self.conn:
+            self.conn.execute(
+                "UPDATE sessions SET active_leaf_id = "
+                "(SELECT parent_id FROM messages WHERE id = ?) WHERE active_leaf_id = ?",
+                (message_id, message_id),
+            )
+            self.conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+
+    def get_session(self, session_id: str) -> sqlite3.Row:
+        row = self.conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if row is None:
+            raise SessionNotFound(session_id)
+        return row
+
+    def list_sessions(self) -> list[sqlite3.Row]:
+        """All sessions, most recent first (rowid: uuids are random, so they can't order rows)."""
+        return self.conn.execute("SELECT * FROM sessions ORDER BY rowid DESC").fetchall()
+
+    def set_active_leaf(self, session_id: str, message_id: str) -> None:
+        """Switch the session to the branch ending at `message_id`."""
+        self.get_session(session_id)
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE sessions SET active_leaf_id = ? WHERE id = ? AND EXISTS "
+                "(SELECT 1 FROM messages WHERE id = ? AND session_id = ?)",
+                (message_id, session_id, message_id, session_id),
+            )
+        if cur.rowcount == 0:
+            raise SessionNotFound(f"message {message_id} is not in session {session_id}")
+
+    def load_history(self, session_id: str) -> list[Message]:
+        """Messages from the root down to the session's active leaf, oldest first."""
+        leaf = self.get_session(session_id)["active_leaf_id"]
+        rows = self.conn.execute(
+            "WITH RECURSIVE branch(id, parent_id, role, content, depth) AS ("
+            " SELECT id, parent_id, role, content, 0 FROM messages WHERE id = ?"
+            " UNION ALL"
+            " SELECT m.id, m.parent_id, m.role, m.content, b.depth + 1"
+            " FROM messages m JOIN branch b ON m.id = b.parent_id)"
+            " SELECT role, content FROM branch ORDER BY depth DESC",
+            (leaf,),
+        ).fetchall()
+        return [{"role": r["role"], "content": r["content"]} for r in rows]
+
+    def get_profile(self, name: str = "default") -> str | None:
+        row = self.conn.execute(
+            "SELECT content FROM learner_profiles WHERE name = ?", (name,)
+        ).fetchone()
+        return row["content"] if row else None
+
+    def save_profile(self, name: str, content: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO learner_profiles (name, content) VALUES (?, ?) "
+                "ON CONFLICT(name) DO UPDATE SET content = excluded.content, "
+                "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+                (name, content),
+            )
+
+    def profile_system_message(self, name: str = "default") -> Message | None:
+        """The profile as a system message to prepend to the prompt; never stored in messages."""
+        content = self.get_profile(name)
+        if not content:
+            return None
+        return {"role": "system", "content": f"Learner profile:\n{content}"}
 
     def list_messages(self, session_id: str) -> list[sqlite3.Row]:
         """Messages in insertion order (rowid: uuids are random, so they can't order rows)."""
@@ -93,6 +170,30 @@ class AsyncSessionRepository:
 
     async def list_messages(self, *args, **kwargs) -> list[sqlite3.Row]:
         return await asyncio.to_thread(self.repo.list_messages, *args, **kwargs)
+
+    async def discard_leaf(self, *args, **kwargs) -> None:
+        return await asyncio.to_thread(self.repo.discard_leaf, *args, **kwargs)
+
+    async def get_session(self, *args, **kwargs) -> sqlite3.Row:
+        return await asyncio.to_thread(self.repo.get_session, *args, **kwargs)
+
+    async def list_sessions(self, *args, **kwargs) -> list[sqlite3.Row]:
+        return await asyncio.to_thread(self.repo.list_sessions, *args, **kwargs)
+
+    async def set_active_leaf(self, *args, **kwargs) -> None:
+        return await asyncio.to_thread(self.repo.set_active_leaf, *args, **kwargs)
+
+    async def load_history(self, *args, **kwargs) -> list[Message]:
+        return await asyncio.to_thread(self.repo.load_history, *args, **kwargs)
+
+    async def get_profile(self, *args, **kwargs) -> str | None:
+        return await asyncio.to_thread(self.repo.get_profile, *args, **kwargs)
+
+    async def save_profile(self, *args, **kwargs) -> None:
+        return await asyncio.to_thread(self.repo.save_profile, *args, **kwargs)
+
+    async def profile_system_message(self, *args, **kwargs) -> Message | None:
+        return await asyncio.to_thread(self.repo.profile_system_message, *args, **kwargs)
 
     async def record_turn(self, *args, **kwargs) -> str:
         return await asyncio.to_thread(self.repo.record_turn, *args, **kwargs)

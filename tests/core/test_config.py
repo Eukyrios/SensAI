@@ -65,3 +65,7 @@ def test_explicit_missing_file_raises(tmp_path):
 def test_resolve():
     assert resolve("agents") == cfg.ROOT / "agents"
     assert resolve("/abs") == cfg.Path("/abs")
+
+
+def test_memory_profile_defaults_to_default():
+    assert load_config(env={})["memory"]["profile"] == "default"
