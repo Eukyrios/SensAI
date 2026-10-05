@@ -1,6 +1,7 @@
 """Command-line chat interface and CLI renderer. Run with: python -m sensai"""
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import AsyncIterator, Callable
 
@@ -13,8 +14,8 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from ..core.agent_spec import SpecError
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
-from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, Thinking, Token,
-                           TurnFinished)
+from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, StructuredOutput,
+                           Thinking, Token, TurnFinished)
 from ..llm.ollama import OllamaError
 from ..memory.repository import SessionNotFound, open_repository
 from ..orchestration.session import Session
@@ -37,13 +38,15 @@ HELP = "Commands: " + "  ".join(usage for usage, _ in COMMANDS.values())
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sensai", description="Sensai, a local Japanese tutor")
     parser.add_argument("--model", help="Ollama model for every agent (overrides the agent specs)")
+    parser.add_argument("--agent", help="agent to talk to, from agents/<name>.toml (default: sensei)")
     parser.add_argument("--config", help="path to a config.toml")
     parser.add_argument("--session", metavar="ID", help="resume a stored session (see --list-sessions)")
     parser.add_argument("--list-sessions", action="store_true", help="list the stored sessions and exit")
     args = parser.parse_args(argv)
 
     try:
-        config = load_config(args.config, cli={"agents": {"model_override": args.model}})
+        config = load_config(args.config, cli={"agents": {"model_override": args.model,
+                                                          "default": args.agent}})
         if args.list_sessions:
             list_sessions(config)
             return
@@ -269,6 +272,11 @@ class CLIRenderer:
                     case Error(kind=k, message=m):
                         out.end_line()
                         self._render_error(k, m)
+                    case StructuredOutput(data=data, attempts=attempts):
+                        out.end_line()
+                        print(json.dumps(data, indent=2, ensure_ascii=False))
+                        if attempts > 1:
+                            print(dim("(repaired: the first reply didn't match the schema)"))
                     case TurnFinished() as finished:
                         status(None)
                         out.end_line()

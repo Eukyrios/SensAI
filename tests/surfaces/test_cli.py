@@ -519,3 +519,28 @@ def test_unknown_command_not_sent_to_model(monkeypatch, capsys):
     run(monkeypatch, ["/nope"], client=client)
     assert "Unknown command /nope. Type /help" in capsys.readouterr().out
     assert client.calls == []
+
+
+# --- structured output (T5) -----------------------------------------------------------------------
+
+async def test_renderer_prints_structured_output_as_json(capsys):
+    async def stream():
+        yield ev.StructuredOutput(turn_id="t", run_id="r", data={"correction": "学校に行きます"})
+        yield ev.StructuredOutput(turn_id="t", run_id="r", data={"ok": True}, attempts=2)
+    await CLIRenderer().render_stream(stream())
+    out = capsys.readouterr().out
+    assert '"correction": "学校に行きます"' in out              # pretty, and Japanese kept readable
+    assert out.count("repaired") == 1                           # only the second one was repaired
+
+
+def test_agent_flag_selects_the_agent(monkeypatch, capsys):
+    seen = []
+    monkeypatch.setattr(cli, "plain_chat", lambda session, logger: seen.append(session.spec))
+    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient()))
+    cli.main(["--agent", "checker"])
+    assert seen[0].name == "checker" and seen[0].output_schema["required"][0] == "sentence"
+
+
+def test_unknown_agent_flag_exits(monkeypatch):
+    with pytest.raises(SystemExit, match="unknown agent 'nobody'"):
+        cli.main(["--agent", "nobody"])
