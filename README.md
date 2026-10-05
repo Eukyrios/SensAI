@@ -56,7 +56,11 @@ ollama pull bge-m3          # RAG embeddings (layer 5)
 python -m sensai                          # start the chat
 python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
+python -m sensai --list-sessions          # list the stored sessions (id, date, model, title)
+python -m sensai --session <id>           # resume a stored session
 ```
+
+An unknown session id prints `[error] session not found` and exits with a non-zero code.
 
 At startup Sensai checks that Ollama is reachable and the model is installed, and stops with the
 exact `ollama pull` command if it isn't.
@@ -70,7 +74,7 @@ exact `ollama pull` command if it isn't.
 | `/model <name>` | switch model mid-session; the history is kept |
 | `/think` | show whether the model reasons before answering |
 | `/think on` / `/think off` | turn the model's reasoning on or off (only for models that can reason) |
-| `/reset` | clear the conversation history |
+| `/reset` | clear the history and start a new session (the old one stays stored) |
 | `/quit` | exit (Ctrl-D works too) |
 
 Anything else starting with `/` is rejected as an unknown command and never sent to the model.
@@ -133,6 +137,14 @@ Each agent is described in `agents/<name>.toml` (model, `num_ctx`, prompt, tools
 `model` and `num_ctx` are always explicit there: we never inherit Ollama's defaults.
 `--model` overrides the model of every agent for one run.
 
+The `[memory]` section controls what the chat remembers:
+
+```toml
+[memory]
+max_history_turns = 20   # turns of history sent to the model
+profile = "default"      # name of the learner profile injected into every prompt
+```
+
 ## Persistence
 
 `sensai/memory/` stores sessions and history in SQLite, at the path from `[storage].db_path`
@@ -140,7 +152,7 @@ in `config.toml` (`:memory:` for tests).
 
 - **Connection** (`db.py`): one `connect(path)` with `PRAGMA foreign_keys = ON`,
   `journal_mode = WAL`, and `row_factory = sqlite3.Row`.
-- **Schema** (`migrations/001_init.sql`): `sessions` → `messages` (FK, cascade) → `turns`
+- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
   per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
   Ids are **text uuids** from `sensai.core.ids.new_id()`, the same ids the events carry
@@ -155,16 +167,31 @@ in `config.toml` (`:memory:` for tests).
   `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
 - **Access pattern** (`repository.py`): a synchronous `SessionRepository`
   (`create_session`, `add_message`, `list_messages`, `record_turn`, `record_agent_run`; each write
-  takes an optional id, generates one otherwise, and returns it) plus an
+  takes an optional id, generates one otherwise, and returns it; plus the session and profile
+  calls below) plus an
   `AsyncSessionRepository` facade that runs each call through `asyncio.to_thread`. We chose that
   over `aiosqlite` because it needs no new dependency, keeps the storage logic in one place that
   stays trivial to unit-test synchronously, and the thread-pool overhead is irrelevant at
   Sensai's scale (one learner, a handful of DB calls per turn) — the web UI (layer 7) can await
   the facade without blocking its event loop.
 
-Saving and reloading history through the repository is the next step (#14, layer 2): it hooks into
-`run_turn()` and stores each turn under the `Session.id` and the events' `turn_id`/`run_id`, which
-are the same uuids as the tables' primary keys. Until then, history lives only in the session.
+### Sessions, branches and the learner profile
+
+- `add_message(session_id, role, content, parent_id)` inserts a message and moves
+  `sessions.active_leaf_id` onto it in one transaction. Messages form a tree through `parent_id`.
+- `load_history(session_id)` walks the tree from `active_leaf_id` up to the root (recursive CTE)
+  and returns the messages oldest first. `set_active_leaf()` switches to another branch.
+  `get_session()`, `load_history()` and `set_active_leaf()` raise `SessionNotFound` for an unknown
+  session. `list_sessions()` returns the sessions, newest first.
+- The learner profile lives in `learner_profiles`, read with `get_profile()`, written with
+  `save_profile()`. `profile_system_message()` turns it into a system message.
+- `Session` (`orchestration/session.py`) is the link with the turn loop. `run_turn()` saves the
+  user message before calling the model and the reply after the stream; a failed turn is removed
+  from the database too, and a stopped one keeps the question and the part already written. The
+  session itself is only stored with its first message, and `Session.resume(config, id)` reloads a
+  stored one.
+- The profile named by `[memory].profile` goes in the prompt right after the system prompt on
+  every turn, and is never stored in `messages`.
 
 ## Features
 
