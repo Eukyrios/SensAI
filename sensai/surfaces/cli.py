@@ -21,6 +21,7 @@ from ..orchestration.session import Session
 from ..orchestration.turn import run_turn
 from ..trust.logging import JsonlLogger
 from ..trust.metrics import compute_turn_metrics
+from ..trust.tracing import TurnTracer
 
 COMMANDS = {
     "/help": ("/help", "list the commands"),
@@ -239,12 +240,14 @@ class CLIRenderer:
     def __init__(self, out: Output | None = None, status: Status | None = None) -> None:
         self.out = out or PlainOutput()
         self.status = status or (lambda _: None)
+        self.tracer = TurnTracer()
 
     async def render_stream(self, stream: AsyncIterator[Event]) -> None:
         out, status = self.out, self.status
         reasoning, answering = False, False
         try:
             async for event in stream:
+                self.tracer.process_event(event)
                 match event:
                     case AgentRunStarted():
                         status("thinking…")
@@ -306,7 +309,7 @@ def dim_lines(text: str) -> str:
     return "\n".join(dim(part) if part else part for part in text.split("\n"))
 
 
-def run_command(session: Session, line: str) -> bool:
+def run_command(session: Session, line: str, renderer: CLIRenderer | None = None) -> bool:
     """Handle a /command. Returns False when the chat should stop."""
     name, _, arg = line.partition(" ")
     arg = arg.strip()
@@ -319,10 +322,15 @@ def run_command(session: Session, line: str) -> bool:
         session.reset()
         print("History cleared.")
     elif name == "/metrics":
-        if hasattr(session, "last_metrics") and session.last_metrics:
-            print(session.last_metrics.format_summary())
+        if renderer and hasattr(renderer, "last_metrics") and renderer.last_metrics:
+            print(renderer.last_metrics.format_summary())
         else:
             print("No metrics recorded yet.")
+    elif name == "/trace":
+        if renderer and hasattr(renderer, "tracer") and renderer.tracer:
+            print(renderer.tracer.format_trace())
+        else:
+            print("No trace recorded yet.")
     elif name == "/think":
         try:
             if arg in ("on", "off"):
