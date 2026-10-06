@@ -309,3 +309,213 @@ def test_unknown_session_exits_with_error(monkeypatch):
     with pytest.raises(SystemExit, match="session not found: nope") as e:
         cli.main(["--session", "nope"])
     assert e.value.code not in (0, None)
+
+
+# --- restored: tests lost when #201 resolved its conflicts with #198 ----------------------------
+
+import contextlib
+import threading
+
+from prompt_toolkit.application import create_app_session
+from prompt_toolkit.input import create_pipe_input
+from prompt_toolkit.output import DummyOutput
+
+from sensai.core.config import CONFIG_PATH
+from sensai.llm.ollama import OllamaError
+
+
+def run(monkeypatch, inputs, argv=(), client=None):
+    it = iter(inputs)
+
+    def fake_input(prompt=""):
+        item = next(it, EOFError)
+        if isinstance(item, BaseException) or (isinstance(item, type) and issubclass(item, BaseException)):
+            raise item
+        return item
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    if client is not None:
+        monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=client))
+    cli.main(list(argv))
+
+
+async def live(monkeypatch, session, script):
+    """Run live_chat with keys fed from `script`: a list of strings or seconds to wait."""
+    monkeypatch.setattr(cli, "patch_stdout", lambda raw=False: contextlib.nullcontext())
+    with create_pipe_input() as keys, create_app_session(input=keys, output=DummyOutput()):
+        chat = asyncio.create_task(cli.live_chat(session))
+        for step in script:
+            if isinstance(step, str):
+                keys.send_text(step)
+            await asyncio.sleep(step if isinstance(step, (int, float)) else 0.05)
+        await asyncio.wait_for(chat, 5)
+
+
+def live_session(client):
+    from tests.fakes import make_config
+    return Session(make_config(), client=client)
+
+
+class SlowClient(FakeClient):
+    """Streams one token every `delay` seconds and records each message it was asked."""
+
+    def __init__(self, delay=0.1, count=5):
+        super().__init__()
+        self.delay, self.count, self.asked = delay, count, []
+
+    def chat_stream(self, model, messages, **options):
+        self.asked.append(messages[-1]["content"])
+        for i in range(self.count):
+            threading.Event().wait(self.delay)
+            yield f"t{i} "
+
+
+def test_bad_agent(monkeypatch, tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[agents]\ndefault = "nobody"\n', encoding="utf-8")
+    with pytest.raises(SystemExit, match="unknown agent"):
+        run(monkeypatch, [], argv=["--config", str(p)])
+
+
+async def test_blank_lines_are_ignored(monkeypatch, capsys):
+    client = FakeClient()
+    await live(monkeypatch, live_session(client), ["   \r", "\x04"])
+    assert client.calls == []
+
+
+def test_ctrl_c_at_prompt(monkeypatch, capsys):
+    run(monkeypatch, [KeyboardInterrupt], argv=["--config", str(CONFIG_PATH)])
+    assert "Sensai" in capsys.readouterr().out
+
+
+async def test_ctrl_c_does_nothing_during_a_reply(monkeypatch, capsys):
+    client = SlowClient(delay=0.1, count=5)
+    session = live_session(client)
+    await live(monkeypatch, session, ["first\r", 0.2, "\x03", 1.0, "/quit\r"])
+    out = capsys.readouterr().out
+    assert "[interrupted]" not in out and "t4" in out        # the reply finished normally
+    assert session.history[-1]["content"].startswith("t0 ")
+
+
+async def test_ctrl_c_while_idle_does_nothing(monkeypatch):
+    client = FakeClient()
+    await live(monkeypatch, live_session(client), ["\x03", 0.2, "hello\r", 0.3, "\x04"])
+    assert len(client.calls) == 1                         # still running: "hello" was answered
+
+
+async def test_ctrl_d_during_a_reply_quits_without_running_queued_questions(monkeypatch, capsys):
+    client = SlowClient(delay=0.3, count=10)
+    await live(monkeypatch, live_session(client), ["first\r", 0.4, "second\r", 0.3, "\x04"])
+    assert "[interrupted]" in capsys.readouterr().out
+    assert client.asked == ["first"]                      # "second" was queued but never sent
+
+
+async def test_escape_stops_the_reply_and_keeps_the_chat(monkeypatch, capsys):
+    client = SlowClient(delay=0.3, count=10)
+    session = live_session(client)
+    await live(monkeypatch, session, ["first\r", 1.0, "\x1b", 0.5, "/quit\r"])   # Esc mid-reply
+    out = capsys.readouterr().out
+    assert "[interrupted]" in out and "t9" not in out
+    question, partial = session.history                  # the chat went on, history kept
+    assert question == {"role": "user", "content": "first"}
+    assert partial["role"] == "assistant" and partial["content"].startswith("t0 ")
+
+
+async def test_escape_while_idle_does_nothing(monkeypatch):
+    client = FakeClient()
+    await live(monkeypatch, live_session(client), ["\x1b", 0.3, "\x04"])
+    assert client.calls == []
+
+
+def test_full_session(monkeypatch, capsys):
+    run(monkeypatch, ["", "hello", "/reset", "/quit"], client=FakeClient())
+    out = capsys.readouterr().out
+    assert "Konnichiwa" in out and "History cleared." in out
+
+
+def test_interrupt_during_reply(monkeypatch, capsys):
+    run(monkeypatch, ["hello"], client=FakeClient(error=KeyboardInterrupt()))
+    assert "[interrupted]" in capsys.readouterr().out
+
+
+async def test_live_chat_answers_then_quits(monkeypatch, capsys):
+    await live(monkeypatch, live_session(FakeClient(stats=STATS)), ["hello\r", 0.3, "/quit\r"])
+    out = capsys.readouterr().out
+    assert "> hello\nKonnichiwa\n" in out and "102 prompt + 11 reply tokens" in out
+
+
+def test_main_uses_the_live_chat_in_a_terminal(monkeypatch):
+    used = []
+
+    async def fake_live(session, logger):
+        used.append(session)
+    monkeypatch.setattr(cli, "live_chat", fake_live)
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient()))
+    cli.main([])
+    assert len(used) == 1
+
+
+def test_missing_config(monkeypatch):
+    with pytest.raises(SystemExit, match="config not found"):
+        run(monkeypatch, [], argv=["--config", "/nope.toml"])
+
+
+def test_model_command(monkeypatch, capsys):
+    client = FakeClient()
+    run(monkeypatch, ["/model", "/model qwen3.5:4b", "hello", "/model nope"], client=client)
+    out, err = capsys.readouterr()
+    assert "Model: qwen3.5:9b" in out and "Installed: qwen3.5:4b, qwen3.5:9b" in out
+    assert "Model: qwen3.5:4b (history kept)" in out
+    assert client.calls[-1][0] == "qwen3.5:4b"
+    assert "ollama pull nope" in err
+
+
+def test_model_command_lists_none(monkeypatch, capsys):
+    client = FakeClient()
+    client.list_models = lambda: []
+    run(monkeypatch, ["/model"], client=client)
+    assert "Installed: none" in capsys.readouterr().out
+
+
+def test_module_entrypoint(monkeypatch):
+    import runpy
+    monkeypatch.setattr("sys.argv", ["sensai"])
+    monkeypatch.setattr("builtins.input", lambda p="": (_ for _ in ()).throw(EOFError))
+    runpy.run_module("sensai", run_name="__main__")
+
+
+def test_ollama_error_printed(monkeypatch, capsys):
+    run(monkeypatch, ["hello"], client=FakeClient(error=OllamaError("connection", "down")))
+    err = capsys.readouterr().err
+    assert "[error] Cannot reach Ollama" in err and "ollama serve" in err     # hint added in #201
+
+
+@pytest.mark.parametrize("error, shown", [
+    (OllamaError("model_missing", "Model 'x' not found (run `ollama pull x`)"), "ollama pull x"),
+    (OllamaError("connection", "Cannot reach Ollama"), "Cannot reach Ollama"),
+])
+def test_startup_check_stops_before_prompt(monkeypatch, error, shown):
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda p="": asked.append(p))
+    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient(startup_error=error)))
+    with pytest.raises(SystemExit, match=shown):
+        cli.main([])
+    assert asked == []          # the prompt never appeared
+
+
+async def test_type_ahead_is_queued_and_runs_after_the_reply(monkeypatch, capsys):
+    client = SlowClient()
+    await live(monkeypatch, live_session(client),
+               ["first\r", 0.15, "second\r", 1.5, "/quit\r"])     # "second" typed mid-reply
+    out = capsys.readouterr().out
+    assert client.asked == ["first", "second"]
+    assert out.index("> first") < out.index("t4") < out.index("> second")   # never mid-reply
+
+
+def test_unknown_command_not_sent_to_model(monkeypatch, capsys):
+    client = FakeClient()
+    run(monkeypatch, ["/nope"], client=client)
+    assert "Unknown command /nope. Type /help" in capsys.readouterr().out
+    assert client.calls == []
