@@ -220,7 +220,7 @@ def test_live_output_prints_finished_lines_and_keeps_the_partial_one(capsys):
 async def test_render_turn_reports_status():
     statuses = []
     session = Session(make_config(), client=FakeClient(stats=STATS))
-    await cli.render_turn(session, "hello", cli.PlainOutput(), statuses.append)
+    await cli.render_turn(session, "hello", cli.CLIRenderer(cli.PlainOutput(), statuses.append))
     assert statuses[0] == "thinking…" and "replying…" in statuses and statuses[-1] is None
 
 
@@ -544,3 +544,13 @@ def test_agent_flag_selects_the_agent(monkeypatch, capsys):
 def test_unknown_agent_flag_exits(monkeypatch):
     with pytest.raises(SystemExit, match="unknown agent 'nobody'"):
         cli.main(["--agent", "nobody"])
+
+
+
+def test_metrics_and_trace_commands_show_the_last_turn(monkeypatch, capsys):
+    run(monkeypatch, ["/metrics", "/trace", "hello", "/metrics", "/trace"], client=FakeClient(stats=STATS))
+    out = capsys.readouterr().out
+    before, after = out.split("Konnichiwa", 1)
+    assert "No metrics recorded yet." in before and "No trace recorded yet." in before
+    assert "No metrics recorded yet." not in after and "No trace recorded yet." not in after
+    assert "sensei" in after                                   # the trace names the agent run

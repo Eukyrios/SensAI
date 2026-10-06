@@ -82,6 +82,7 @@ Status = Callable[[str | None], None]
 
 def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
     """Line by line, for pipes and scripts: read a message, answer it, repeat."""
+    renderer = CLIRenderer(PlainOutput())     # one per chat: /metrics and /trace read its last turn
     while True:
         try:
             line = input("\n> ")
@@ -89,7 +90,7 @@ def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
             print()
             return
         try:
-            if not asyncio.run(handle_line(session, line, PlainOutput(), logger=logger)):
+            if not asyncio.run(handle_line(session, line, renderer, logger)):
                 return
         except KeyboardInterrupt:
             print("\n[interrupted]")
@@ -140,6 +141,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
         redraw()
 
     out.on_change = redraw
+    renderer = CLIRenderer(out, set_status)     # one per chat: /metrics and /trace read its last turn
 
     async def read_lines() -> None:
         while True:
@@ -161,7 +163,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
                 if not line.strip():
                     continue
                 print(f"\n> {line.strip()}")
-                state["turn"] = asyncio.create_task(handle_line(session, line, out, set_status, logger))
+                state["turn"] = asyncio.create_task(handle_line(session, line, renderer, logger))
                 try:
                     keep_going = await state["turn"]
                 except asyncio.CancelledError:
@@ -216,25 +218,25 @@ class LiveOutput:
 Output = PlainOutput | LiveOutput
 
 
-async def handle_line(session: Session, line: str, out: Output, status: Status | None = None,
+async def handle_line(session: Session, line: str, renderer: "CLIRenderer",
                       logger: JsonlLogger | None = None) -> bool:
     """One input line: a /command or a message for the model. Returns False when the chat should stop."""
     line = line.strip()
     if not line:
         return True
     if line.startswith("/"):
-        return run_command(session, line)
-    await render_turn(session, line, out, status, logger)
+        return run_command(session, line, renderer)
+    await render_turn(session, line, renderer, logger)
     return True
 
 
-async def render_turn(session: Session, text: str, out: Output, status: Status | None = None,
+async def render_turn(session: Session, text: str, renderer: "CLIRenderer",
                       logger: JsonlLogger | None = None) -> None:
     """One turn: run_turn -> (logger, which writes each event and passes it on) -> CLI renderer."""
     stream = run_turn(session, text)
     if logger is not None:
         stream = logger.log_stream(stream)
-    await CLIRenderer(out, status).render_stream(stream)
+    await renderer.render_stream(stream)
 
 
 class CLIRenderer:
