@@ -1,6 +1,7 @@
 """Command-line chat interface and CLI renderer. Run with: python -m sensai"""
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import AsyncIterator, Callable
 
@@ -13,8 +14,8 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from ..core.agent_spec import SpecError
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
-from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, Thinking, Token,
-                           TurnFinished)
+from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, StructuredOutput,
+                           Thinking, Token, TurnFinished)
 from ..llm.ollama import OllamaError
 from ..memory.repository import SessionNotFound, open_repository
 from ..orchestration.session import Session
@@ -37,13 +38,15 @@ HELP = "Commands: " + "  ".join(usage for usage, _ in COMMANDS.values())
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sensai", description="Sensai, a local Japanese tutor")
     parser.add_argument("--model", help="Ollama model for every agent (overrides the agent specs)")
+    parser.add_argument("--agent", help="agent to talk to, from agents/<name>.toml (default: sensei)")
     parser.add_argument("--config", help="path to a config.toml")
     parser.add_argument("--session", metavar="ID", help="resume a stored session (see --list-sessions)")
     parser.add_argument("--list-sessions", action="store_true", help="list the stored sessions and exit")
     args = parser.parse_args(argv)
 
     try:
-        config = load_config(args.config, cli={"agents": {"model_override": args.model}})
+        config = load_config(args.config, cli={"agents": {"model_override": args.model,
+                                                          "default": args.agent}})
         if args.list_sessions:
             list_sessions(config)
             return
@@ -79,6 +82,7 @@ Status = Callable[[str | None], None]
 
 def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
     """Line by line, for pipes and scripts: read a message, answer it, repeat."""
+    renderer = CLIRenderer(PlainOutput())     # one per chat: /metrics and /trace read its last turn
     while True:
         try:
             line = input("\n> ")
@@ -86,7 +90,7 @@ def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
             print()
             return
         try:
-            if not asyncio.run(handle_line(session, line, PlainOutput(), logger=logger)):
+            if not asyncio.run(handle_line(session, line, renderer, logger)):
                 return
         except KeyboardInterrupt:
             print("\n[interrupted]")
@@ -137,6 +141,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
         redraw()
 
     out.on_change = redraw
+    renderer = CLIRenderer(out, set_status)     # one per chat: /metrics and /trace read its last turn
 
     async def read_lines() -> None:
         while True:
@@ -158,7 +163,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
                 if not line.strip():
                     continue
                 print(f"\n> {line.strip()}")
-                state["turn"] = asyncio.create_task(handle_line(session, line, out, set_status, logger))
+                state["turn"] = asyncio.create_task(handle_line(session, line, renderer, logger))
                 try:
                     keep_going = await state["turn"]
                 except asyncio.CancelledError:
@@ -213,25 +218,25 @@ class LiveOutput:
 Output = PlainOutput | LiveOutput
 
 
-async def handle_line(session: Session, line: str, out: Output, status: Status | None = None,
+async def handle_line(session: Session, line: str, renderer: "CLIRenderer",
                       logger: JsonlLogger | None = None) -> bool:
     """One input line: a /command or a message for the model. Returns False when the chat should stop."""
     line = line.strip()
     if not line:
         return True
     if line.startswith("/"):
-        return run_command(session, line)
-    await render_turn(session, line, out, status, logger)
+        return run_command(session, line, renderer)
+    await render_turn(session, line, renderer, logger)
     return True
 
 
-async def render_turn(session: Session, text: str, out: Output, status: Status | None = None,
+async def render_turn(session: Session, text: str, renderer: "CLIRenderer",
                       logger: JsonlLogger | None = None) -> None:
     """One turn: run_turn -> (logger, which writes each event and passes it on) -> CLI renderer."""
     stream = run_turn(session, text)
     if logger is not None:
         stream = logger.log_stream(stream)
-    await CLIRenderer(out, status).render_stream(stream)
+    await renderer.render_stream(stream)
 
 
 class CLIRenderer:
@@ -269,6 +274,11 @@ class CLIRenderer:
                     case Error(kind=k, message=m):
                         out.end_line()
                         self._render_error(k, m)
+                    case StructuredOutput(data=data, attempts=attempts):
+                        out.end_line()
+                        print(json.dumps(data, indent=2, ensure_ascii=False))
+                        if attempts > 1:
+                            print(dim("(repaired: the first reply didn't match the schema)"))
                     case TurnFinished() as finished:
                         status(None)
                         out.end_line()

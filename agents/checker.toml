@@ -1,0 +1,35 @@
+# Checks one Japanese sentence and replies with structured data, never prose (T5).
+# The validated reply arrives as a StructuredOutput event; the corrector (layer 4) builds on it.
+name = "checker"
+model = "qwen3.5:9b"
+num_ctx = 8192
+temperature = 0.1
+think = false
+system_prompt = """You check one Japanese sentence written by an English-speaking beginner.
+Decide whether it is correct. If it is not, give the corrected sentence, the kind of mistake, and the grammar rule in one short English sentence.
+Write Japanese the way it is written in Japan, never with Chinese characters."""
+timeout_s = 60
+
+[output_schema]
+type = "object"
+required = ["sentence", "is_correct", "correction", "error_type", "rule"]
+additionalProperties = false
+
+[output_schema.properties.sentence]
+type = "string"
+description = "The learner's sentence, unchanged."
+
+[output_schema.properties.is_correct]
+type = "boolean"
+
+[output_schema.properties.correction]
+type = "string"
+description = "The corrected sentence, or the same sentence when it is correct."
+
+[output_schema.properties.error_type]
+type = "string"
+enum = ["particle", "conjugation", "vocabulary", "word_order", "politeness", "none"]
+
+[output_schema.properties.rule]
+type = "string"
+description = "The grammar rule behind the correction, in one short English sentence."
