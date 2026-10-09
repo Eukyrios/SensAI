@@ -1,4 +1,6 @@
 """Learner ledger: errors, srs_cards and facts, written by agents, one owner per table (#88 #89 #90)."""
+from __future__ import annotations
+
 import sqlite3
 
 from ..core.ids import new_id
