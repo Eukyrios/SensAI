@@ -14,6 +14,7 @@ import sqlite3
 from ..core.ids import new_id
 from ..core.messages import Message
 from . import db
+from .ledger import Ledger
 from .migrate import migrate
 
 
@@ -207,6 +208,13 @@ def open_repository(config: dict) -> SessionRepository:
     conn = db.connect(config["storage"]["db_path"])
     migrate(conn)
     return SessionRepository(conn)
+
+
+def open_ledger(config: dict) -> Ledger:
+    """Same database as the repository, for the errors, srs_cards and facts tables."""
+    conn = db.connect(config["storage"]["db_path"])
+    migrate(conn)
+    return Ledger(conn)
 
 
 def open_async_repository(config: dict) -> AsyncSessionRepository:
