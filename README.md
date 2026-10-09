@@ -194,6 +194,22 @@ in `config.toml` (`:memory:` for tests).
 - The profile named by `[memory].profile` goes in the prompt right after the system prompt on
   every turn, and is never stored in `messages`.
 
+### Learner ledger
+
+`migrations/003_ledger.sql` adds three tables, handled by `Ledger` (`memory/ledger.py`, opened with
+`open_ledger(config)`):
+
+- `errors` (sentence, correction, error_type, resolved, optional session), `srs_cards` (front, back,
+  ease, interval_days, due_date) and `facts` (key, value).
+- `create / read / list / update / delete`, with a whitelist of writable columns per table (an agent
+  cannot set an id or a timestamp).
+- **Write ownership is enforced in the data layer**: each table has one owning agent
+  (default: `errors` → `corrector`, `srs_cards` and `facts` → `sensei`, overridable with
+  `Ledger(conn, owners=...)`). Any other agent gets `WriteNotAllowed`; reads are open to everyone.
+- `ledger.tools(agent)` returns four tools (`ledger_create`, `ledger_read`, `ledger_update`,
+  `ledger_delete`) bound to that agent, so the model drives the CRUD itself and the ownership check
+  still applies. They are not registered on an agent yet; scheduling the SRS cards is a later task.
+
 ## Features
 
 Committed: six of the seven ★★★ features (T2 is declined on purpose — a Japanese tutor has no honest use for running generated code).
