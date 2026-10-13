@@ -11,9 +11,9 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [B1](#b1--functional-cli-chatbot) | Functional CLI chatbot | 👍 | 1–2 | A · D | ✅ built |
 | [M1](#m1--session-persistence--profile) | Session persistence & profile | ★ | 1–2 | B | ✅ built |
 | [T5](#t5--structured-output) | Structured output | ★ | 3 | A | 🚧 validation built, handoffs in layer 4 |
-| [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | ⏳ |
-| [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | 🚧 own tools built, MCP in layer 5 |
-| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | 🚧 JSONL logger built |
+| [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | 🚧 ledger built, not used by an agent yet |
+| [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | 🚧 registry built, tools return placeholder data, MCP in layer 5 |
+| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | 🚧 event log, `/metrics` and `/trace` built |
 | [A2](#a2--multi-agent-orchestration) | Multi-agent orchestration | ★★★ | 4–5 | A | 🚧 contracts built |
 | [A1](#a1--reasoning-loop-react) | Reasoning loop (ReAct) | ★★★ | 4 | C | ⏳ |
 | [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4–5 | B | ⏳ |

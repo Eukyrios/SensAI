@@ -29,6 +29,7 @@ COMMANDS = {
     "/model": ("/model [name]", "show the current and installed models, or switch model (history kept)"),
     "/think": ("/think [on|off]", "show whether the model reasons before answering, or switch it"),
     "/metrics": ("/metrics", "show token usage, speed, and cost estimation for the last turn"),
+    "/trace": ("/trace", "show the agent runs of the last turn"),
     "/reset": ("/reset", "clear the history and start a new session (the old one stays stored)"),
     "/quit": ("/quit", "exit (Ctrl-D works too)"),
 }

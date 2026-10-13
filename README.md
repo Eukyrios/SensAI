@@ -61,6 +61,13 @@ python -m sensai --session <id>           # resume a stored session
 python -m sensai --agent checker          # talk to another agent from agents/ (here: JSON corrections)
 ```
 
+Other entry points:
+
+```bash
+python -m sensai.surfaces.demo            # renders and logs a scripted turn, no model needed
+python -m scripts.bake_off                # benchmark the candidate models on 20 Japanese prompts
+```
+
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
 
 At startup Sensai checks that Ollama is reachable and the model is installed, and stops with the
@@ -75,6 +82,8 @@ exact `ollama pull` command if it isn't.
 | `/model <name>` | switch model mid-session; the history is kept |
 | `/think` | show whether the model reasons before answering |
 | `/think on` / `/think off` | turn the model's reasoning on or off (only for models that can reason) |
+| `/metrics` | token usage, speed and estimated cost of the last turn |
+| `/trace` | the agent runs of the last turn (tokens, reasoning, ok or failed) |
 | `/reset` | clear the history and start a new session (the old one stays stored) |
 | `/quit` | exit (Ctrl-D works too) |
 
@@ -104,16 +113,34 @@ When input is piped (scripts, tests), Sensai reads one line at a time instead, a
 $ python -m sensai
 Sensai (qwen3.5:9b) — type /help for commands
 
-> how to say hi in japanese
-Hello! In Japanese, you say "hi" as:
-
-こんにちは (konnichiwa) — hello.
-
-It is the most common way to greet people during the day.
+> how do I say cat?
+猫 (neko) [neh-koh] — cat.
+370 prompt + 14 reply tokens · first token 10.3s · 11.1s
 
 > /model qwen3.5:4b
 Model: qwen3.5:4b (history kept)
 ```
+
+Every Japanese word or sentence comes as `characters (romaji) [pronunciation] — translation`
+(set in `agents/sensei.toml`). The first reply after starting waits for Ollama to load the model
+(here ~10 s); later replies start in under a second.
+
+With `--agent checker`, a sentence comes back as data:
+
+```
+$ python -m sensai --agent checker
+> 私は学校を行きます
+{
+  "sentence": "私は学校を行きます",
+  "is_correct": false,
+  "correction": "私は学校に行きます",
+  "error_type": "vocabulary",
+  "rule": "The verb for going to a place is 行く (iku), …"
+}
+```
+
+The reply always has this shape, but its content can still be wrong: this mistake is a particle
+(を → に), not vocabulary. Checking content comes with the corrector's tools and the judge.
 
 ### Troubleshooting
 
@@ -153,7 +180,7 @@ in `config.toml` (`:memory:` for tests).
 
 - **Connection** (`db.py`): one `connect(path)` with `PRAGMA foreign_keys = ON`,
   `journal_mode = WAL`, and `row_factory = sqlite3.Row`.
-- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`): `sessions` → `messages` (FK, cascade) → `turns`
+- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`, `003_ledger.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
   per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
   Ids are **text uuids** from `sensai.core.ids.new_id()`, the same ids the events carry
@@ -164,6 +191,8 @@ in `config.toml` (`:memory:` for tests).
   and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
   place so a later layer can branch a message (edits/retries) or nest an agent run without a
   migration.
+  Today the chat writes `sessions` and `messages` (plus the profile and the ledger tables); `turns` and
+  `agent_runs` exist but nothing records them yet, so per-turn data lives in the event log for now.
 - **Migrations** (`migrate.py`): applies every `NNN_*.sql` file above the DB's
   `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
 - **Access pattern** (`repository.py`): a synchronous `SessionRepository`
@@ -218,10 +247,10 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 |------|---------|--------|-------|--------|
 | B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
 | M1 | Session persistence & profile | ★ | 2 | ✅ |
-| T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ |
-| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | ⏳ |
-| T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | 🚧 own tools done, MCP in layer 5 |
-| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | 🚧 JSONL logger done |
+| T5 | Structured output (JSON schema, one repair) | ★ | 3 | 🚧 validation and repair built; handoffs use it in layer 4 |
+| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 ledger and its agent tools built, not used by an agent yet; SRS scheduling in layer 6 |
+| T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | 🚧 registry and native/prompted paths built; the three tools return placeholder data and no agent calls them yet; MCP in layer 5 |
+| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | 🚧 JSONL event log, `/metrics` and `/trace` built |
 | A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ⏳ |
 | A1 | ReAct (corrector) | ★★★ | 4 | ⏳ |
 | M2 | Token budgeting & compression | ★★ | 4–5 | ⏳ |
@@ -267,9 +296,10 @@ sensai/
   orchestration/  turn loop, executor, orchestrator, router                     (A)
   memory/         SQLite storage, sessions, ledger, context budgeting           (B)
   knowledge/      tools, MCP client, RAG pipeline                               (C)
-  trust/          guardrails, judge, logging, metrics                           (D)
-  surfaces/       CLI and web UI                                                (D)
-agents/           one TOML spec per agent (sensei, corrector, judge, ...)
+  trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
+  surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
+agents/           one TOML spec per agent: sensei (default), checker (T5 demo)
+scripts/          bake_off.py: model benchmark                                  (C)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
@@ -283,11 +313,13 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
   others. `surfaces` never contains business logic.
 - **Agents are data, not code.** An agent is a TOML file loaded into an `AgentSpec`
   (model, `num_ctx`, prompt, tools, output schema). Adding the corrector or the judge means adding a file.
-- **One transport for every agent.** `OllamaClient.chat_stream(model, messages, num_ctx=...)` takes the
-  model and options on each call, so agents with different models share one client. Errors carry a `kind`
-  (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`) that surfaces can display, including
-  failures in the middle of a reply. The stream yields text only; its return value is a `ChatStats` with
-  the final chunk's token counts and durations, which `run_turn()` puts into `TurnFinished`.
+- **One transport for every agent.** `OllamaClient.chat_stream(model, messages, num_ctx=..., format=...)`
+  takes the model and options on each call, so agents with different models share one client. Errors carry a
+  `kind` (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`; the turn loop adds `empty_input`
+  and `invalid_output`) that surfaces can display, including failures in the middle of a reply. The stream
+  yields the reply as text tokens, and the model's reasoning as `Thought` items when thinking is on; its
+  return value is a `ChatStats` with the final chunk's token counts and durations, which `run_turn()` puts
+  into `TurnFinished`.
   `capabilities(model)` and `context_length(model)` read `/api/show` (cached), so tools can choose native
   or prompted tool calling and specs can be checked against the model's maximum context.
 - **Surfaces only subscribe.** The turn loop emits events (`core/events.py`) and the CLI, the logger,
@@ -305,9 +337,13 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
 | 6 · Check and show | `trust` (judge, output guardrails, logging) → events → `surfaces` |
 
 Today a turn is `run_turn(session, text)` in `orchestration/turn.py`: an async generator that yields
-`TurnStarted → AgentRunStarted → Token… → AgentRunFinished → TurnFinished` (with `Error` and
-`GuardrailTriggered` when they apply) for one agent. `Session` (`orchestration/session.py`) holds the
-active agent, the history and the client. The CLI renders those events; it never calls the model.
+`TurnStarted → AgentRunStarted → [Thinking…] → Token… → AgentRunFinished → TurnFinished` for one agent,
+with `StructuredOutput` instead of `Token` for an agent that has an `output_schema`, and `Error` or
+`GuardrailTriggered` when they apply. `Session` (`orchestration/session.py`) holds the active agent, the
+history, the learner profile and the client, and stores each message. There is no orchestrator yet
+(layer 4), so one agent answers each turn. Every turn goes `run_turn() → JsonlLogger → CLIRenderer`:
+the logger writes each event to `[logging].path` (`logs/sensai.jsonl`) and the renderer prints it and
+keeps the last turn's metrics and trace for `/metrics` and `/trace`.
 
 ### Structured output (T5)
 
@@ -331,37 +367,24 @@ data, or `Error(kind="invalid_output")` with the reply that failed.
 
 ### Branches
 
-Every sub-issue has its own branch, named `layerN/<owner letter>-<task>` (e.g. `layer1/c-ollama-transport`).
-Each layer also has an integration branch, `layer1/integration` through `layer8/integration`, where the four
-tasks of the layer are merged and checked together before reaching `main`.
-
-> Git does not allow a branch called `layer1` while branches like `layer1/a-…` exist, so each integration
-> branch sits in its layer's folder next to the task branches.
+Every task has its own branch, named `layerN/<owner letter>-<task>` (e.g. `layer1/c-ollama-transport`),
+linked to its issue on the board. Smaller pieces of a task are commits on that branch.
 
 ### Workflow
 
 ```
-layer1/a-core-contracts-…   ─┐
-layer1/b-sqlite-schema-…    ─┤  PR  →  layer1/integration  ──  PR  →  main  →  Epitech repo
-layer1/c-ollama-transport   ─┤         (merge all 4 and check)
-layer1/d-cli-renderer-…     ─┘
+layerN/<letter>-<task>  ──  PR  →  main  ──  CI  →  Epitech repo
 ```
 
-1. Each person opens a PR from their task branch into `layerN/integration`.
-2. When all four are merged, test the layer together on that branch and check its "Done when" condition.
-3. Open one PR from `layerN/integration` into `main`. Once it merges, the CI pushes to the Epitech repo.
+1. Before starting, update the task branch from `main`: `git switch <branch> && git merge origin/main`.
+2. Open a PR into `main`, with `Closes #<task>` so merging closes the task.
+3. CI must be green (tests, coverage ≥ 85%) before merging. Once merged, CI pushes `main` to the Epitech repo.
 
-The CI runs the tests and the 85% coverage check on every push and every PR to any branch.
-The push to Epitech only happens from `main`, so nothing on an integration branch reaches the Epitech repo early.
+The `layerN/integration` branches from the original plan exist but aren't used: every PR goes straight
+to `main`.
 
-### Before starting a layer
-
-The integration branches for layers 2–8 were created from an early `main`. Before starting a layer,
-update its integration branch and the task branches from `main` so they include the previous layer's work:
-
-```bash
-git switch layer2/integration && git merge main && git push
-```
+When resolving a merge conflict in a test file, keep the tests from both sides: a deleted test doesn't
+fail, it silently stops protecting the code.
 
 ## CI
 
@@ -379,9 +402,9 @@ Two user stories per feature, with acceptance criteria and how each one is verif
 
 ## Team
 
-| Member | Role | Owns |
-|--------|------|------|
-| A | Core | Ollama transport, event stream, agent executor, orchestrator, router, config |
-| B | Memory | SQLite, profile, facts, SRS, context builder, budgeting, compression |
-| C | Knowledge | Tool registry, own tools, MCP client, RAG pipeline, corrector spec |
-| D | Trust & surface | Logging, metrics, trace view, judge spec, guardrails, CLI and Web UI |
+| Member | Role | GitHub | Owns |
+|--------|------|--------|------|
+| A | Core | Eukyrios | Ollama transport, event stream, agent executor, orchestrator, router, config |
+| B | Memory | EvansRamin | SQLite, profile, facts, SRS, context builder, budgeting, compression |
+| C | Knowledge | DanielLoww | Tool registry, own tools, MCP client, RAG pipeline, corrector spec |
+| D | Trust & surface | NicolasGonzalz | Logging, metrics, trace view, judge spec, guardrails, CLI and Web UI |
