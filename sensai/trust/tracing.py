@@ -1,5 +1,5 @@
 """Turn tracing and execution flow aggregation."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from ..core.events import (
     AgentRunFinished,
     AgentRunStarted,
@@ -48,9 +48,20 @@ class TurnTracer:
                 if self._current_agent:
                     self._current_agent.tokens_count += 1
 
-            case AgentRunFinished(ok=status_ok):
+            case AgentRunFinished() as finished_event:
                 if self._current_agent:
-                    self._current_agent.ok = status_ok
+                    self._current_agent.ok = getattr(finished_event, "ok", True)
+                    
+                    # Extraire la valeur réelle d'Ollama si disponible dans AgentRunFinished
+                    real_count = (
+                        getattr(finished_event, "eval_count", None)
+                        or getattr(finished_event, "output_tokens", None)
+                        or getattr(finished_event, "completion_tokens", None)
+                        or getattr(finished_event, "total_tokens", None)
+                    )
+                    if real_count is not None and real_count > 0:
+                        self._current_agent.tokens_count = real_count
+                        
                 self._current_agent = None
 
             case GuardrailTriggered(rule=r):
