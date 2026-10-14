@@ -115,7 +115,7 @@ def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
             if not asyncio.run(handle_line(session, line, renderer, logger)):
                 return
         except KeyboardInterrupt:
-            print("\n[interrupted]")
+            continue
 
 
 async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None:
@@ -204,8 +204,6 @@ class LiveChat:
         try:
             return await self.current_turn
         except asyncio.CancelledError:
-            self.out.end_line()
-            print("[interrupted]")
             return True
         finally:
             self.current_turn = None
@@ -284,8 +282,9 @@ class CLIRenderer:
             async for event in stream:
                 self.tracer.process_event(event)
                 self.render(event)
-        except asyncio.CancelledError:
-            print("\n[interrupted]", file=sys.stderr)
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            self.out.end_line()
+            print("[interrupted]", file=sys.stderr)
             raise
 
     def render(self, event: Event) -> None:

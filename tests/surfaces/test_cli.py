@@ -399,7 +399,7 @@ async def test_ctrl_c_while_idle_does_nothing(monkeypatch):
 async def test_ctrl_d_during_a_reply_quits_without_running_queued_questions(monkeypatch, capsys):
     client = SlowClient(delay=0.3, count=10)
     await live(monkeypatch, live_session(client), ["first\r", 0.4, "second\r", 0.3, "\x04"])
-    assert "[interrupted]" in capsys.readouterr().out
+    assert capsys.readouterr().err.count("[interrupted]") == 1
     assert client.asked == ["first"]
 
 
@@ -407,8 +407,8 @@ async def test_escape_stops_the_reply_and_keeps_the_chat(monkeypatch, capsys):
     client = SlowClient(delay=0.3, count=10)
     session = live_session(client)
     await live(monkeypatch, session, ["first\r", 1.0, "\x1b", 0.5, "/quit\r"])
-    out = capsys.readouterr().out
-    assert "[interrupted]" in out and "t9" not in out
+    captured = capsys.readouterr()
+    assert captured.err.count("[interrupted]") == 1 and "t9" not in captured.out
     question, partial = session.history
     assert question == {"role": "user", "content": "first"}
     assert partial["role"] == "assistant" and partial["content"].startswith("t0 ")
@@ -428,7 +428,7 @@ def test_full_session(monkeypatch, capsys):
 
 def test_interrupt_during_reply(monkeypatch, capsys):
     run(monkeypatch, ["hello"], client=FakeClient(error=KeyboardInterrupt()))
-    assert "[interrupted]" in capsys.readouterr().out
+    assert capsys.readouterr().err.count("[interrupted]") == 1
 
 
 async def test_live_chat_answers_then_quits(monkeypatch, capsys):
