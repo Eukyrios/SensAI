@@ -50,7 +50,7 @@ def test_env_coercion(raw, key, expected):
 def test_env_ignores_unrelated_names_and_coerces_floats():
     c = load_config(env={"OTHER": "x", "SENSAI_NOSEPARATOR": "x"})
     assert "noseparator" not in c and "other" not in c
-    assert cfg._coerce("1.5", 0.5) == 1.5
+    assert cfg._convert_env_value("1.5", 0.5) == 1.5
 
 
 def test_file_keeps_unset_defaults_and_adds_sections(tmp_path):

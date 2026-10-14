@@ -50,14 +50,15 @@ class Ledger:
     def create(self, agent: str, table: str, *, row_id: str | None = None, **fields) -> str:
         self._check_write(agent, table)
         self._check_fields(table, fields)
-        missing = [c for c in REQUIRED[table] if c not in fields]
+        missing = [column for column in REQUIRED[table] if column not in fields]
         if missing:
             raise ValueError(f"missing field(s) for {table}: {', '.join(missing)}")
         row_id = row_id or new_id()
-        cols = ", ".join(("id", *fields))
-        marks = ", ".join("?" * (len(fields) + 1))
+        columns = ", ".join(("id", *fields))
+        placeholders = ", ".join("?" * (len(fields) + 1))
         with self.conn:
-            self.conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({marks})", (row_id, *fields.values()))
+            self.conn.execute(f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+                              (row_id, *fields.values()))
         return row_id
 
     def read(self, table: str, row_id: str) -> sqlite3.Row:
@@ -70,7 +71,7 @@ class Ledger:
     def list(self, table: str, **filters) -> list[sqlite3.Row]:
         self._check_table(table)
         self._check_fields(table, filters)
-        where = " AND ".join(f"{c} = ?" for c in filters)
+        where = " AND ".join(f"{column} = ?" for column in filters)
         sql = f"SELECT * FROM {table}" + (f" WHERE {where}" if where else "") + " ORDER BY rowid"
         return self.conn.execute(sql, tuple(filters.values())).fetchall()
 
@@ -79,12 +80,13 @@ class Ledger:
         self._check_fields(table, fields)
         if not fields:
             raise ValueError("nothing to update")
-        sets = ", ".join(f"{c} = ?" for c in fields)
+        assignments = ", ".join(f"{column} = ?" for column in fields)
         if table == "facts":
-            sets += ", updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+            assignments += ", updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
         with self.conn:
-            cur = self.conn.execute(f"UPDATE {table} SET {sets} WHERE id = ?", (*fields.values(), row_id))
-        if cur.rowcount == 0:
+            cursor = self.conn.execute(f"UPDATE {table} SET {assignments} WHERE id = ?",
+                                       (*fields.values(), row_id))
+        if cursor.rowcount == 0:
             raise RowNotFound(f"{table} {row_id}")
 
     def delete(self, agent: str, table: str, row_id: str) -> None:

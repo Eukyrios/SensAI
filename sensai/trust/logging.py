@@ -25,9 +25,9 @@ class JsonlLogger:
         return data
 
     async def log_stream(self, stream: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
-        with open(self.log_path, "a", encoding="utf-8") as f:
+        with open(self.log_path, "a", encoding="utf-8") as log_file:
             async for event in stream:
                 record = self._serialize_event(event)
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-                f.flush()
+                log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+                log_file.flush()
                 yield event

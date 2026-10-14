@@ -25,8 +25,8 @@ GOOD = '{"correction": "私は学校に行きます", "error_type": "particle"}'
 BAD = '{"correction": "私は学校に行きます", "error_type": "grammar"}'
 
 
-def test_instructions_carry_the_schema():
-    text = structured.instructions(SCHEMA)
+def test_schema_instructions_carry_the_schema():
+    text = structured.schema_instructions(SCHEMA)
     assert "only one JSON object" in text and '"error_type"' in text and "particle" in text
 
 
@@ -40,31 +40,31 @@ def test_request_format(schema, think, expected):
     assert structured.request_format(spec) == expected
 
 
-def test_check_valid():
-    assert structured.check(GOOD, SCHEMA) == ({"correction": "私は学校に行きます", "error_type": "particle"}, [])
+def test_validate_reply_valid():
+    assert structured.validate_reply(GOOD, SCHEMA) == ({"correction": "私は学校に行きます", "error_type": "particle"}, [])
 
 
 @pytest.mark.parametrize("fenced", [f"```json\n{GOOD}\n```", f"```\n{GOOD}\n```", f"  {GOOD}  "])
-def test_check_strips_code_fences(fenced):
-    data, problems = structured.check(fenced, SCHEMA)
+def test_validate_reply_strips_code_fences(fenced):
+    data, problems = structured.validate_reply(fenced, SCHEMA)
     assert problems == [] and data["error_type"] == "particle"
 
 
-def test_check_reports_schema_errors_with_their_path():
-    data, problems = structured.check(BAD, SCHEMA)
+def test_validate_reply_reports_schema_errors_with_their_path():
+    data, problems = structured.validate_reply(BAD, SCHEMA)
     assert data is None and len(problems) == 1 and problems[0].startswith("error_type: 'grammar'")
 
 
-def test_check_reports_missing_and_extra_fields():
-    _, problems = structured.check('{"correction": "x", "extra": 1}', SCHEMA)
+def test_validate_reply_reports_missing_and_extra_fields():
+    _, problems = structured.validate_reply('{"correction": "x", "extra": 1}', SCHEMA)
     assert any("'error_type' is a required property" in p for p in problems)
     assert any("Additional properties" in p for p in problems)
     assert all(p.startswith("reply:") for p in problems)
 
 
 @pytest.mark.parametrize("text", ["私は学校へ行きます", "", "```"])
-def test_check_reports_invalid_json(text):
-    data, problems = structured.check(text, SCHEMA)
+def test_validate_reply_reports_invalid_json(text):
+    data, problems = structured.validate_reply(text, SCHEMA)
     assert data is None and problems[0].startswith("not valid JSON")
 
 

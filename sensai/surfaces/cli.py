@@ -331,7 +331,7 @@ class CLIRenderer:
         self.out.end_line()
         if finished.eval_count:
             self.last_metrics = compute_turn_metrics(finished)
-            print(dim(usage(finished)))
+            print(dim(usage_line(finished)))
 
     def _render_error(self, kind: ErrorKind | str, message: str) -> None:
         if kind == "model_missing":
@@ -344,7 +344,7 @@ class CLIRenderer:
             print(f"\n[error] {message}", file=sys.stderr)
 
 
-def usage(finished: TurnFinished) -> str:
+def usage_line(finished: TurnFinished) -> str:
     parts = [f"{finished.prompt_eval_count} prompt + {finished.eval_count} reply tokens"]
     if finished.ttft_ms is not None:
         parts.append(f"first token {finished.ttft_ms / 1000:.1f}s")

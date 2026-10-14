@@ -30,18 +30,18 @@ class AgentSpec:
 
 def load_spec(path: str | Path) -> AgentSpec:
     data = load_toml(path)
-    missing = [k for k in REQUIRED if k not in data]
+    missing = [field for field in REQUIRED if field not in data]
     if missing:
         raise SpecError(f"{path}: missing required field(s): {', '.join(missing)}")
     try:
         spec = AgentSpec(**{**data, "tools": tuple(data.get("tools", ()))})
-    except TypeError as e:
-        raise SpecError(f"{path}: {e}") from None
+    except TypeError as error:
+        raise SpecError(f"{path}: {error}") from None
     if spec.output_schema is not None:
         try:
             Draft202012Validator.check_schema(spec.output_schema)
-        except SchemaError as e:
-            raise SpecError(f"{path}: invalid output_schema: {e.message}") from None
+        except SchemaError as error:
+            raise SpecError(f"{path}: invalid output_schema: {error.message}") from None
     return spec
 
 

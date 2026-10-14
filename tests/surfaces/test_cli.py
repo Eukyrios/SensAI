@@ -185,8 +185,8 @@ def test_no_usage_line_without_stats(monkeypatch, capsys):
     assert "reply tokens" not in capsys.readouterr().out
 
 
-def test_usage_without_ttft():
-    line = cli.usage(TurnFinished(turn_id="t", model="m", eval_count=3, total_duration_ns=2_000_000_000))
+def test_usage_line_without_ttft():
+    line = cli.usage_line(TurnFinished(turn_id="t", model="m", eval_count=3, total_duration_ns=2_000_000_000))
     assert line == "0 prompt + 3 reply tokens · 2.0s"
 
 

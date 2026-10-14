@@ -128,13 +128,13 @@ class _Turn:
 
     async def _validated_output(self, messages: list[Message]) -> AsyncIterator[Event]:
         schema = self.spec.output_schema
-        data, problems = structured.check(self.answer_text, schema)
+        data, problems = structured.validate_reply(self.answer_text, schema)
         attempts = 1
         if problems:
             attempts = 2
             async for event in self._call_model(_repair_messages(messages, self.answer_text, problems)):
                 yield event
-            data, problems = structured.check(self.answer_text, schema)
+            data, problems = structured.validate_reply(self.answer_text, schema)
         if problems:
             raise InvalidStructuredOutput(structured.failure_message(problems, self.answer_text))
         yield StructuredOutput(turn_id=self.turn_id, run_id=self.run_id, data=data, attempts=attempts)
@@ -183,7 +183,7 @@ def build_context(session: Session) -> list[Message]:
 def _system_prompt(spec: AgentSpec) -> str:
     if spec.output_schema is None:
         return spec.system_prompt
-    return f"{spec.system_prompt}\n\n{structured.instructions(spec.output_schema)}".strip()
+    return f"{spec.system_prompt}\n\n{structured.schema_instructions(spec.output_schema)}".strip()
 
 
 async def stream_tokens(client, spec: AgentSpec, messages: list[Message],

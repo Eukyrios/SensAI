@@ -26,13 +26,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
 
 
 def load_toml(path: str | Path) -> dict:
-    with open(path, "rb") as f:
-        return tomllib.load(f)
+    with open(path, "rb") as toml_file:
+        return tomllib.load(toml_file)
 
 
 def resolve(path: str | Path) -> Path:
-    p = Path(path)
-    return p if p.is_absolute() else ROOT / p
+    given_path = Path(path)
+    return given_path if given_path.is_absolute() else ROOT / given_path
 
 
 def load_config(path: str | Path | None = None,
@@ -40,35 +40,40 @@ def load_config(path: str | Path | None = None,
                 cli: Mapping[str, Mapping[str, Any]] | None = None) -> dict:
     config = copy.deepcopy(DEFAULTS)
     if path is not None:
-        _merge(config, load_toml(path))
+        _merge_into(config, load_toml(path))
     elif CONFIG_PATH.exists():
-        _merge(config, load_toml(CONFIG_PATH))
-    _merge(config, _from_env(os.environ if env is None else env, config))
+        _merge_into(config, load_toml(CONFIG_PATH))
+    _merge_into(config, _values_from_env(os.environ if env is None else env, config))
     if cli:
-        _merge(config, {s: {k: v for k, v in keys.items() if v is not None} for s, keys in cli.items()})
+        _merge_into(config, _given_cli_values(cli))
     return config
 
 
-def _merge(base: dict, override: Mapping) -> None:
+def _given_cli_values(cli: Mapping[str, Mapping[str, Any]]) -> dict:
+    return {section: {key: value for key, value in values.items() if value is not None}
+            for section, values in cli.items()}
+
+
+def _merge_into(base: dict, override: Mapping) -> None:
     for key, value in override.items():
         if isinstance(value, Mapping) and isinstance(base.get(key), dict):
-            _merge(base[key], value)
+            _merge_into(base[key], value)
         else:
             base[key] = copy.deepcopy(value)
 
 
-def _from_env(env: Mapping[str, str], config: dict) -> dict:
+def _values_from_env(env: Mapping[str, str], config: dict) -> dict:
     out: dict[str, dict[str, Any]] = {}
     for name, raw in env.items():
         if not name.startswith(ENV_PREFIX) or "__" not in name:
             continue
         section, key = name[len(ENV_PREFIX):].lower().split("__", 1)
         current = config.get(section, {}).get(key)
-        out.setdefault(section, {})[key] = _coerce(raw, current)
+        out.setdefault(section, {})[key] = _convert_env_value(raw, current)
     return out
 
 
-def _coerce(raw: str, current: Any) -> Any:
+def _convert_env_value(raw: str, current: Any) -> Any:
     if isinstance(current, bool):
         return raw.strip().lower() in ("1", "true", "yes", "on")
     if isinstance(current, int):

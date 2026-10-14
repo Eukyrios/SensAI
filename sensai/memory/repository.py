@@ -81,7 +81,7 @@ class SessionRepository:
             " SELECT role, content FROM branch ORDER BY depth DESC",
             (leaf,),
         ).fetchall()
-        return [{"role": r["role"], "content": r["content"]} for r in rows]
+        return [{"role": row["role"], "content": row["content"]} for row in rows]
 
     def get_profile(self, name: str = "default") -> str | None:
         row = self.conn.execute(
