@@ -31,20 +31,16 @@ def compute_turn_metrics(event: TurnFinished) -> TurnMetrics:
     duration_s = (event.total_duration_ns or 0) / 1e9
     prompt_tokens = event.prompt_eval_count or 0
     eval_tokens = event.eval_count or 0
-    total_tokens = prompt_tokens + eval_tokens
-
-    tokens_per_sec = (eval_tokens / duration_s) if duration_s > 0 else 0.0
-
-    prompt_cost = (prompt_tokens / 1_000_000) * INPUT_COST_PER_M
-    eval_cost = (eval_tokens / 1_000_000) * OUTPUT_COST_PER_M
-    total_cost = prompt_cost + eval_cost
-
     return TurnMetrics(
         prompt_tokens=prompt_tokens,
         eval_tokens=eval_tokens,
-        total_tokens=total_tokens,
+        total_tokens=prompt_tokens + eval_tokens,
         duration_s=duration_s,
         ttft_ms=event.ttft_ms,
-        tokens_per_sec=tokens_per_sec,
-        estimated_cost_usd=total_cost,
+        tokens_per_sec=eval_tokens / duration_s if duration_s > 0 else 0.0,
+        estimated_cost_usd=_estimated_cost_usd(prompt_tokens, eval_tokens),
     )
+
+
+def _estimated_cost_usd(prompt_tokens: int, eval_tokens: int) -> float:
+    return (prompt_tokens * INPUT_COST_PER_M + eval_tokens * OUTPUT_COST_PER_M) / 1_000_000
