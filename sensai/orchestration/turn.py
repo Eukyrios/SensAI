@@ -6,6 +6,7 @@ from contextlib import aclosing
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import fields
+from functools import partial
 
 from ..core.agent_spec import AgentSpec
 from ..core.events import (AgentRunFinished, AgentRunStarted, Error, Event, GuardrailTriggered,
@@ -189,11 +190,8 @@ def _system_prompt(spec: AgentSpec) -> str:
 async def stream_tokens(client, spec: AgentSpec, messages: list[Message],
                         format: dict | str | None = None) -> AsyncIterator[str | Thought | ChatStats]:
     options = {"format": format} if format is not None else {}
-
-    def open_stream() -> Iterator[str | Thought]:
-        return client.chat_stream(spec.model, messages, num_ctx=spec.num_ctx,
-                                  temperature=spec.temperature, think=spec.think, **options)
-
+    open_stream = partial(client.chat_stream, spec.model, messages, num_ctx=spec.num_ctx,
+                          temperature=spec.temperature, think=spec.think, **options)
     stream = _ThreadedStream(asyncio.get_running_loop())
     stream.start(open_stream)
     try:

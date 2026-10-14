@@ -175,9 +175,15 @@ class LiveChat:
 
     def _key_bindings(self) -> KeyBindings:
         keys = KeyBindings()
-        keys.add("escape", filter=Condition(self.is_replying), eager=True)(lambda event: self.stop_reply())
-        keys.add("c-c")(lambda event: None)
+        keys.add("escape", filter=Condition(self.is_replying), eager=True)(self._on_escape)
+        keys.add("c-c")(self._ignore_key)
         return keys
+
+    def _on_escape(self, event) -> None:
+        self.stop_reply()
+
+    def _ignore_key(self, event) -> None:
+        return None
 
     async def read_lines(self) -> None:
         while True:
@@ -229,7 +235,7 @@ class LiveOutput:
 
     def __init__(self) -> None:
         self.partial = ""
-        self.on_change: Callable[[], None] = lambda: None
+        self.on_change: Callable[[], None] = _do_nothing
 
     def write(self, text: str) -> None:
         *finished_lines, self.partial = (self.partial + text).split("\n")
@@ -245,6 +251,14 @@ class LiveOutput:
 
 
 Output = PlainOutput | LiveOutput
+
+
+def _do_nothing() -> None:
+    return None
+
+
+def _ignore_status(status: str | None) -> None:
+    return None
 
 
 async def handle_line(session: Session, line: str, renderer: "CLIRenderer",
@@ -270,7 +284,7 @@ class CLIRenderer:
 
     def __init__(self, out: Output | None = None, status: Status | None = None) -> None:
         self.out = out or PlainOutput()
-        self.status = status or (lambda _: None)
+        self.status = status or _ignore_status
         self.tracer = TurnTracer()
         self.last_metrics = None
         self.showing_reasoning = False

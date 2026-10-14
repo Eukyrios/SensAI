@@ -26,7 +26,7 @@ def validate_reply(text: str, schema: dict) -> tuple[dict | None, list[str]]:
         data = json.loads(_strip_fences(text))
     except json.JSONDecodeError as error:
         return None, [f"not valid JSON: {error.msg} (line {error.lineno}, column {error.colno})"]
-    errors = sorted(Draft202012Validator(schema).iter_errors(data), key=lambda error: list(error.absolute_path))
+    errors = sorted(Draft202012Validator(schema).iter_errors(data), key=_field_path_parts)
     problems = [_describe_validation_error(error) for error in errors]
     return (None, problems) if problems else (data, [])
 
@@ -41,6 +41,10 @@ def failure_message(problems: list[str], text: str) -> str:
     shown = text if len(text) <= MAX_SHOWN else text[:MAX_SHOWN] + "…"
     return ("The reply still doesn't match the schema after one repair attempt: "
             + "; ".join(problems) + f". Reply was: {shown}")
+
+
+def _field_path_parts(error) -> list:
+    return list(error.absolute_path)
 
 
 def _describe_validation_error(error) -> str:
