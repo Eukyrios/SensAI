@@ -95,36 +95,54 @@ class Ledger:
             raise RowNotFound(f"{table} {row_id}")
 
     def tools(self, agent: str) -> list[Tool]:
-        table = {"type": "string", "enum": list(COLUMNS)}
-        fields = {"type": "object", "description": "column name -> value"}
+        return _LedgerToolset(self, agent).tools()
 
-        def create(table: str, fields: dict) -> dict:
-            return {"id": self.create(agent, table, **fields)}
 
-        def read(table: str, id: str | None = None, filters: dict | None = None):
-            if id is not None:
-                return dict(self.read(table, id))
-            return [dict(r) for r in self.list(table, **(filters or {}))]
+_TABLE_ARGUMENT = {"type": "string", "enum": list(COLUMNS)}
+_FIELDS_ARGUMENT = {"type": "object", "description": "column name -> value"}
+_ID_ARGUMENT = {"type": "string"}
 
-        def update(table: str, id: str, fields: dict) -> dict:
-            self.update(agent, table, id, **fields)
-            return {"updated": id}
 
-        def delete(table: str, id: str) -> dict:
-            self.delete(agent, table, id)
-            return {"deleted": id}
+def _object_schema(properties: dict, required: list[str]) -> dict:
+    return {"type": "object", "properties": properties, "required": required}
 
-        def schema(properties: dict, required: list[str]) -> dict:
-            return {"type": "object", "properties": properties, "required": required}
 
+class _LedgerToolset:
+
+    def __init__(self, ledger: Ledger, agent: str):
+        self.ledger = ledger
+        self.agent = agent
+
+    def tools(self) -> list[Tool]:
         return [
             Tool("ledger_create", "Add a row to errors, srs_cards or facts (only the tables you own).",
-                 schema({"table": table, "fields": fields}, ["table", "fields"]), create),
+                 _object_schema({"table": _TABLE_ARGUMENT, "fields": _FIELDS_ARGUMENT}, ["table", "fields"]),
+                 self.create),
             Tool("ledger_read", "Read one row by id, or list rows of errors, srs_cards or facts.",
-                 schema({"table": table, "id": {"type": "string"}, "filters": fields}, ["table"]), read),
+                 _object_schema({"table": _TABLE_ARGUMENT, "id": _ID_ARGUMENT, "filters": _FIELDS_ARGUMENT},
+                                ["table"]),
+                 self.read),
             Tool("ledger_update", "Change fields of a row you own.",
-                 schema({"table": table, "id": {"type": "string"}, "fields": fields}, ["table", "id", "fields"]),
-                 update),
+                 _object_schema({"table": _TABLE_ARGUMENT, "id": _ID_ARGUMENT, "fields": _FIELDS_ARGUMENT},
+                                ["table", "id", "fields"]),
+                 self.update),
             Tool("ledger_delete", "Delete a row you own.",
-                 schema({"table": table, "id": {"type": "string"}}, ["table", "id"]), delete),
+                 _object_schema({"table": _TABLE_ARGUMENT, "id": _ID_ARGUMENT}, ["table", "id"]),
+                 self.delete),
         ]
+
+    def create(self, table: str, fields: dict) -> dict:
+        return {"id": self.ledger.create(self.agent, table, **fields)}
+
+    def read(self, table: str, id: str | None = None, filters: dict | None = None):
+        if id is not None:
+            return dict(self.ledger.read(table, id))
+        return [dict(row) for row in self.ledger.list(table, **(filters or {}))]
+
+    def update(self, table: str, id: str, fields: dict) -> dict:
+        self.ledger.update(self.agent, table, id, **fields)
+        return {"updated": id}
+
+    def delete(self, table: str, id: str) -> dict:
+        self.ledger.delete(self.agent, table, id)
+        return {"deleted": id}
