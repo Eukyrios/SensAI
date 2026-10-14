@@ -1,6 +1,6 @@
 # Tests for the model bake-off script: speed computation, missing models and the results table.
 
-from scripts import bake_off
+from scripts import benchmark as bake_off
 from sensai.llm.ollama import ChatStats, OllamaError
 from tests.fakes import Returns
 
