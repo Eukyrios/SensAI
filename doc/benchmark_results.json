@@ -1,6 +1,6 @@
 {
   "settings": {
-    "num_ctx": 2048,
+    "num_ctx": 8192,
     "temperature": 0.3,
     "think": false,
     "system_prompt": "agents/sensei.toml",
@@ -9,299 +9,299 @@
   "models": [
     {
       "model": "qwen3.5:4b",
-      "accuracy": 0.75,
-      "average_tokens_per_second": 60.1,
-      "median_first_token_s": 0.43,
-      "load_s": 5.4,
+      "accuracy": 0.8,
+      "average_tokens_per_second": 50.6,
+      "median_first_token_s": 0.5,
+      "load_s": 8.5,
       "cases": [
         {
           "prompt": "Translate into formal Japanese: 'I would like to book a table for two people at 7 pm.'",
-          "reply": "予約したいです (yoyaku shitai desu) [yoh-va-kee tee-ahy dee-sse] — I would like to make a reservation.\n二人で七時に (futari de nanaji ji ni) [foo-too-ree dee nah-nah-jee jee nee] — for two people at seven o'clock.",
+          "reply": "予約したいです (yoyaku shitai desu) [yoh-veh-chee-tah dee-sseh] — I would like to make a reservation.\n二人 (futari) [fu-tee-ree] — two people.",
           "correct": true,
-          "tokens_per_second": 60.86402635042415,
-          "first_token_s": 5.6832137459996375
+          "tokens_per_second": 59.86089047384564,
+          "first_token_s": 8.841378397999506
         },
         {
           "prompt": "Explain the difference between the particles 'wa' (は) and 'ga' (が) with simple examples.",
-          "reply": "The particle **wa** (は) [wah] [wah] — used to mark the topic of a sentence.\nThe particle **ga** (が) [gah] [gah] — used to mark the subject or the thing being focused on.\nFor example, **Tori wa kawaii** (tori wa kawaii) [toh-ree wah kah-vee-ee] — The bird is cute (topic).\nBut **Tori ga kawaii** (tori ga kawaii) [toh-ree gah kah-vee-ee] — The bird is cute (subject).",
+          "reply": "「は」(wa) [wah] marks the topic of a sentence, while「が」(ga) [ga] marks the subject that performs an action.\n\nりんご (ringo) [rin-go] **は** 赤い (akai) [ah-kee] — The apple is red. (Topic: apple)\n猫 (neko) [neh-koh] **が** 鳴る (naoru) [nah-oor] — The cat is meowing. (Subject: cat)",
           "correct": true,
-          "tokens_per_second": 61.46743358437438,
-          "first_token_s": 0.43880379000074754
+          "tokens_per_second": 61.299991679229116,
+          "first_token_s": 0.48853297300047416
         },
         {
           "prompt": "Conjugate the verb 'taberu' (食べる) in the polite negative past.",
-          "reply": "The polite negative past form of the verb **taberu** (食べる) is **tabemashinai** (tabe-ma-shi-na-i) [tah-bee-mahs-see-nah-ee] — I did not eat.\n\nHere is the conjugation pattern:\n**tabemashinai** (tabe-ma-shi-na-i) [tah-bee-mahs-see-nah-ee] — I did not eat.\n**tabemashita** (tabe-ma-shi-ta) [tah-bee-mahs-see-tah] — I ate.\n**tabemashinai** (tabe-ma-shi-na-i) [tah-bee-mahs-see-nah-ee] — I did not eat.",
-          "correct": false,
-          "tokens_per_second": 60.69209364390688,
-          "first_token_s": 0.3834340540006451
+          "reply": "The polite negative past form of 食べる (taberu) is 食べませんでした (tabemashimasen da) [ta-bee-mah-sheen-dee-mah] — I did not eat.  \nYou can also say 食べなかった (tabenakatta) [ta-bee-nah-kah-tah] [ta-bee-nah-kah-tah] — I did not eat (polite).",
+          "correct": true,
+          "tokens_per_second": 61.240339290030676,
+          "first_token_s": 0.38273314100024436
         },
         {
           "prompt": "What does this kanji mean: 鬱? Give its main readings.",
-          "reply": "The kanji 鬱 primarily means \"depressed\" or \"suffocated\" and is read as **お (o)** in words like 鬱陶しい (otoushii) [oh-toh-shii] — suffocating. It is also read as **いく (iku)** in words like 鬱病 (ikbyou) [ee-koo-byoh] — depression.",
+          "reply": "The kanji 鬱 (or 鬱) primarily means \"depressed\" or \"suffocated,\" and its main readings are **fuku** (as in depression) and **in** (as in a place where plants grow densely).  \nふく [fook] — depressed.  \nいん [een] — suffocated; a place where plants grow densely.",
           "correct": false,
-          "tokens_per_second": 61.02300309249106,
-          "first_token_s": 0.4323848520007232
+          "tokens_per_second": 62.276305311495555,
+          "first_token_s": 0.4016576179992626
         },
         {
           "prompt": "Correct this sentence: 'Watashi wa eiga ni mimasu.'",
-          "reply": "The correct sentence is: わたしはえいがをみます (watashi wa eiga o mimasu) — I watch movies. The word \"eiga\" (movies) requires the particle \"o\" (を) to show the object of the action.",
+          "reply": "The correct sentence is: 映画を見ます (eiga o minasu) [ee-gah oh mee-nahss] — I watch movies. You need to add the particle \"o\" after the object word \"eiga\" to show what is being watched.",
           "correct": true,
-          "tokens_per_second": 62.21596136090163,
-          "first_token_s": 0.41666878999967594
+          "tokens_per_second": 61.45279674498231,
+          "first_token_s": 0.42761129600057757
         },
         {
           "prompt": "How do you say 'It's my first time coming to Japan'?",
-          "reply": "日本へ初めて来ました (nihon e hajimete kimashita) [nee-ohn eh ha-jee-meh-teh kee-mahs-sah] — I have come to Japan for the first time.\n初めは緊張します (hajime wa kinchou shimasu) [ha-jee-meh wah kin-cheh-oh shee-mahs-soo] — I am nervous at first.",
+          "reply": "日本へ初めて来ました (nihon e hajimete kimashita) [nee-ohn eh ha-jee-meh-tee kee-mahs-shta] — I have come to Japan for the first time.\n\n初めて (hajimete) [ha-jee-meh-teh] — first time.",
           "correct": true,
-          "tokens_per_second": 61.53898601916538,
-          "first_token_s": 0.29128799400041316
+          "tokens_per_second": 62.571137079050295,
+          "first_token_s": 0.4586995769996065
         },
         {
           "prompt": "Give 3 examples of using the '-te' form (て).",
-          "reply": "The **-te** form connects actions or shows politeness.\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\n*(Note: As a beginner, you might want to see how it connects two actions. For example: 食べます (tabemasu) [ta-bee-mahss] — I eat, then 飲みます (nomimasu) [noh-mahss] — I drink.)*",
-          "correct": false,
-          "tokens_per_second": 60.68078331576088,
-          "first_token_s": 0.4317755069996565
+          "reply": "The '-te' form (て形) is used to connect actions smoothly.\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) [mahss] = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nWait, I made a mistake in my examples. Let me correct them:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize again for the repetition. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the '-te' form:\n1. 食べます (tabemasu) [ta-bee-mahss] — I eat.\n2. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n3. 食べます (tabemasu) [ta-bee-mahss] + ます (mahss) = 食べます (tabemasu) [ta-bee-mahss] — I eat.\n\nI apologize for the confusion. Here are three correct examples of using the",
+          "correct": true,
+          "tokens_per_second": 44.94644857682778,
+          "first_token_s": 0.41790616199978103
         },
         {
           "prompt": "What is the difference between 'arimasu' and 'imasu'?",
-          "reply": "「あります (arimasu)」[ah-ree-mahss] is used for things that exist, while「います (imasu)」[ee-mahss] is used for living things.\nFor example: 「りんごがあります (arigoto ga arimasu)」[lee-n-go-gah ah-ree-mahss] — there is an apple, and 「ねこがいます (neko ga imasu)」[neh-koh-gah ee-mahss] — there is a cat.",
+          "reply": "「あります (arimasu)」[ah-ree-mahss] is used for inanimate objects, while「います (imasu)」[ee-mahss] is used for living things or people.\nFor example: 本 (hon) [hohn] — book (use arimasu), but 猫 (neko) [neh-koh] — cat (use imasu).",
           "correct": true,
-          "tokens_per_second": 61.74914532979361,
-          "first_token_s": 0.43887736900069285
+          "tokens_per_second": 50.11881578159457,
+          "first_token_s": 2.9074350620003315
         },
         {
           "prompt": "Translate: 'It has been raining since this morning, so I don't want to go out.'",
-          "reply": "朝から雨が降っているので、外に出たくないです (asa kara ame ga furu node, soto ni degakunai desu) [ahsah-koh-rah-ah-meh-geh-fur-oh-neh-doh, soh-doh-nee-deh-gah-kohn-ah-nee-dess] — It has been raining since this morning, so I don't want to go out.\n\n雨 (ame) [ah-meh] — rain.\n外 (soto) [soh-toh] — outside.\n出 (deku) [deh-koo] — to go out.",
+          "reply": "朝から雨が降っているから、外に出たくないです (asa kara ame ga futte iru kara, soto ni detakunai desu) — It has been raining since this morning, so I don't want to go out.\n\n雨 (ame) [ah-meh] — rain.\n外 (soto) [soh-toh] — outside.\n出く (detaku) [deh-took-oo] — to go out.",
           "correct": true,
-          "tokens_per_second": 60.355171555575495,
-          "first_token_s": 0.4376674590002949
+          "tokens_per_second": 50.72430612419403,
+          "first_token_s": 0.4646594539999569
         },
         {
           "prompt": "Explain the grammar of '~te shimau' (〜てしまう).",
-          "reply": "The grammar pattern **〜てしまう** (te shimau) is used to express an action that has been completed, often unintentionally or with regret. It can also indicate that something has happened unexpectedly or is now unavoidable.\n\nHere are three examples:\n1. 食べてしまう (tabete shimau) [tab-eh-tee-shi-mah] — I ate it (without realizing it / I ate it by mistake).\n2. 忘れてしまう (wasurete shimau) [wa-suh-re-tee-shi-mah] — I forgot it (regretfully).\n3. 壊れてしまう (kowarete shimau) [koh-wah-re-tee-shi-mah] — It broke (unavoidably).",
+          "reply": "The grammar pattern **〜てしまう (te shimau)** is used to indicate that an action has been completed, often with a sense of regret, unintentionality, or the completion of something that shouldn't have been done. It can also be used neutrally to simply state that an action is finished.\n\nHere are three examples:\n- 食べてしまう (tabete shimau) [ta-be-tee-shi-mah] — I ate it (often implying I shouldn't have or I forgot to stop).\n- 忘れてしまう (wasurete shimau) [wa-su-re-tee-shi-mah] — I forgot (expressing regret).\n- 帰ってしまいました (kaette shimaimashita) [ka-be-tee-shi-mai-mah-ssee-tah] — I have returned (neutral completion).",
           "correct": true,
-          "tokens_per_second": 61.44562071161631,
-          "first_token_s": 0.3943159389991706
+          "tokens_per_second": 42.189267813845966,
+          "first_token_s": 0.49758456899962766
         },
         {
           "prompt": "Give the reading and meaning of the word: 飛行機",
-          "reply": "飛行機 (hikōki) [hee-koh-kee] — airplane.\nHow is your flight going?",
+          "reply": "ひこうき [hi-koh-kee] — airplane.\n飛行機は空を飛ぶ乗り物です。 [hi-koh-kee wa sora o tobu norimono desu] — An airplane is a vehicle that flies in the sky.",
           "correct": true,
-          "tokens_per_second": 63.617106293413755,
-          "first_token_s": 0.40421631899971544
+          "tokens_per_second": 38.6416156623676,
+          "first_token_s": 2.971830351999415
         },
         {
           "prompt": "Make a polite request with 'itadakemasen ka'.",
-          "reply": "「いただきます」 (itadakimasu) [ee-tah-da-ki-mahs-soo] — I will eat.\n「いただきますか」 (itadakimasu ka) [ee-tah-da-ki-mahs-soo kah] — Will you eat?\n「いただきますか」 (itadakimasu ka) [ee-tah-da-ki-mahs-soo kah] — May I eat? (Note: 'itadakemasu ka' is not a standard phrase; the polite request to ask permission to eat is usually 'itadakimasu ka' or 'tabemasu ka'. If you specifically want to use the negative verb form for permission, it would be 'itadakemasu ka' [ee-tah-da-ki-mahs-soo kah], meaning \"May I not eat?\" which is incorrect for a request. The correct polite request is \"Itadakimasu ka\" or simply \"Itadakimasu\".)\n\nLet me correct that for you:\n「いただきます」 (itadakimasu) [ee-tah-da-ki-mahs-soo] — I will eat.\n「いただきますか」 (itadakimasu ka) [ee-tah-da-ki-mahs-soo kah] — May I eat? (This is the correct polite request form).",
+          "reply": "「いただきます」を言う前に、料理を「いっただくまさんか」と言います。\n（Itadakimasu ka）[ee-tah-da-ki-mah-soh kah] — may I eat this?",
           "correct": false,
-          "tokens_per_second": 61.44596260219551,
-          "first_token_s": 0.40534812199985026
+          "tokens_per_second": 37.76175228093989,
+          "first_token_s": 2.9996887580000475
         },
         {
           "prompt": "Translate into English: '明日は忙しいから、明後日にしましょう。'",
-          "reply": "「明日は忙しいから、明後日にしましょう。」 (ashita wa isogashii kara, asatte ni shimasu ka) — Since tomorrow is busy, let's do it the day after tomorrow.",
+          "reply": "\"Tomorrow is busy, so let's do it the day after tomorrow.\"\n\"あしたは忙しいから、あさって日にしましょう。\" [ah-sha-tah ba-shi-i-ba-shi-i-ku, a-sa-tte-ni shi-ta-ma-shi-ta.] — Tomorrow is busy, so let's do it the day after tomorrow.",
           "correct": true,
-          "tokens_per_second": 60.147519490432785,
-          "first_token_s": 0.4904097799999363
+          "tokens_per_second": 50.69395712130522,
+          "first_token_s": 2.07663563099959
         },
         {
           "prompt": "How do you express a wish (I want to do...) in Japanese?",
-          "reply": "To express a wish like \"I want to do...\", you use the verb stem followed by the particle **no** and the verb **suru** (to do).\n\nHere are three examples:\n*   したい (shitai) [shee-tah-ee] — I want to.\n*   勉強したい (benkyou shitai) [ben-kyooh shee-tah-ee] — I want to study.\n*   日本語を話したい (nihongo o hanashitai) [nee-foo-oh goh han-ahshee-tah-ee] — I want to speak Japanese.",
+          "reply": "To express a wish like \"I want to...\", you use the verb stem followed by **tai** (たい).\nFor example: 食べたい (tabetai) [tah-beh-tay] — I want to eat.\nまた (mata) [mah-tah] — again.",
           "correct": true,
-          "tokens_per_second": 61.46038215933799,
-          "first_token_s": 0.4570742309997513
+          "tokens_per_second": 51.09178719916285,
+          "first_token_s": 0.47355233500002214
         },
         {
           "prompt": "Correct this sentence: 'Kono hon wa oishii desu.'",
-          "reply": "The sentence is grammatically correct, but \"oishii\" (delicious) is usually used for food, while \"yokashii\" (good) or \"kirei\" (beautiful) might be better depending on the book's content.\nHere are two corrected alternatives with different meanings:\n1. このほんはおもしろいです (kono hon wa omoshiroi desu) [kohn-oh-oh-moh-shoo-ree dess] — This book is interesting.\n2. このほんはおきれいです (kono hon wa okirei desu) [kohn-oh-kee-ree dess] — This book is beautiful.",
-          "correct": true,
-          "tokens_per_second": 60.902641626843206,
-          "first_token_s": 0.3878242490000048
+          "reply": "The sentence is actually correct and means \"This book is delicious,\" which is a bit unusual for a book but grammatically fine. If you meant \"This book is good,\" you could say \"Kono hon wa ii desu.\"",
+          "correct": false,
+          "tokens_per_second": 51.41717958516877,
+          "first_token_s": 0.5209021950004171
         },
         {
           "prompt": "Briefly explain the concept of 'Keigo' (honorific language).",
-          "reply": "Keigo is a special way of speaking in Japanese that shows respect to others. It changes the verb endings depending on who you are talking to.\n例えば (tokiwa) [eh-khoo-wah] — for example.\n尊敬語 (sonsongo) [sohn-sohn-goh] — honorific language.\n謙譲語 (kenjougo) [ken-joh-goh] — humble language.",
+          "reply": "Keigo is a special way of speaking in Japanese that shows respect to others. It changes the words you use depending on who you are talking to and what you are doing.\n\nHere are three examples:\n- いただきます (itadakimasu) [ee-tah-da-ki-mahs-soo] — I humbly receive (used before eating).\n- ありがとうございます (arigatou gozaimasu) [ah-ree-gah-toh goh-zai-mahs-soo] — Thank you very much (polite form).\n- 失礼します (shitsurei shimasu) [shits-oo-ree mahs-soo] — Excuse me / I apologize (used when leaving or interrupting).",
           "correct": true,
-          "tokens_per_second": 60.38523144868167,
-          "first_token_s": 0.43953487899943866
+          "tokens_per_second": 50.5234985194223,
+          "first_token_s": 0.49776023699996585
         },
         {
           "prompt": "Translate: 'Even if it's difficult, I won't give up.'",
-          "reply": "難しいとしても、やめません (mukashii to shite mo, yamesen) — Even if it's difficult, I won't give up.\n諦めません (akiramesen) — I won't give up.",
+          "reply": "難しいからといって、やめません (mukashii kara to itte, yamesen) [moo-shah-lee kah roh toh-ee-teh, yah-meh-sen] — Even if it's difficult, I won't give up.\n諦めません (akiramesen) [ah-kee-rah-meh-sen] — I won't give up.",
           "correct": true,
-          "tokens_per_second": 62.09304333539605,
-          "first_token_s": 0.4978159520005647
+          "tokens_per_second": 45.840669970431826,
+          "first_token_s": 0.4834972970002127
         },
         {
           "prompt": "What is the right counter for sheets of paper?",
-          "reply": "The correct counter for sheets of paper is **一枚 (hitoh)** [hi-toh-ee] — one sheet.\nYou can also use **張 (hara)** [hah-rah] [pronounced the same as hitoh in this context] — one sheet.\nExample: 一枚の紙 (hitoh no kami) [hi-toh no kah-ee] — one sheet of paper.",
+          "reply": "The correct counter for sheets of paper is 枚 (mai) [mee].\nYou can say: 一枚 (ichi mai) [ee-oh-nee-mee] — one sheet.",
           "correct": true,
-          "tokens_per_second": 61.848927800423795,
-          "first_token_s": 0.41602359100033937
+          "tokens_per_second": 37.82660602801137,
+          "first_token_s": 2.900270663999436
         },
         {
           "prompt": "Give the difference between 'kiku' (聞く) and 'kikoeru' (聞こえる).",
-          "reply": "**聞く (kiku) [koo-kee]** means \"to listen\" or \"to hear\" actively, while **聞こえる (kikoeru) [koo-kee-oh-er]** means \"to be heard\" or \"to be audible\" passively.\n\n**聞く** (kiku) [koo-kee] — to listen.\n**聞こえる** (kikoeru) [koo-kee-oh-er] — to be heard.",
+          "reply": "**聞く (kiku) [koo-kee]** means to actively listen or hear with intent.  \n**聞こえる (kikoeru) [koo-kee-oh-er]** means for a sound to naturally reach your ears without active effort.  \nFor example: 先生が話している (senseha ga hanashiteiru) — the teacher is speaking (you hear it because you are listening).  \nしかし、遠くから聞こえる (tooku kara kikoeru) — you can hear it from far away (it reaches you without you trying).",
           "correct": true,
-          "tokens_per_second": 61.85960683496694,
-          "first_token_s": 0.40478395099944464
+          "tokens_per_second": 45.11667996819184,
+          "first_token_s": 3.0896412550000605
         },
         {
           "prompt": "Write a short, classic self-introduction (jikoshoukai).",
-          "reply": "こんにちは (konnichiwa) [kohn-nee-chee-wah] — hello.\nわたし (watashi) [wah-tah-shee] — I / me.\n\nわたし (watashi) [wah-tah-shee] [ah] — I / me.\n(romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [pronunciation] — English translation\nJapanese characters (romaji) [",
+          "reply": "こんにちは (konnichiwa) [kohn-nee-chee-wah] — hello.\nわたし (watashi) [wah-tah-shee] — I / me.\n(Continue with your name and occupation if you wish.)",
           "correct": false,
-          "tokens_per_second": 35.671693095665,
-          "first_token_s": 0.4336343039994972
+          "tokens_per_second": 46.70952613721519,
+          "first_token_s": 0.5031729339998492
         }
       ]
     },
     {
       "model": "qwen3.5:9b",
-      "accuracy": 0.9,
-      "average_tokens_per_second": 18.3,
-      "median_first_token_s": 0.68,
-      "load_s": 5.3,
+      "accuracy": 0.75,
+      "average_tokens_per_second": 11.7,
+      "median_first_token_s": 0.82,
+      "load_s": 7.2,
       "cases": [
         {
           "prompt": "Translate into formal Japanese: 'I would like to book a table for two people at 7 pm.'",
-          "reply": "二名様で 19 時にテーブルを予約したいです (ni-mei-sama de juu-kyuu-ji ni teeburu o yoyaku shitai desu) [nee-may-sah-mah deh joo-koo-jee ne teeb-roo oh yoh-yah-koo shih-tai dess] — I would like to book a table for two people at 7 pm.\n二名様で 19 時の予約をお願いします (ni-mei-sama de juu-kyuu-ji no yoyaku o onegaishimasu) [nee-may-sah-mah deh joo-koo-jee no yoh-yah-koo oh oh-nay-gah-ee-mah-sus] — Please make a reservation for two people at 7 pm.",
+          "reply": "二名様で 19 時にテーブルを予約したいです (ni-meisaku de juu-kyuu-ji ni teeburu o yoyaku shitai desu) [nee-may-sah-ku deh joo-kyoo-gee ne teh-bloo oh yoh-yah-kee tay ee dess] — I would like to book a table for two people at 7 pm.\n二名様で 19 時に予約いたします (ni-meisaku de juu-kyuu-ji ni yoyaku itashimasu) [nee-may-sah-ku deh joo-kyoo-gee ne yoh-yah-kee itah-see-mahss] — I will book a table for two people at 7 pm.",
           "correct": true,
-          "tokens_per_second": 20.317929810592094,
-          "first_token_s": 5.892095550999329
+          "tokens_per_second": 11.45019854216451,
+          "first_token_s": 7.70815676499933
         },
         {
           "prompt": "Explain the difference between the particles 'wa' (は) and 'ga' (が) with simple examples.",
-          "reply": "The particle **wa** (は) introduces the topic of the sentence, while **ga** (が) highlights the subject or new information.\nExample: 猫 (neko) [neh-koh] — cat (topic) vs. 猫 (neko) [neh-koh] — cat (subject).",
+          "reply": "The particle **wa** (は) introduces the topic of the sentence, while **ga** (が) highlights the subject performing an action.\nExample: 猫は (neko wa) [neh-koh-wah] — as for the cat (topic), vs. 猫が (neko ga) [neh-koh-ga] — the cat (subject).",
           "correct": true,
-          "tokens_per_second": 21.116693243133476,
-          "first_token_s": 0.5614869460005139
+          "tokens_per_second": 15.18189474310008,
+          "first_token_s": 0.8891601900004389
         },
         {
           "prompt": "Conjugate the verb 'taberu' (食べる) in the polite negative past.",
-          "reply": "The polite negative past of taberu (食べる) is たべませんでした (tabemashimashita) [tah-beh-mah-shi-mah-shee-tah] — did not eat.",
+          "reply": "The polite negative past form of taberu (食べる) is tabenakatta (食べなかった) [tah-ben-ah-kah-tah], meaning \"did not eat.\"\nYou can also use the auxiliary verb nakatta (なかった) [nah-kah-tah] attached to the dictionary form tabe (食べ) to express this.",
           "correct": false,
-          "tokens_per_second": 21.10043015351632,
-          "first_token_s": 0.608288469999934
+          "tokens_per_second": 8.586322168716386,
+          "first_token_s": 1.213538425000479
         },
         {
           "prompt": "What does this kanji mean: 鬱? Give its main readings.",
-          "reply": "The kanji 鬱 primarily means \"depression\" or \"gloom.\" Its main readings are おう (ou) in compound words like 憂鬱 (yuuutsu) and う (u) in words like 鬱陶しい (utsutaushii).",
-          "correct": true,
-          "tokens_per_second": 20.5398028840521,
-          "first_token_s": 0.6782871790001082
+          "reply": "The kanji 鬱 primarily means \"depression\" or \"dense foliage.\" Its main readings are おう (ou) and いく (iku).",
+          "correct": false,
+          "tokens_per_second": 17.276610088264736,
+          "first_token_s": 0.8174638469999991
         },
         {
           "prompt": "Correct this sentence: 'Watashi wa eiga ni mimasu.'",
-          "reply": "The correct sentence is: 映画を見ます (eiga o mimasu) [eh-gah oh mee-mahss] — I watch a movie.  \nThe particle を (o) marks the object, while に (ni) is used for location or direction.",
+          "reply": "The correct sentence is: 映画を見ます (eiga o mimasu) [eh-gah oh mee-mahss] — I will watch a movie.\nThe particle を (o) is needed to mark the object, not に (ni).",
           "correct": true,
-          "tokens_per_second": 21.573670374234574,
-          "first_token_s": 0.5553190299997368
+          "tokens_per_second": 7.174250959232209,
+          "first_token_s": 0.9470624600007795
         },
         {
           "prompt": "How do you say 'It's my first time coming to Japan'?",
-          "reply": "First time in Japan? You say: 日本に初めて来ました (Nihon ni hajimete kimashita) [nih-hon nee ha-jih-meh-tah kee-mah-shee-tah] — I came to Japan for the first time.\n\nIf you want to say \"It is my first time\" more simply: 初です (Hatsu desu) [ha-tsu dess] — it is the first time.",
+          "reply": "It's my first time coming to Japan: 日本に初めて来ました (Nihon ni hajimete kimashita) [nee-hohn nee ha-jih-meh-tah kee-mah-shee-tah] — I came to Japan for the first time.\nI am very happy: 嬉しいです (Ureshii desu) [oo-reh-shee-dess] — I am happy.",
           "correct": true,
-          "tokens_per_second": 21.0076143253541,
-          "first_token_s": 0.6464037910000116
+          "tokens_per_second": 16.16983056921442,
+          "first_token_s": 0.6009351430002425
         },
         {
           "prompt": "Give 3 examples of using the '-te' form (て).",
-          "reply": "Here are three examples of the '-te' form:\n行きます (ikimasu) [ee-kah-mahss] becomes 行きます (ikimasu) [ee-kah-mahss] → 行きます (ikimasu) [ee-kah-mahss] — wait, let me correct that to the actual conjugation:\n行きます (ikimasu) [ee-kah-mahss] becomes 行って (itte) [ih-teh] — go (connective form).\n食べます (tabemasu) [tah-beh-mahss] becomes 食べて (tabete) [tah-beh-teh] — eat (connective form).\n見ます (mimasu) [mee-mahss] becomes 見て (mite) [mee-teh] — see (connective form).",
-          "correct": true,
-          "tokens_per_second": 20.892210413878388,
-          "first_token_s": 0.49953608400028315
+          "reply": "Here are three examples of the '-te' form:\n行 (iku) → 行 (i) (iku) [ee-koo] — to go.\n見 (miru) → 見 (mi) (mi) [mee] — to see.\n食べ (taberu) → 食べ (ta-be) (tabe) [tah-beh] — to eat.",
+          "correct": false,
+          "tokens_per_second": 9.555241369139647,
+          "first_token_s": 0.7442332370001168
         },
         {
           "prompt": "What is the difference between 'arimasu' and 'imasu'?",
-          "reply": "'Arimasu' is used for inanimate objects, while 'imasu' is used for living things like people and animals.\nExample: 本があります (hon ga arimasu) [hon ga ah-ree-mahss] — there is a book.\nExample: 猫がいます (neko ga imasu) [neh-koh ga ee-mahss] — there is a cat.",
+          "reply": "Arimasu means \"to exist\" for inanimate objects, while imasu means \"to exist\" for living things.\nExample: 本があります (hon ga arimasu) [hon ga ah-ree-mahss] — there is a book.\nExample: 猫がいます (neko ga imasu) [neh-koh ga ee-mahss] — there is a cat.",
           "correct": true,
-          "tokens_per_second": 18.44932924941045,
-          "first_token_s": 0.6844757560002108
+          "tokens_per_second": 9.324102890800114,
+          "first_token_s": 0.7324574660005965
         },
         {
           "prompt": "Translate: 'It has been raining since this morning, so I don't want to go out.'",
-          "reply": "It has been raining since this morning, so I don't want to go out.\n雨は今朝から降っていますから、外出したくありません。 (ame wa kesa kara futte imasu kara, gaishutsu shitaku arimasen.) — It has been raining since this morning, so I don't want to go out.",
+          "reply": "It has been raining since this morning: 朝から雨が降っています (asa kara ame ga futte imasu) [ah-sah-kah-ra ah-meh gah fuh-tteh ee-mah-ssoo] — It has been raining since this morning.\nI don't want to go out: 外に出たくないです (soto ni dasetakunai desu) [sah-toh nee dah-set-ah-kun-ai dess] — I don't want to go out.",
           "correct": true,
-          "tokens_per_second": 20.892268336711492,
-          "first_token_s": 0.6075941569997667
+          "tokens_per_second": 8.8304462805595,
+          "first_token_s": 3.280184373999873
         },
         {
           "prompt": "Explain the grammar of '~te shimau' (〜てしまう).",
-          "reply": "The grammar ~te shimau expresses a completed action that often carries a nuance of regret, mistake, or unexpected completion. It is formed by conjugating the verb to its te-form and adding the word しまう (shimau).",
+          "reply": "The grammar **〜てしまう** (〜te shimau) expresses that an action is completed, often with a nuance of regret, surprise, or that the action happened unintentionally. It is formed by conjugating the verb to the te-form and adding **しまう** (shimau).",
           "correct": true,
-          "tokens_per_second": 19.137399264269717,
-          "first_token_s": 0.6575170559999606
+          "tokens_per_second": 14.615778744326787,
+          "first_token_s": 0.8619872879999093
         },
         {
           "prompt": "Give the reading and meaning of the word: 飛行機",
           "reply": "飛行機 (hikouki) [hee-koh-kee] — airplane.",
           "correct": true,
-          "tokens_per_second": 22.258750602247108,
-          "first_token_s": 0.5979694520001431
+          "tokens_per_second": 9.244521658149273,
+          "first_token_s": 1.0032518199996048
         },
         {
           "prompt": "Make a polite request with 'itadakemasen ka'.",
-          "reply": "Please use the pattern [verb stem] + itadakemasen ka to make a polite request.\nお茶をいただけますか (o-cha o itadakemasen ka) [oh-chah oh it-ah-dah-keh-mahss-kah] — May I have some tea?\nお皿をいただけますか (o-sara o itadakemasen ka) [oh-sah-rah oh it-ah-dah-keh-mahss-kah] — May I have the plate?",
-          "correct": true,
-          "tokens_per_second": 15.669521035795713,
-          "first_token_s": 0.7553319620001275
+          "reply": "Please say \"Itadakimasen ka\" [itah-dah-keh-mah-ssen kah] to politely ask someone to eat with you.\nExample: お茶 (ocha) [oh-chah] — tea. \"Ocha itadakimasen ka\" [oh-chah itah-dah-keh-mah-ssen kah] — shall we drink tea?",
+          "correct": false,
+          "tokens_per_second": 8.321221883536214,
+          "first_token_s": 1.1688270819995523
         },
         {
           "prompt": "Translate into English: '明日は忙しいから、明後日にしましょう。'",
-          "reply": "Since tomorrow is busy, let's do it the day after tomorrow.\nあしたはいそがしいから、あさってにしましょう (ashita wa isogashii kara, asatte ni shimashou) — since tomorrow is busy, let's do it the day after tomorrow.",
+          "reply": "The sentence means \"Since tomorrow is busy, let's do it the day after tomorrow.\"\n\nあしたはいそがしいから、あさってにしましょう (ashita wa isogashii kara, asatte ni shimashou) — Since tomorrow is busy, let's do it the day after tomorrow.",
           "correct": true,
-          "tokens_per_second": 18.680087522175615,
-          "first_token_s": 0.9266318590007359
+          "tokens_per_second": 16.04468388451304,
+          "first_token_s": 1.0407691059999706
         },
         {
           "prompt": "How do you express a wish (I want to do...) in Japanese?",
-          "reply": "To express a wish like \"I want to...\", use the pattern **～たい (tai)** attached to the dictionary form of a verb. For example: 食べたい (tabetai) [tah-beh-tah-ee] — I want to eat.",
+          "reply": "To express a wish like \"I want to...\", use the pattern **～たい (tai)** attached to the dictionary form of a verb.\nFor example: 食べたい (tabetai) [tah-beh-tah-ee] — I want to eat.",
           "correct": true,
-          "tokens_per_second": 7.742340876653678,
-          "first_token_s": 0.907572438999523
+          "tokens_per_second": 8.699576552896055,
+          "first_token_s": 0.7059905400001298
         },
         {
           "prompt": "Correct this sentence: 'Kono hon wa oishii desu.'",
-          "reply": "The correct sentence is: この本はおいしいです (kono hon wa oishii desu) [ko-no hon wa oh-ee-shii dess] — This book is delicious. However, books are not edible, so you likely meant to say \"This book is interesting\" (この本はおもしろいです) or \"This food is delicious\" (この料理はおいしいです).",
+          "reply": "The correct sentence is: この本はおいしいです (kono hon wa oishii desu) [kohn-noh hon wah oh-ee-shii dess] — This book is delicious.\nHowever, books are not food, so you likely meant to say: この本は面白いです (kono hon wa omoshiroi desu) [kohn-noh hon wah oh-moh-shi-roi dess] — This book is interesting.",
           "correct": true,
-          "tokens_per_second": 17.234279858224532,
-          "first_token_s": 0.8017319999999017
+          "tokens_per_second": 10.184926540464714,
+          "first_token_s": 2.230205898999884
         },
         {
           "prompt": "Briefly explain the concept of 'Keigo' (honorific language).",
-          "reply": "Keigo is a special set of Japanese words and grammar used to show respect to others or humble oneself. It includes three main types: sonkeigo (honorifics) for others, kenjougo (humble forms) for oneself, and teineigo (polite language) for general courtesy.",
+          "reply": "Keigo is a special system of polite Japanese used to show respect to others. It includes three main types: sonkeigo for honoring others, kenjougo for humbling oneself, and teineigo for general politeness.",
           "correct": true,
-          "tokens_per_second": 18.599490436793435,
-          "first_token_s": 0.7353909020002902
+          "tokens_per_second": 13.461566127149895,
+          "first_token_s": 0.6724082210002962
         },
         {
           "prompt": "Translate: 'Even if it's difficult, I won't give up.'",
-          "reply": "Even if it's difficult, I won't give up.\nたとえ難しくても、あきらめません (tatoe muzukashitemo, akiramemasen) — even if it's difficult, I won't give up.\nでも (demo) [deh-moh] — but.",
+          "reply": "Even if it's difficult, I won't give up.\nどんなに難しくても (don'nai muzukashikute mo) [don-nai mu-zu-kah-shee-koo-teh moh] — even if it is very difficult.\n諦めない (akiramenai) [ah-kee-rah-meh-nai] — I will not give up.",
           "correct": true,
-          "tokens_per_second": 17.26509632737373,
-          "first_token_s": 0.8213169560003735
+          "tokens_per_second": 7.130166546738293,
+          "first_token_s": 0.7430587529997865
         },
         {
           "prompt": "What is the right counter for sheets of paper?",
           "reply": "For sheets of paper, the correct counter is 枚 (mai).\nExample: 紙 3 枚 (kami san mai) [kah-mee san mah-ee] — three sheets of paper.",
           "correct": true,
-          "tokens_per_second": 7.950623961020254,
-          "first_token_s": 0.8507044609996228
+          "tokens_per_second": 16.837281757349405,
+          "first_token_s": 0.591716448000625
         },
         {
           "prompt": "Give the difference between 'kiku' (聞く) and 'kikoeru' (聞こえる).",
-          "reply": "Kiku (きく) [kee-koo] means \"to listen\" or \"to understand,\" focusing on the active act of hearing someone. Kikoeru (きこえる) [kee-koh-eh-ru] means \"to be audible,\" describing a sound that can be heard without necessarily being actively listened to.",
+          "reply": "'Kiku' (kiku) [kee-koo] — to listen or hear intentionally. 'Kikoeru' (kikoeru) [kee-ko-eh-roo] — to be audible or heard without effort.",
           "correct": true,
-          "tokens_per_second": 19.718042746654977,
-          "first_token_s": 1.3452178039997307
+          "tokens_per_second": 19.725487015310105,
+          "first_token_s": 0.6851025249998202
         },
         {
           "prompt": "Write a short, classic self-introduction (jikoshoukai).",
-          "reply": "Watashi no namae wa Sensai desu. [wa-ta-shi no na-me wa sen-sai des] — My name is Sensai.\nWatashi wa nihongo o oshiete imasu. [wa-ta-shi wa ni-hon-go o o-shie-te i-ma-su] — I am teaching Japanese.",
+          "reply": "Watashi no namae wa Sensai desu. [wa-ta-shi no na-me wa sen-sai desu] — My name is Sensai.\nWatashi wa nihongo o oshiete imasu. [wa-ta-shi wa ni-hon-go o o-shie-te i-ma-su] — I am teaching Japanese.",
           "correct": false,
-          "tokens_per_second": 15.936249094289394,
-          "first_token_s": 0.7292155130007814
+          "tokens_per_second": 5.972939451121302,
+          "first_token_s": 0.8213026590001391
         }
       ]
     }
