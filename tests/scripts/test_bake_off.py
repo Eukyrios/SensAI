@@ -2,6 +2,7 @@
 
 from scripts import bake_off
 from sensai.llm.ollama import ChatStats, OllamaError
+from tests.fakes import Returns
 
 
 class BenchmarkClient:
@@ -53,7 +54,7 @@ def test_missing_model_is_skipped(capsys):
 
 
 def test_main_prints_a_table_of_the_installed_models(monkeypatch, capsys):
-    monkeypatch.setattr(bake_off, "OllamaClient", lambda url: BenchmarkClient())
+    monkeypatch.setattr(bake_off, "OllamaClient", Returns(BenchmarkClient()))
     bake_off.main()
     out = capsys.readouterr().out
     assert "BAKE-OFF RESULTS" in out and "qwen3.5:9b" in out and "25.00 t/s" in out

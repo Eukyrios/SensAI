@@ -16,10 +16,14 @@ def memory_repository() -> SessionRepository:
     return _opened[-1]
 
 
+def memory_repository_for(config: dict) -> SessionRepository:
+    return memory_repository()
+
+
 @pytest.fixture(autouse=True)
 def isolated_storage(monkeypatch):
     for module in ("sensai.orchestration.session", "sensai.surfaces.cli"):
-        monkeypatch.setattr(f"{module}.open_repository", lambda config: memory_repository())
+        monkeypatch.setattr(f"{module}.open_repository", memory_repository_for)
     yield
     while _opened:
         _opened.pop().conn.close()

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from functools import partial
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,21 +13,28 @@ from sensai.llm.ollama import ChatStats, OllamaClient, Thought
 from sensai.orchestration.session import Session
 from sensai.surfaces import cli
 from sensai.surfaces.cli import CLIRenderer, run_command
-from tests.fakes import FakeClient, make_config
+from tests.fakes import (AsyncRecorder, FakeClient, Recorder, Returns, ScriptedInput, always_true,
+                         events_stream, events_then_raise, make_config)
+
+
+def accept_any_model(client, model):
+    return None
+
+
+class PartialLineRecorder:
+
+    def __init__(self, out):
+        self.out = out
+        self.seen = []
+
+    def __call__(self):
+        self.seen.append(self.out.partial)
 
 
 def run_cli_test(monkeypatch, inputs: list[str], client=None, argv: list[str] | None = None) -> None:
     client = client or FakeClient()
-    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=client))
-    iter_inputs = iter(inputs)
-    
-    def fake_input(prompt=""):
-        try:
-            return next(iter_inputs)
-        except StopIteration:
-            raise EOFError
-
-    monkeypatch.setattr("builtins.input", fake_input)
+    monkeypatch.setattr(cli, "Session", partial(Session, client=client))
+    monkeypatch.setattr("builtins.input", ScriptedInput(inputs))
     try:
         cli.main(argv or [])
     except SystemExit:
@@ -42,19 +50,15 @@ def event_log(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def installed_models(monkeypatch):
-    monkeypatch.setattr(OllamaClient, "require_model", lambda self, model: None)
+    monkeypatch.setattr(OllamaClient, "require_model", accept_any_model)
 
 
 @pytest.mark.asyncio
 async def test_cli_renderer_renders_tokens_and_turn_finished(capsys):
     renderer = CLIRenderer()
-
-    async def stream_tokens():
-        yield Token(turn_id="t1", run_id="r1", text="Konnichiwa ")
-        yield Token(turn_id="t1", run_id="r1", text="world!")
-        yield TurnFinished(turn_id="t1", model="qwen3.5:9b")
-
-    await renderer.render_stream(stream_tokens())
+    await renderer.render_stream(events_stream(Token(turn_id="t1", run_id="r1", text="Konnichiwa "),
+                                               Token(turn_id="t1", run_id="r1", text="world!"),
+                                               TurnFinished(turn_id="t1", model="qwen3.5:9b")))
     captured = capsys.readouterr().out
     assert "Konnichiwa world!" in captured
 
@@ -62,16 +66,8 @@ async def test_cli_renderer_renders_tokens_and_turn_finished(capsys):
 @pytest.mark.asyncio
 async def test_cli_renderer_handles_guardrail_triggered(capsys):
     renderer = CLIRenderer()
-
-    async def stream_guardrail():
-        yield GuardrailTriggered(
-            turn_id="t1",
-            side="input",
-            rule="no_pii",
-            action="block",
-        )
-
-    await renderer.render_stream(stream_guardrail())
+    await renderer.render_stream(events_stream(
+        GuardrailTriggered(turn_id="t1", side="input", rule="no_pii", action="block")))
     captured = capsys.readouterr().err
     assert "[guardrail] input block: no_pii" in captured
 
@@ -79,14 +75,11 @@ async def test_cli_renderer_handles_guardrail_triggered(capsys):
 @pytest.mark.asyncio
 async def test_cli_renderer_handles_all_error_kinds(capsys):
     renderer = CLIRenderer()
-
-    async def stream_errors():
-        yield Error(turn_id="t1", kind="model_missing", message="ollama pull qwen3.5:9b")
-        yield Error(turn_id="t1", kind="connection", message="Connection failed")
-        yield Error(turn_id="t1", kind="timeout", message="Request timed out")
-        yield Error(turn_id="t1", kind="bad_request", message="Bad request parameters")
-
-    await renderer.render_stream(stream_errors())
+    await renderer.render_stream(events_stream(
+        Error(turn_id="t1", kind="model_missing", message="ollama pull qwen3.5:9b"),
+        Error(turn_id="t1", kind="connection", message="Connection failed"),
+        Error(turn_id="t1", kind="timeout", message="Request timed out"),
+        Error(turn_id="t1", kind="bad_request", message="Bad request parameters")))
     captured = capsys.readouterr().err
 
     assert "Model not found" in captured
@@ -99,13 +92,9 @@ async def test_cli_renderer_handles_all_error_kinds(capsys):
 @pytest.mark.asyncio
 async def test_cli_renderer_handles_cancellation(capsys):
     renderer = CLIRenderer()
-
-    async def cancelling_stream():
-        yield Token(turn_id="t1", run_id="r1", text="Hello")
-        raise asyncio.CancelledError()
-
+    stream = events_then_raise([Token(turn_id="t1", run_id="r1", text="Hello")], asyncio.CancelledError())
     with pytest.raises(asyncio.CancelledError):
-        await renderer.render_stream(cancelling_stream())
+        await renderer.render_stream(stream)
 
     captured = capsys.readouterr()
     assert "Hello" in captured.out
@@ -202,13 +191,13 @@ def test_plain_output_ends_lines_only_when_needed(capsys):
 
 
 def test_live_output_prints_finished_lines_and_keeps_the_partial_one(capsys):
-    changes = []
     out = cli.LiveOutput()
-    out.on_change = lambda: changes.append(out.partial)
+    recorder = PartialLineRecorder(out)
+    out.on_change = recorder
     out.write("Red: 赤 (aka)\nBlue: ")
     out.write("青")
     assert capsys.readouterr().out == "Red: 赤 (aka)\n"
-    assert out.partial == "Blue: 青" and changes == ["Blue: ", "Blue: 青"]
+    assert out.partial == "Blue: 青" and recorder.seen == ["Blue: ", "Blue: 青"]
     out.end_line()
     assert capsys.readouterr().out == "Blue: 青\n" and out.partial == ""
     out.end_line()
@@ -253,14 +242,13 @@ def test_model_switch_reports_thinking_turned_off(monkeypatch, capsys):
 
 
 def test_dim_lines_dims_each_line(monkeypatch):
-    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+    monkeypatch.setattr(cli.sys.stdout, "isatty", always_true)
     assert cli.dim_lines("a\n\nb") == "\033[2ma\033[0m\n\n\033[2mb\033[0m"
 
 
 async def test_renderer_shows_guardrail_events(capsys):
-    async def stream():
-        yield ev.GuardrailTriggered(turn_id="t", side="input", rule="pii", action="redact")
-    await cli.CLIRenderer().render_stream(stream())
+    await cli.CLIRenderer().render_stream(
+        events_stream(ev.GuardrailTriggered(turn_id="t", side="input", rule="pii", action="redact")))
     assert "[guardrail] input redact: pii" in capsys.readouterr().err
 
 
@@ -278,7 +266,7 @@ from tests.conftest import memory_repository
 def test_list_sessions(monkeypatch, capsys):
     repo = memory_repository()
     sid = repo.create_session("qwen3.5:9b", "Lesson 1")
-    monkeypatch.setattr(cli, "open_repository", lambda config: repo)
+    monkeypatch.setattr(cli, "open_repository", Returns(repo))
     run_cli_test(monkeypatch, [], argv=["--list-sessions"])
     out = capsys.readouterr().out
     assert sid in out and "qwen3.5:9b" in out and "Lesson 1" in out
@@ -294,12 +282,13 @@ def test_resume_session(monkeypatch, capsys):
     stored = Session(make_config(), client=FakeClient(), repo=repo)
     stored.record("user", "earlier")
     stored.record("assistant", "Konnichiwa")
-    monkeypatch.setattr("sensai.orchestration.session.open_repository", lambda config: repo)
-    seen = []
-    monkeypatch.setattr(cli, "plain_chat", lambda session, logger: seen.append(session))
+    monkeypatch.setattr("sensai.orchestration.session.open_repository", Returns(repo))
+    plain_chat = Recorder()
+    monkeypatch.setattr(cli, "plain_chat", plain_chat)
     cli.main(["--session", stored.id])
     assert f"Resumed session {stored.id} (2 messages)" in capsys.readouterr().out
-    assert seen[0].id == stored.id and [m["content"] for m in seen[0].history] == ["earlier", "Konnichiwa"]
+    resumed = plain_chat.calls[0][0]
+    assert resumed.id == stored.id and [m["content"] for m in resumed.history] == ["earlier", "Konnichiwa"]
 
 
 def test_unknown_session_exits_with_error(monkeypatch):
@@ -320,22 +309,14 @@ from sensai.llm.ollama import OllamaError
 
 
 def run(monkeypatch, inputs, argv=(), client=None):
-    it = iter(inputs)
-
-    def fake_input(prompt=""):
-        item = next(it, EOFError)
-        if isinstance(item, BaseException) or (isinstance(item, type) and issubclass(item, BaseException)):
-            raise item
-        return item
-
-    monkeypatch.setattr("builtins.input", fake_input)
+    monkeypatch.setattr("builtins.input", ScriptedInput(inputs))
     if client is not None:
-        monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=client))
+        monkeypatch.setattr(cli, "Session", partial(Session, client=client))
     cli.main(list(argv))
 
 
 async def live(monkeypatch, session, script):
-    monkeypatch.setattr(cli, "patch_stdout", lambda raw=False: contextlib.nullcontext())
+    monkeypatch.setattr(cli, "patch_stdout", Returns(contextlib.nullcontext()))
     with create_pipe_input() as keys, create_app_session(input=keys, output=DummyOutput()):
         chat = asyncio.create_task(cli.live_chat(session))
         for step in script:
@@ -438,16 +419,13 @@ async def test_live_chat_answers_then_quits(monkeypatch, capsys):
 
 
 def test_main_uses_the_live_chat_in_a_terminal(monkeypatch):
-    used = []
-
-    async def fake_live(session, logger):
-        used.append(session)
-    monkeypatch.setattr(cli, "live_chat", fake_live)
-    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
-    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient()))
+    live_chat = AsyncRecorder()
+    monkeypatch.setattr(cli, "live_chat", live_chat)
+    monkeypatch.setattr(cli.sys.stdin, "isatty", always_true)
+    monkeypatch.setattr(cli.sys.stdout, "isatty", always_true)
+    monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient()))
     cli.main([])
-    assert len(used) == 1
+    assert len(live_chat.calls) == 1
 
 
 def test_missing_config(monkeypatch):
@@ -467,7 +445,7 @@ def test_model_command(monkeypatch, capsys):
 
 def test_model_command_lists_none(monkeypatch, capsys):
     client = FakeClient()
-    client.list_models = lambda: []
+    client.list_models = Returns([])
     run(monkeypatch, ["/model"], client=client)
     assert "Installed: none" in capsys.readouterr().out
 
@@ -475,7 +453,7 @@ def test_model_command_lists_none(monkeypatch, capsys):
 def test_module_entrypoint(monkeypatch):
     import runpy
     monkeypatch.setattr("sys.argv", ["sensai"])
-    monkeypatch.setattr("builtins.input", lambda p="": (_ for _ in ()).throw(EOFError))
+    monkeypatch.setattr("builtins.input", ScriptedInput([]))
     runpy.run_module("sensai", run_name="__main__")
 
 
@@ -490,12 +468,12 @@ def test_ollama_error_printed(monkeypatch, capsys):
     (OllamaError("connection", "Cannot reach Ollama"), "Cannot reach Ollama"),
 ])
 def test_startup_check_stops_before_prompt(monkeypatch, error, shown):
-    asked = []
-    monkeypatch.setattr("builtins.input", lambda p="": asked.append(p))
-    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient(startup_error=error)))
+    prompt = Recorder()
+    monkeypatch.setattr("builtins.input", prompt)
+    monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient(startup_error=error)))
     with pytest.raises(SystemExit, match=shown):
         cli.main([])
-    assert asked == []
+    assert prompt.calls == []
 
 
 async def test_type_ahead_is_queued_and_runs_after_the_reply(monkeypatch, capsys):
@@ -515,21 +493,21 @@ def test_unknown_command_not_sent_to_model(monkeypatch, capsys):
 
 
 async def test_renderer_prints_structured_output_as_json(capsys):
-    async def stream():
-        yield ev.StructuredOutput(turn_id="t", run_id="r", data={"correction": "学校に行きます"})
-        yield ev.StructuredOutput(turn_id="t", run_id="r", data={"ok": True}, attempts=2)
-    await CLIRenderer().render_stream(stream())
+    await CLIRenderer().render_stream(events_stream(
+        ev.StructuredOutput(turn_id="t", run_id="r", data={"correction": "学校に行きます"}),
+        ev.StructuredOutput(turn_id="t", run_id="r", data={"ok": True}, attempts=2)))
     out = capsys.readouterr().out
     assert '"correction": "学校に行きます"' in out
     assert out.count("repaired") == 1
 
 
 def test_agent_flag_selects_the_agent(monkeypatch, capsys):
-    seen = []
-    monkeypatch.setattr(cli, "plain_chat", lambda session, logger: seen.append(session.spec))
-    monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient()))
+    plain_chat = Recorder()
+    monkeypatch.setattr(cli, "plain_chat", plain_chat)
+    monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient()))
     cli.main(["--agent", "checker"])
-    assert seen[0].name == "checker" and seen[0].output_schema["required"][0] == "sentence"
+    spec = plain_chat.calls[0][0].spec
+    assert spec.name == "checker" and spec.output_schema["required"][0] == "sentence"
 
 
 def test_unknown_agent_flag_exits(monkeypatch):

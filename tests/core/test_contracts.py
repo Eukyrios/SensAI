@@ -43,16 +43,18 @@ def test_events_are_frozen_and_timestamped():
             e.turn_id = "other"
 
 
+def render_for_match(event: ev.Event) -> str:
+    match event:
+        case ev.Token(text=text):
+            return text
+        case ev.Error(kind=kind):
+            return f"!{kind}"
+        case _:
+            return ""
+
+
 def test_events_dispatch_with_match():
-    def render(e: ev.Event) -> str:
-        match e:
-            case ev.Token(text=t):
-                return t
-            case ev.Error(kind=k):
-                return f"!{k}"
-            case _:
-                return ""
-    assert "".join(render(e) for e in all_events("t")) == "a!connection"
+    assert "".join(render_for_match(event) for event in all_events("t")) == "a!connection"
 
 
 def test_handoff_requires_dict_payload():

@@ -1,4 +1,4 @@
-# Shared test doubles: a fake Ollama client and a config builder.
+# Shared test doubles: a fake Ollama client, a config builder, and small stubs for monkeypatch.
 
 from sensai.core.config import load_config
 from sensai.llm.ollama import OllamaError
@@ -38,3 +38,54 @@ class FakeClient:
             raise self.error
         yield from self.tokens
         return self.stats
+
+
+class Returns:
+
+    def __init__(self, value):
+        self.value = value
+
+    def __call__(self, *args, **kwargs):
+        return self.value
+
+
+class Recorder:
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, *args, **kwargs):
+        self.calls.append(args)
+
+
+class AsyncRecorder(Recorder):
+
+    async def __call__(self, *args, **kwargs):
+        self.calls.append(args)
+
+
+class ScriptedInput:
+
+    def __init__(self, items):
+        self.items = iter(items)
+
+    def __call__(self, prompt=""):
+        item = next(self.items, EOFError)
+        if isinstance(item, BaseException) or (isinstance(item, type) and issubclass(item, BaseException)):
+            raise item
+        return item
+
+
+async def events_stream(*events):
+    for event in events:
+        yield event
+
+
+async def events_then_raise(events, error):
+    for event in events:
+        yield event
+    raise error
+
+
+def always_true():
+    return True
