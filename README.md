@@ -286,8 +286,9 @@ Rule: never start a layer until the previous layer's contracts are **merged**.
 ### Packages
 
 One package per domain, each owned by one member so parallel branches rarely touch the same files.
-Each package's `__init__.py` lists the modules that belong in it and the layer that adds them,
-so new code always has an obvious home.
+The folders have no `__init__.py`: Python imports them as namespace packages. The module map below
+says where each piece of code lives, and where the planned ones go, so new code always has an
+obvious home.
 
 ```
 sensai/
@@ -306,6 +307,46 @@ config.toml       project configuration
 ```
 
 Runtime files (`data/*.db`, `logs/`) are created on first run and never committed.
+
+### Module map
+
+Built modules, then planned ones with the layer that adds them.
+
+| Package | Module | What it does |
+|---------|--------|--------------|
+| `core/` | `events.py` | the event stream that surfaces subscribe to |
+| | `agent_spec.py` | `AgentSpec`, loaded from `agents/<name>.toml` |
+| | `handoff.py` | the envelope passed between agents |
+| | `messages.py` | chat message format sent to the model |
+| | `errors.py` | error categories (`ErrorKind`) |
+| | `config.py` | layered config: defaults < `config.toml` < env < CLI |
+| | `ids.py` | uuid ids for sessions, turns and runs |
+| `llm/` | `ollama.py` | chat streaming, embeddings, `/api/tags`, `/api/show` |
+| `orchestration/` | `session.py` | `Session`: active agent, history, profile, client |
+| | `turn.py` | `run_turn()`: guardrails → context → model → events |
+| | `structured.py` | structured output: schema in the prompt, validation, one repair |
+| | *`executor.py`* | runs one `AgentSpec`, ReAct strategy for the corrector (layer 4) |
+| | *`orchestrator.py`* | handoffs and guards: max hops, cycles, budget, timeouts (layer 4) |
+| | *`router.py`* | rules → embeddings → classifier cascade (layer 5) |
+| `memory/` | `db.py` | SQLite connection: WAL, foreign keys, `:memory:` for tests |
+| | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
+| | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
+| | `ledger.py` | `errors`, `srs_cards`, `facts` with per-agent write ownership |
+| | *`context.py`* | context providers and builder with token budget (layer 4) |
+| | *`compression.py`* | sliding-window summarisation (layer 5) |
+| | *`srs.py`* | spaced-repetition scheduling for the curriculum agent (layer 6) |
+| `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools |
+| | *`mcp/`* | MCP client, JSON-RPC 2.0 over stdio (layer 5) |
+| | *`rag/`* | ingest, JLPT-tagged chunks, retrieval, reranking (layers 5–6) |
+| `trust/` | `logging.py` | JSON-lines event log |
+| | `metrics.py` | tokens, speed, TTFT and cost per turn (`/metrics`) |
+| | `tracing.py` | per-turn trace of the agent runs (`/trace`) |
+| | `guardrails.py` | input and output filters (stub until layer 6) |
+| | *`judge.py`* | claim-by-claim verification against retrieved chunks (layer 5) |
+| `surfaces/` | `cli.py` | command-line chat and its renderer |
+| | `demo.py` | scripted turn through the logger and the renderer |
+| | *`web/`* | FastAPI + SSE backend and frontend (layer 7) |
+| `sensai/` | `__main__.py` | entry point for `python -m sensai` |
 
 ### Rules that keep it stable
 
