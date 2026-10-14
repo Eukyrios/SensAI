@@ -1,3 +1,5 @@
+# AgentSpec: one agent loaded from agents/<name>.toml, with its model, num_ctx and output schema.
+
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -15,7 +17,6 @@ class SpecError(ValueError):
 
 @dataclass(frozen=True)
 class AgentSpec:
-    """One agent, loaded from agents/<name>.toml. model and num_ctx are always explicit."""
     name: str
     model: str
     num_ctx: int
@@ -45,7 +46,6 @@ def load_spec(path: str | Path) -> AgentSpec:
 
 
 def spec_for(name: str, config: dict) -> AgentSpec:
-    """Load an agent by name from the configured directory, applying agents.model_override."""
     agents = config["agents"]
     path = resolve(agents["dir"]) / f"{name}.toml"
     if not path.exists():

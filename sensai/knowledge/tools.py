@@ -1,4 +1,5 @@
-"""Tool registry and native/prompted dual path for the SensAI knowledge base."""
+# Tool registry and native/prompted tool calling, with the dictionary, conjugate and kanji tools.
+
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -89,7 +90,6 @@ registry.register(Tool(
 ))
 
 def get_tools_for_model(client, model: str) -> dict:
-    """Détermine la voie d'exécution en fonction des capacités du modèle."""
     capabilities = client.capabilities(model)
     if "tools" in capabilities:
         return {"type": "native", "tools": registry.get_native_tools()}

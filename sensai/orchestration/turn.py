@@ -1,11 +1,5 @@
-"""run_turn(): one learner turn as a stream of events (layer 2).
+# run_turn(): one learner turn as a stream of events, and the thread bridge to the transport.
 
-Order: TurnStarted -> [GuardrailTriggered] -> AgentRunStarted -> [Thinking...] -> Token...
--> AgentRunFinished -> TurnFinished. An agent with an output_schema emits no Token (its reply is
-data, not text for the learner) but one StructuredOutput, or Error(kind="invalid_output"). Every turn ends with exactly one TurnFinished, even when it fails, so surfaces
-always know when a turn is over. One agent for now; the orchestrator (layer 4) will run several
-agents inside the same turn, each with its own AgentRunStarted/Finished pair.
-"""
 import asyncio
 import threading
 import time
@@ -42,7 +36,7 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
 
     session.history.append({"role": "user", "content": clean})
     parent_id = session.leaf
-    user_id = session.record("user", clean)         # saved before the model is called
+    user_id = session.record("user", clean)
     run_id = new_id()
     yield AgentRunStarted(turn_id=turn_id, run_id=run_id, agent=spec.name)
 
@@ -56,7 +50,7 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
                 yield event
     except OllamaError as e:
         ok = False
-        session.history.pop()           # drop the unanswered message
+        session.history.pop()
         session.discard(user_id, parent_id)
         yield Error(turn_id=turn_id, kind=e.kind, message=str(e))
     except _InvalidOutput as e:
@@ -65,8 +59,6 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
         session.discard(user_id, parent_id)
         yield Error(turn_id=turn_id, kind="invalid_output", message=str(e))
     except (asyncio.CancelledError, KeyboardInterrupt):
-        # Stopped by the learner: keep the question and what was already written, so the model
-        # knows what it had said ("continue" works). Nothing written yet: drop the question.
         if run.text:
             session.history.append({"role": "assistant", "content": run.text})
             session.record("assistant", run.text)
@@ -74,7 +66,7 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
             session.history.pop()
             session.discard(user_id, parent_id)
         raise
-    except BaseException:               # unexpected errors, abandoned stream
+    except BaseException:
         session.history.pop()
         session.discard(user_id, parent_id)
         raise
@@ -87,13 +79,12 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
 
 
 class _Run:
-    """What one agent run has produced so far, across its model calls."""
 
     def __init__(self, started: int):
         self.started = started
-        self.text = ""                          # the latest call's reply
+        self.text = ""
         self.ttft_ms: float | None = None
-        self.stats: ChatStats | None = None     # summed over the calls (a repair makes two)
+        self.stats: ChatStats | None = None
 
     def add_stats(self, stats: ChatStats) -> None:
         if self.stats is None:
@@ -110,13 +101,12 @@ class _InvalidOutput(Exception):
 
 async def _call_model(session: Session, spec: AgentSpec, messages: list[Message], run: _Run,
                       turn_id: str, run_id: str) -> AsyncIterator[Event]:
-    """One model call. Text is streamed as Token events, except for a structured agent."""
     run.text = ""
     async for token in stream_tokens(session.client, spec, messages, structured.request_format(spec)):
         if isinstance(token, ChatStats):
             run.add_stats(token)
             continue
-        if run.ttft_ms is None:                 # first output of any kind, reasoning included
+        if run.ttft_ms is None:
             run.ttft_ms = (time.perf_counter_ns() - run.started) / 1e6
         if isinstance(token, Thought):
             yield Thinking(turn_id=turn_id, run_id=run_id, text=token.text)
@@ -128,7 +118,6 @@ async def _call_model(session: Session, spec: AgentSpec, messages: list[Message]
 
 async def _validated(session: Session, spec: AgentSpec, messages: list[Message], run: _Run,
                      turn_id: str, run_id: str) -> AsyncIterator[Event]:
-    """Validate a structured reply; on failure, send the errors back once. Raises _InvalidOutput."""
     data, problems = structured.check(run.text, spec.output_schema)
     attempts = 1
     if problems:
@@ -145,7 +134,6 @@ async def _validated(session: Session, spec: AgentSpec, messages: list[Message],
 
 def _turn_finished(turn_id: str, model: str, started: int, ttft_ms: float | None,
                    stats: ChatStats | None) -> TurnFinished:
-    """Token counts and duration from Ollama's final chunk; measured duration if there was none."""
     if stats is None:
         return TurnFinished(turn_id=turn_id, model=model, ttft_ms=ttft_ms,
                             total_duration_ns=time.perf_counter_ns() - started)
@@ -155,10 +143,6 @@ def _turn_finished(turn_id: str, model: str, started: int, ttft_ms: float | None
 
 
 def build_context(session: Session) -> list[Message]:
-    """System prompt + learner profile + the last turns. Stub: replaced by the context builder in layer 4.
-
-    An agent with an output_schema gets the schema and the JSON-only rule in its system prompt.
-    """
     max_turns = session.config["memory"]["max_history_turns"]
     system = session.spec.system_prompt
     if session.spec.output_schema is not None:
@@ -180,15 +164,6 @@ class _Done:
 
 async def stream_tokens(client, spec: AgentSpec, messages: list[Message],
                         format: dict | str | None = None) -> AsyncIterator[str | Thought | ChatStats]:
-    """Bridge the blocking transport to async: a daemon thread reads the stream and hands tokens over.
-
-    Yields what the transport yields (text tokens, and Thought items when the model reasons), then
-    the ChatStats of the final chunk if the transport returned one.
-
-    The transport (requests) blocks, so it runs in a thread and the event loop stays free. When the
-    consumer stops early (Ctrl-C, cancellation), the thread stops at the next token and closes the
-    stream, so Ollama isn't left generating an answer nobody reads.
-    """
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
     stop = threading.Event()
@@ -196,7 +171,7 @@ async def stream_tokens(client, spec: AgentSpec, messages: list[Message],
     def hand_over(item) -> None:
         try:
             loop.call_soon_threadsafe(queue.put_nowait, item)
-        except RuntimeError:            # the loop is already closed: nobody is listening
+        except RuntimeError:
             pass
 
     def produce() -> None:
@@ -208,7 +183,7 @@ async def stream_tokens(client, spec: AgentSpec, messages: list[Message],
             while not stop.is_set():
                 try:
                     token = next(tokens)
-                except StopIteration as end:     # the generator's return value is the ChatStats
+                except StopIteration as end:
                     hand_over(_Done(end.value))
                     return
                 hand_over(token)

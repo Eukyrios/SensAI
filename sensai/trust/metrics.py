@@ -1,10 +1,10 @@
-"""Metrics and cost calculation for turn events."""
+# Per-turn metrics: tokens, speed, time to first token and estimated cost.
+
 from dataclasses import dataclass
 from ..core.events import TurnFinished
 
-# Tarifs de référence par million de tokens ($/1M)
-INPUT_COST_PER_M = 0.50   # $0.50 / 1M prompt tokens
-OUTPUT_COST_PER_M = 1.50  # $1.50 / 1M response tokens
+INPUT_COST_PER_M = 0.50
+OUTPUT_COST_PER_M = 1.50
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,6 @@ class TurnMetrics:
 
 
 def compute_turn_metrics(event: TurnFinished) -> TurnMetrics:
-    """Computes throughput, duration, and cost from a TurnFinished event."""
     duration_s = (event.total_duration_ns or 0) / 1e9
     prompt_tokens = event.prompt_eval_count or 0
     eval_tokens = event.eval_count or 0

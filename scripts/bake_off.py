@@ -1,13 +1,13 @@
+# Model bake-off: runs 20 Japanese prompts on each candidate model and prints their speed.
+
 import time
-from tabulate import tabulate  # pip install tabulate
+from tabulate import tabulate
 from sensai.llm.ollama import OllamaClient
 from sensai.core.messages import Message
 
-# Les 3 modèles exigés par le cahier des charges
 MODELS = ["qwen3.5:4b", "qwen3.5:9b", "gemma4:12b-it-qat"]
-NUM_CTX = 2048 # Basé sur vos tests actuels
+NUM_CTX = 2048
 
-# 20 cas en japonais : grammaire, traduction, kanji, et correction
 TEST_CASES = [
     "Traduis en japonais formel : 'Je voudrais réserver une table pour deux personnes à 19h.'",
     "Explique la différence entre les particules 'wa' (は) et 'ga' (が) avec des exemples simples.",
@@ -49,7 +49,6 @@ def run_evaluation():
         valid_runs = 0
 
         for i, prompt in enumerate(TEST_CASES, 1):
-            # Ajout d'une contrainte stricte pour éviter les dissertations à l'infini
             constrained_prompt = prompt + "\n(Réponds en 2 phrases maximum, sois très concis.)"
             messages = [{"role": "user", "content": constrained_prompt}]
             

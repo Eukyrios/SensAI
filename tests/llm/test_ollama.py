@@ -1,3 +1,5 @@
+# Tests for the Ollama transport.
+
 import json
 
 import pytest
@@ -172,7 +174,6 @@ def test_response_closed_after_normal_end(monkeypatch, client):
 
 
 def drain(stream):
-    """Collect the tokens and the generator's return value (the ChatStats)."""
     tokens = []
     while True:
         try:

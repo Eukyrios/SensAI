@@ -1,4 +1,5 @@
-"""Demo script wiring both CLI renderer and JsonlLogger over a stubbed event stream."""
+# Demo: a scripted turn going through the JSONL logger and the CLI renderer.
+
 import asyncio
 from pathlib import Path
 
@@ -8,7 +9,6 @@ from .cli import CLIRenderer
 
 
 async def stub_event_stream():
-    """Simulates an event stream for a single turn."""
     yield TurnStarted(turn_id="turn-123", session_id="test-session", user_input="hello")
     yield AgentRunStarted(turn_id="turn-123", run_id="run-1", agent="sensei")
     yield Token(turn_id="turn-123", run_id="run-1", text="Konnichiwa ")

@@ -1,3 +1,5 @@
+# Tests for the session repository.
+
 import sqlite3
 
 import pytest
@@ -155,7 +157,7 @@ def test_generated_ids_are_uuid_hex(repo):
     message_id = repo.add_message(session_id, "user", "hello")
     for value in (session_id, message_id):
         assert isinstance(value, str) and len(value) == 32
-        int(value, 16)      # hex
+        int(value, 16)
     assert session_id != message_id
 
 
@@ -183,7 +185,7 @@ def test_failed_turn_is_recorded_without_assistant_message(repo):
 
 def test_list_messages_keeps_insertion_order_despite_random_ids(repo):
     session_id = repo.create_session(model="m")
-    ids = ["ffff", "0000", "8888", "1111"]         # deliberately not sorted
+    ids = ["ffff", "0000", "8888", "1111"]
     for i, message_id in enumerate(ids):
         repo.add_message(session_id, "user", f"m{i}", message_id=message_id)
     assert [m["id"] for m in repo.list_messages(session_id)] == ids
@@ -195,13 +197,10 @@ def test_duplicate_id_rejected(repo):
         repo.create_session(model="m", session_id=session_id)
 
 
-# --- session persistence (#67, #68) ---
-
 from sensai.memory.repository import SessionNotFound
 
 
 def _chat(repo, session_id, *texts):
-    """Add alternating user/assistant messages as one chain; return their ids."""
     ids, parent = [], None
     for i, text in enumerate(texts):
         parent = repo.add_message(session_id, "user" if i % 2 == 0 else "assistant", text, parent)
@@ -234,7 +233,7 @@ def test_load_history_of_empty_session(repo):
 def test_reload_follows_active_leaf_across_branches(repo):
     session_id = repo.create_session(model="m")
     hi, hello = _chat(repo, session_id, "hi", "hello")
-    other = repo.add_message(session_id, "assistant", "hey!", parent_id=hi)   # sibling branch
+    other = repo.add_message(session_id, "assistant", "hey!", parent_id=hi)
     assert [m["content"] for m in repo.load_history(session_id)] == ["hi", "hey!"]
     repo.set_active_leaf(session_id, hello)
     assert [m["content"] for m in repo.load_history(session_id)] == ["hi", "hello"]
@@ -273,8 +272,6 @@ def test_discard_leaf_steps_back_to_parent(repo):
     repo.discard_leaf(hi)
     assert repo.get_session(session_id)["active_leaf_id"] is None
 
-
-# --- learner profile (#69) ---
 
 def test_profile_roundtrip_and_update(repo):
     assert repo.get_profile() is None

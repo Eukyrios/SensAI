@@ -1,4 +1,5 @@
-"""Structured JSONL logger consuming events from the turn stream."""
+# JSONL event logger: writes each event of the turn stream and passes it on.
+
 import json
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -13,7 +14,6 @@ class JsonlLogger:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _serialize_event(self, event: Event) -> dict[str, Any]:
-        """Convert an Event instance to a JSON-serializable dictionary."""
         if is_dataclass(event):
             data = asdict(event)
         elif hasattr(event, "__dict__"):
@@ -25,7 +25,6 @@ class JsonlLogger:
         return data
 
     async def log_stream(self, stream: AsyncGenerator[Event, None]) -> AsyncGenerator[Event, None]:
-        """Consume events from the stream, append them to the log file, and yield them back."""
         with open(self.log_path, "a", encoding="utf-8") as f:
             async for event in stream:
                 record = self._serialize_event(event)

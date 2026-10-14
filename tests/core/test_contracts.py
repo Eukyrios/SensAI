@@ -1,3 +1,5 @@
+# Tests for the core contracts: events, handoffs, ids and agent specs.
+
 import dataclasses
 
 import pytest

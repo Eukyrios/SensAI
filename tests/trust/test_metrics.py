@@ -1,4 +1,5 @@
-"""Tests for metrics and cost estimation logic."""
+# Tests for the metrics and cost estimation.
+
 from sensai.core.events import TurnFinished
 from sensai.trust.metrics import compute_turn_metrics
 
@@ -9,7 +10,7 @@ def test_compute_turn_metrics_calculates_correctly():
         model="qwen3.5:9b",
         prompt_eval_count=1000,
         eval_count=200,
-        total_duration_ns=2_000_000_000,  # 2.0s
+        total_duration_ns=2_000_000_000,
         ttft_ms=150.0,
     )
 
@@ -22,7 +23,6 @@ def test_compute_turn_metrics_calculates_correctly():
     assert metrics.tokens_per_sec == 100.0
     assert metrics.ttft_ms == 150.0
 
-    # Coût : (1000/1M * 0.50) + (200/1M * 1.50) = 0.0005 + 0.0003 = 0.0008 $
     assert abs(metrics.estimated_cost_usd - 0.0008) < 1e-6
 
     summary = metrics.format_summary()

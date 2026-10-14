@@ -1,3 +1,5 @@
+# Tests for the SQLite connection setup.
+
 import sqlite3
 
 import pytest

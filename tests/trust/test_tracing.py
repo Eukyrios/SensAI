@@ -1,4 +1,5 @@
-"""Tests for per-agent logging and trace formatting."""
+# Tests for the per-turn trace.
+
 from sensai.core.events import (
     AgentRunFinished,
     AgentRunStarted,

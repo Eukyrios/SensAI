@@ -1,4 +1,5 @@
-"""Turn tracing and execution flow aggregation."""
+# Per-turn trace of the agent runs, for /trace.
+
 from dataclasses import dataclass
 from ..core.events import (
     AgentRunFinished,
@@ -21,7 +22,6 @@ class AgentTrace:
 
 
 class TurnTracer:
-    """Collects events during a turn and builds a detailed trace summary."""
 
     def __init__(self) -> None:
         self.turn_id: str | None = None
@@ -52,7 +52,6 @@ class TurnTracer:
                 if self._current_agent:
                     self._current_agent.ok = getattr(finished_event, "ok", True)
                     
-                    # Extraire la valeur réelle d'Ollama si disponible dans AgentRunFinished
                     real_count = (
                         getattr(finished_event, "eval_count", None)
                         or getattr(finished_event, "output_tokens", None)

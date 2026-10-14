@@ -1,3 +1,5 @@
+# Tests for run_turn(): event order, history, errors and cancellation.
+
 import asyncio
 import threading
 
@@ -140,7 +142,7 @@ async def test_turn_finished_carries_ollama_stats():
     assert (finished.prompt_eval_count, finished.eval_count) == (35, 12)
     assert finished.total_duration_ns == 500_000_000
     assert not any(isinstance(e, ev.Token) and not isinstance(e.text, str) for e in events)
-    assert session.history[-1]["content"] == "Konnichiwa"     # stats never leak into the reply
+    assert session.history[-1]["content"] == "Konnichiwa"
 
 
 async def test_turn_finished_without_stats_measures_duration(session):
@@ -184,10 +186,8 @@ async def test_thinking_becomes_events_and_stays_out_of_the_reply():
     thinking = [e for e in events if isinstance(e, ev.Thinking)]
     assert "".join(t.text for t in thinking) == "Is it a greeting?"
     assert thinking[0].run_id == events[1].run_id
-    assert session.history[-1] == {"role": "assistant", "content": "Konnichiwa"}   # no reasoning
+    assert session.history[-1] == {"role": "assistant", "content": "Konnichiwa"}
 
-
-# --- persistence (#67 #69) ---
 
 from tests.conftest import memory_repository
 

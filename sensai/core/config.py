@@ -1,7 +1,5 @@
-"""Layered configuration: defaults < config.toml < SENSAI_* environment variables < CLI arguments.
+# Layered configuration: defaults < config.toml < SENSAI_<SECTION>__<KEY> env vars < CLI arguments.
 
-Environment variables use SENSAI_<SECTION>__<KEY>, e.g. SENSAI_OLLAMA__URL=http://gpu:11434.
-"""
 import copy
 import os
 from collections.abc import Mapping
@@ -10,7 +8,7 @@ from typing import Any
 
 try:
     import tomllib
-except ModuleNotFoundError:     # Python 3.10
+except ModuleNotFoundError:
     import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,7 +31,6 @@ def load_toml(path: str | Path) -> dict:
 
 
 def resolve(path: str | Path) -> Path:
-    """Resolve a config path relative to the project root."""
     p = Path(path)
     return p if p.is_absolute() else ROOT / p
 
@@ -41,7 +38,6 @@ def resolve(path: str | Path) -> Path:
 def load_config(path: str | Path | None = None,
                 env: Mapping[str, str] | None = None,
                 cli: Mapping[str, Mapping[str, Any]] | None = None) -> dict:
-    """Build the merged config. An explicit path must exist; the default config.toml is optional."""
     config = copy.deepcopy(DEFAULTS)
     if path is not None:
         _merge(config, load_toml(path))
@@ -73,7 +69,6 @@ def _from_env(env: Mapping[str, str], config: dict) -> dict:
 
 
 def _coerce(raw: str, current: Any) -> Any:
-    """Convert an env string to the type of the value it overrides."""
     if isinstance(current, bool):
         return raw.strip().lower() in ("1", "true", "yes", "on")
     if isinstance(current, int):

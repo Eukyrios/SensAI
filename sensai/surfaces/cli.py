@@ -1,4 +1,5 @@
-"""Command-line chat interface and CLI renderer. Run with: python -m sensai"""
+# Command-line chat: live input line, slash commands and the CLI renderer.
+
 import argparse
 import asyncio
 import json
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> None:
             list_sessions(config)
             return
         session = Session.resume(config, args.session) if args.session else Session(config)
-        session.client.require_model(session.spec.model)     # fail now, not on the first message
+        session.client.require_model(session.spec.model)
     except FileNotFoundError as e:
         sys.exit(f"[error] config not found: {e.filename}")
     except SessionNotFound:
@@ -60,7 +61,7 @@ def main(argv: list[str] | None = None) -> None:
     except (SpecError, OllamaError) as e:
         sys.exit(f"[error] {e}")
 
-    logger = JsonlLogger(resolve(config["logging"]["path"]))     # [logging] path in config.toml
+    logger = JsonlLogger(resolve(config["logging"]["path"]))
     print(f"Sensai ({session.spec.model}) — type /help for commands")
     if args.session:
         print(f"Resumed session {session.id} ({len(session.history)} messages)")
@@ -82,8 +83,7 @@ Status = Callable[[str | None], None]
 
 
 def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
-    """Line by line, for pipes and scripts: read a message, answer it, repeat."""
-    renderer = CLIRenderer(PlainOutput())     # one per chat: /metrics and /trace read its last turn
+    renderer = CLIRenderer(PlainOutput())
     while True:
         try:
             line = input("\n> ")
@@ -98,10 +98,6 @@ def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
 
 
 async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None:
-    """In a terminal: the reply streams above a live input line, so the next question can be typed
-    while the model is answering. Enter queues it; it runs when the current reply ends.
-    Esc stops the reply being generated (the chat goes on); Ctrl-D quits; Ctrl-C does nothing.
-    """
     pending: asyncio.Queue[str | None] = asyncio.Queue()
     state: dict = {"status": None, "turn": None, "quit": False}
     out = LiveOutput()
@@ -142,7 +138,7 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
         redraw()
 
     out.on_change = redraw
-    renderer = CLIRenderer(out, set_status)     # one per chat: /metrics and /trace read its last turn
+    renderer = CLIRenderer(out, set_status)
 
     async def read_lines() -> None:
         while True:
@@ -181,7 +177,6 @@ async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None
 
 
 class PlainOutput:
-    """Streams text straight to stdout (pipes, scripts, tests)."""
 
     def __init__(self) -> None:
         self.mid_line = False
@@ -197,7 +192,6 @@ class PlainOutput:
 
 
 class LiveOutput:
-    """Prints finished lines; keeps the unfinished one in `partial` for the live prompt to draw."""
 
     def __init__(self) -> None:
         self.partial = ""
@@ -221,7 +215,6 @@ Output = PlainOutput | LiveOutput
 
 async def handle_line(session: Session, line: str, renderer: "CLIRenderer",
                       logger: JsonlLogger | None = None) -> bool:
-    """One input line: a /command or a message for the model. Returns False when the chat should stop."""
     line = line.strip()
     if not line:
         return True
@@ -233,7 +226,6 @@ async def handle_line(session: Session, line: str, renderer: "CLIRenderer",
 
 async def render_turn(session: Session, text: str, renderer: "CLIRenderer",
                       logger: JsonlLogger | None = None) -> None:
-    """One turn: run_turn -> (logger, which writes each event and passes it on) -> CLI renderer."""
     stream = run_turn(session, text)
     if logger is not None:
         stream = logger.log_stream(stream)
@@ -241,7 +233,6 @@ async def render_turn(session: Session, text: str, renderer: "CLIRenderer",
 
 
 class CLIRenderer:
-    """Consumes events from an Event stream and renders them to the CLI."""
 
     def __init__(self, out: Output | None = None, status: Status | None = None) -> None:
         self.out = out or PlainOutput()
@@ -292,7 +283,6 @@ class CLIRenderer:
             raise
 
     def _render_error(self, kind: ErrorKind | str, message: str) -> None:
-        """Format and print user-friendly error messages based on error kind."""
         if kind == "model_missing":
             print(f"\n[error] Model not found. Run:\n  {message}", file=sys.stderr)
         elif kind == "connection":
@@ -304,7 +294,6 @@ class CLIRenderer:
 
 
 def usage(finished: TurnFinished) -> str:
-    """e.g. "102 prompt + 11 reply tokens · first token 0.3s · 1.2s" """
     parts = [f"{finished.prompt_eval_count} prompt + {finished.eval_count} reply tokens"]
     if finished.ttft_ms is not None:
         parts.append(f"first token {finished.ttft_ms / 1000:.1f}s")
@@ -321,7 +310,6 @@ def dim_lines(text: str) -> str:
 
 
 def run_command(session: Session, line: str, renderer: CLIRenderer | None = None) -> bool:
-    """Handle a /command. Returns False when the chat should stop."""
     name, _, arg = line.partition(" ")
     arg = arg.strip()
     if name == "/quit":

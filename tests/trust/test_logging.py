@@ -1,4 +1,5 @@
-"""Tests for the JSONL logger."""
+# Tests for the JSONL logger.
+
 import json
 import pytest
 from pathlib import Path

@@ -1,13 +1,5 @@
-"""Session storage: a synchronous repository plus an async facade for FastAPI (#51).
+# Session storage: a synchronous repository plus an async facade, sessions, messages and profiles.
 
-sqlite3 is blocking, which would stall an async web server. Two ways to bridge that:
-aiosqlite (a small wrapper that runs the same blocking calls on a background thread) or
-asyncio.to_thread around a plain synchronous repository. We picked asyncio.to_thread: it
-adds no dependency (this project avoids frameworks it doesn't need — see requirements.txt),
-keeps all the storage logic in one place that stays trivial to unit-test synchronously, and
-the thread-pool overhead is irrelevant at Sensai's scale (one learner, a handful of DB calls
-per turn). See the README's Persistence section.
-"""
 import asyncio
 import sqlite3
 
@@ -19,15 +11,10 @@ from .migrate import migrate
 
 
 class SessionNotFound(LookupError):
-    """No session with this id (or the message is not part of it)."""
+    pass
 
 
 class SessionRepository:
-    """Synchronous CRUD over sessions, messages, turns and agent_runs.
-
-    Ids are text uuids. Pass the id the events already use (e.g. the turn_id from TurnStarted),
-    or leave it out and one is generated. Every write returns the row's id.
-    """
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -43,7 +30,6 @@ class SessionRepository:
 
     def add_message(self, session_id: str, role: str, content: str,
                     parent_id: str | None = None, *, message_id: str | None = None) -> str:
-        """Insert a message and move the session's active leaf onto it, atomically."""
         message_id = message_id or new_id()
         with self.conn:
             self.conn.execute(
@@ -56,7 +42,6 @@ class SessionRepository:
         return message_id
 
     def discard_leaf(self, message_id: str) -> None:
-        """Delete a message nobody replied to, and step the active leaf back onto its parent."""
         with self.conn:
             self.conn.execute(
                 "UPDATE sessions SET active_leaf_id = "
@@ -72,11 +57,9 @@ class SessionRepository:
         return row
 
     def list_sessions(self) -> list[sqlite3.Row]:
-        """All sessions, most recent first (rowid: uuids are random, so they can't order rows)."""
         return self.conn.execute("SELECT * FROM sessions ORDER BY rowid DESC").fetchall()
 
     def set_active_leaf(self, session_id: str, message_id: str) -> None:
-        """Switch the session to the branch ending at `message_id`."""
         self.get_session(session_id)
         with self.conn:
             cur = self.conn.execute(
@@ -88,7 +71,6 @@ class SessionRepository:
             raise SessionNotFound(f"message {message_id} is not in session {session_id}")
 
     def load_history(self, session_id: str) -> list[Message]:
-        """Messages from the root down to the session's active leaf, oldest first."""
         leaf = self.get_session(session_id)["active_leaf_id"]
         rows = self.conn.execute(
             "WITH RECURSIVE branch(id, parent_id, role, content, depth) AS ("
@@ -117,14 +99,12 @@ class SessionRepository:
             )
 
     def profile_system_message(self, name: str = "default") -> Message | None:
-        """The profile as a system message to prepend to the prompt; never stored in messages."""
         content = self.get_profile(name)
         if not content:
             return None
         return {"role": "system", "content": f"Learner profile:\n{content}"}
 
     def list_messages(self, session_id: str) -> list[sqlite3.Row]:
-        """Messages in insertion order (rowid: uuids are random, so they can't order rows)."""
         return self.conn.execute(
             "SELECT * FROM messages WHERE session_id = ? ORDER BY rowid", (session_id,)
         ).fetchall()
@@ -133,7 +113,6 @@ class SessionRepository:
                     assistant_message_id: str | None = None,
                     latency_ms: int | None = None, tokens: int | None = None, *,
                     turn_id: str | None = None) -> str:
-        """Record a turn. assistant_message_id is None when the reply failed."""
         turn_id = turn_id or new_id()
         with self.conn:
             self.conn.execute(
@@ -158,7 +137,6 @@ class SessionRepository:
 
 
 class AsyncSessionRepository:
-    """Async facade: runs each SessionRepository call in a worker thread."""
 
     def __init__(self, repo: SessionRepository):
         self.repo = repo
@@ -204,14 +182,12 @@ class AsyncSessionRepository:
 
 
 def open_repository(config: dict) -> SessionRepository:
-    """Connect using config['storage']['db_path'], apply pending migrations, return a repository."""
     conn = db.connect(config["storage"]["db_path"])
     migrate(conn)
     return SessionRepository(conn)
 
 
 def open_ledger(config: dict) -> Ledger:
-    """Same database as the repository, for the errors, srs_cards and facts tables."""
     conn = db.connect(config["storage"]["db_path"])
     migrate(conn)
     return Ledger(conn)

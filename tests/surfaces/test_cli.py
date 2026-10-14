@@ -1,4 +1,5 @@
-"""Tests for the CLI renderer and slash commands."""
+# Tests for the CLI: renderer, slash commands, live input line and startup.
+
 import asyncio
 import json
 from unittest.mock import MagicMock
@@ -15,7 +16,6 @@ from tests.fakes import FakeClient, make_config
 
 
 def run_cli_test(monkeypatch, inputs: list[str], client=None, argv: list[str] | None = None) -> None:
-    """Helper running main() by mocking input sequence and client."""
     client = client or FakeClient()
     monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=client))
     iter_inputs = iter(inputs)
@@ -35,7 +35,6 @@ def run_cli_test(monkeypatch, inputs: list[str], client=None, argv: list[str] | 
 
 @pytest.fixture(autouse=True)
 def event_log(monkeypatch, tmp_path):
-    """Tests never write into the repository's logs/ folder."""
     path = tmp_path / "events.jsonl"
     monkeypatch.setenv("SENSAI_LOGGING__PATH", str(path))
     return path
@@ -43,7 +42,6 @@ def event_log(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def installed_models(monkeypatch):
-    """Tests never reach a real Ollama: pretend every model is installed."""
     monkeypatch.setattr(OllamaClient, "require_model", lambda self, model: None)
 
 
@@ -273,7 +271,6 @@ def test_events_are_logged_to_the_configured_path(monkeypatch, event_log):
     assert kinds[0] == "TurnStarted" and kinds[-1] == "TurnFinished" and "Token" in kinds
     assert len({r["turn_id"] for r in records}) == 1
 
-# --- sessions (#70) ---
 
 from tests.conftest import memory_repository
 
@@ -311,8 +308,6 @@ def test_unknown_session_exits_with_error(monkeypatch):
     assert e.value.code not in (0, None)
 
 
-# --- restored: tests lost when #201 resolved its conflicts with #198 ----------------------------
-
 import contextlib
 import threading
 
@@ -340,7 +335,6 @@ def run(monkeypatch, inputs, argv=(), client=None):
 
 
 async def live(monkeypatch, session, script):
-    """Run live_chat with keys fed from `script`: a list of strings or seconds to wait."""
     monkeypatch.setattr(cli, "patch_stdout", lambda raw=False: contextlib.nullcontext())
     with create_pipe_input() as keys, create_app_session(input=keys, output=DummyOutput()):
         chat = asyncio.create_task(cli.live_chat(session))
@@ -357,7 +351,6 @@ def live_session(client):
 
 
 class SlowClient(FakeClient):
-    """Streams one token every `delay` seconds and records each message it was asked."""
 
     def __init__(self, delay=0.1, count=5):
         super().__init__()
@@ -393,30 +386,30 @@ async def test_ctrl_c_does_nothing_during_a_reply(monkeypatch, capsys):
     session = live_session(client)
     await live(monkeypatch, session, ["first\r", 0.2, "\x03", 1.0, "/quit\r"])
     out = capsys.readouterr().out
-    assert "[interrupted]" not in out and "t4" in out        # the reply finished normally
+    assert "[interrupted]" not in out and "t4" in out
     assert session.history[-1]["content"].startswith("t0 ")
 
 
 async def test_ctrl_c_while_idle_does_nothing(monkeypatch):
     client = FakeClient()
     await live(monkeypatch, live_session(client), ["\x03", 0.2, "hello\r", 0.3, "\x04"])
-    assert len(client.calls) == 1                         # still running: "hello" was answered
+    assert len(client.calls) == 1
 
 
 async def test_ctrl_d_during_a_reply_quits_without_running_queued_questions(monkeypatch, capsys):
     client = SlowClient(delay=0.3, count=10)
     await live(monkeypatch, live_session(client), ["first\r", 0.4, "second\r", 0.3, "\x04"])
     assert "[interrupted]" in capsys.readouterr().out
-    assert client.asked == ["first"]                      # "second" was queued but never sent
+    assert client.asked == ["first"]
 
 
 async def test_escape_stops_the_reply_and_keeps_the_chat(monkeypatch, capsys):
     client = SlowClient(delay=0.3, count=10)
     session = live_session(client)
-    await live(monkeypatch, session, ["first\r", 1.0, "\x1b", 0.5, "/quit\r"])   # Esc mid-reply
+    await live(monkeypatch, session, ["first\r", 1.0, "\x1b", 0.5, "/quit\r"])
     out = capsys.readouterr().out
     assert "[interrupted]" in out and "t9" not in out
-    question, partial = session.history                  # the chat went on, history kept
+    question, partial = session.history
     assert question == {"role": "user", "content": "first"}
     assert partial["role"] == "assistant" and partial["content"].startswith("t0 ")
 
@@ -489,7 +482,7 @@ def test_module_entrypoint(monkeypatch):
 def test_ollama_error_printed(monkeypatch, capsys):
     run(monkeypatch, ["hello"], client=FakeClient(error=OllamaError("connection", "down")))
     err = capsys.readouterr().err
-    assert "[error] Cannot reach Ollama" in err and "ollama serve" in err     # hint added in #201
+    assert "[error] Cannot reach Ollama" in err and "ollama serve" in err
 
 
 @pytest.mark.parametrize("error, shown", [
@@ -502,16 +495,16 @@ def test_startup_check_stops_before_prompt(monkeypatch, error, shown):
     monkeypatch.setattr(cli, "Session", lambda config: Session(config, client=FakeClient(startup_error=error)))
     with pytest.raises(SystemExit, match=shown):
         cli.main([])
-    assert asked == []          # the prompt never appeared
+    assert asked == []
 
 
 async def test_type_ahead_is_queued_and_runs_after_the_reply(monkeypatch, capsys):
     client = SlowClient()
     await live(monkeypatch, live_session(client),
-               ["first\r", 0.15, "second\r", 1.5, "/quit\r"])     # "second" typed mid-reply
+               ["first\r", 0.15, "second\r", 1.5, "/quit\r"])
     out = capsys.readouterr().out
     assert client.asked == ["first", "second"]
-    assert out.index("> first") < out.index("t4") < out.index("> second")   # never mid-reply
+    assert out.index("> first") < out.index("t4") < out.index("> second")
 
 
 def test_unknown_command_not_sent_to_model(monkeypatch, capsys):
@@ -521,16 +514,14 @@ def test_unknown_command_not_sent_to_model(monkeypatch, capsys):
     assert client.calls == []
 
 
-# --- structured output (T5) -----------------------------------------------------------------------
-
 async def test_renderer_prints_structured_output_as_json(capsys):
     async def stream():
         yield ev.StructuredOutput(turn_id="t", run_id="r", data={"correction": "学校に行きます"})
         yield ev.StructuredOutput(turn_id="t", run_id="r", data={"ok": True}, attempts=2)
     await CLIRenderer().render_stream(stream())
     out = capsys.readouterr().out
-    assert '"correction": "学校に行きます"' in out              # pretty, and Japanese kept readable
-    assert out.count("repaired") == 1                           # only the second one was repaired
+    assert '"correction": "学校に行きます"' in out
+    assert out.count("repaired") == 1
 
 
 def test_agent_flag_selects_the_agent(monkeypatch, capsys):
@@ -546,11 +537,10 @@ def test_unknown_agent_flag_exits(monkeypatch):
         cli.main(["--agent", "nobody"])
 
 
-
 def test_metrics_and_trace_commands_show_the_last_turn(monkeypatch, capsys):
     run(monkeypatch, ["/metrics", "/trace", "hello", "/metrics", "/trace"], client=FakeClient(stats=STATS))
     out = capsys.readouterr().out
     before, after = out.split("Konnichiwa", 1)
     assert "No metrics recorded yet." in before and "No trace recorded yet." in before
     assert "No metrics recorded yet." not in after and "No trace recorded yet." not in after
-    assert "sensei" in after                                   # the trace names the agent run
+    assert "sensei" in after

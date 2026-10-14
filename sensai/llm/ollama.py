@@ -1,4 +1,5 @@
-"""Direct HTTP calls to Ollama. One client per server; each call says which model and options to use."""
+# Ollama HTTP transport: chat streaming, telemetry, embeddings, /api/tags and /api/show.
+
 import json
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -52,11 +53,6 @@ class OllamaClient:
     def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
                     temperature: float = 0.3, think: bool = False,
                     format: dict | str | None = None) -> Iterator[str | Thought]:
-        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default.
-
-        `format` constrains the reply: "json" for any JSON object, or a JSON schema. See
-        orchestration/structured.py for when Ollama actually enforces a schema.
-        """
         payload = {
             "model": model,
             "messages": messages,
@@ -111,14 +107,12 @@ class OllamaClient:
             r.close()
 
     def list_models(self) -> list[str]:
-        """Names of the installed models, e.g. ["llama3.2:latest"] (GET /api/tags)."""
         r = self._request("GET", "/api/tags")
         if not r.ok:
             raise OllamaError("bad_request", f"Cannot list models ({r.status_code}): {r.text}")
         return [m["name"] for m in r.json().get("models", [])]
 
     def require_model(self, model: str) -> None:
-        """Raise model_missing unless the model is installed. A name without a tag means ':latest'."""
         wanted = model if ":" in model else f"{model}:latest"
         if wanted not in self.list_models():
             raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")

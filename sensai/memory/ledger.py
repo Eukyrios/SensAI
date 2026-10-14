@@ -1,4 +1,5 @@
-"""Learner ledger: errors, srs_cards and facts, written by agents, one owner per table (#88 #89 #90)."""
+# Learner ledger: errors, srs_cards and facts, written by agents, one owner per table.
+
 from __future__ import annotations
 
 import sqlite3
@@ -6,7 +7,6 @@ import sqlite3
 from ..core.ids import new_id
 from ..knowledge.tools import Tool
 
-# Writable columns of each table: anything else is rejected, so an agent cannot set an id or a date.
 COLUMNS = {
     "errors": ("session_id", "sentence", "correction", "error_type", "resolved"),
     "srs_cards": ("front", "back", "ease", "interval_days", "due_date"),
@@ -17,16 +17,15 @@ REQUIRED = {
     "srs_cards": ("front", "back"),
     "facts": ("key", "value"),
 }
-# Only the owner writes a table; every agent can read all of them.
 DEFAULT_OWNERS = {"errors": "corrector", "srs_cards": "sensei", "facts": "sensei"}
 
 
 class WriteNotAllowed(PermissionError):
-    """The agent does not own this table."""
+    pass
 
 
 class RowNotFound(LookupError):
-    """No row with this id in the table."""
+    pass
 
 
 class Ledger:
@@ -69,7 +68,6 @@ class Ledger:
         return row
 
     def list(self, table: str, **filters) -> list[sqlite3.Row]:
-        """Rows in insertion order, optionally filtered by equality on writable columns."""
         self._check_table(table)
         self._check_fields(table, filters)
         where = " AND ".join(f"{c} = ?" for c in filters)
@@ -97,7 +95,6 @@ class Ledger:
             raise RowNotFound(f"{table} {row_id}")
 
     def tools(self, agent: str) -> list[Tool]:
-        """CRUD tools bound to `agent`: the model calls them, and the ownership check still applies."""
         table = {"type": "string", "enum": list(COLUMNS)}
         fields = {"type": "object", "description": "column name -> value"}
 

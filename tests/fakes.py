@@ -1,15 +1,14 @@
-"""Shared test doubles."""
+# Shared test doubles: a fake Ollama client and a config builder.
+
 from sensai.core.config import load_config
 from sensai.llm.ollama import OllamaError
 
 
 def make_config(**sections):
-    """Real merged config with no environment overrides, plus per-test section overrides."""
     return load_config(env={}, cli=sections or None)
 
 
 class FakeClient:
-    """Stands in for OllamaClient: streams fixed tokens or raises."""
 
     def __init__(self, tokens=("Kon", "nichiwa"), error=None, startup_error=None,
                  models=("qwen3.5:4b", "qwen3.5:9b"), stats=None, thinkers=("qwen3.5:4b", "qwen3.5:9b")):

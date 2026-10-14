@@ -1,14 +1,15 @@
+# Handoff: the envelope one agent passes to another; the payload is JSON data, never prose.
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Handoff:
-    """Work passed from one agent to another. The payload is JSON data, never free prose."""
     from_agent: str
     to_agent: str
     reason: str
     payload: dict
-    hop: int                    # counted by the orchestrator to enforce max hops
+    hop: int
     run_id: str
     parent_run_id: str | None = None
 

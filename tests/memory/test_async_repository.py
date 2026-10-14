@@ -1,3 +1,5 @@
+# Tests for the async repository facade.
+
 from sensai.memory.repository import AsyncSessionRepository, open_async_repository
 from tests.fakes import make_config
 

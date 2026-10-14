@@ -1,3 +1,5 @@
+# Shared test fixtures: an in-memory repository so no test touches data/sensai.db.
+
 import pytest
 
 from sensai.memory import db
@@ -8,7 +10,6 @@ _opened: list[SessionRepository] = []
 
 
 def memory_repository() -> SessionRepository:
-    """A migrated in-memory repository, closed when the test ends."""
     conn = db.connect(":memory:")
     migrate(conn)
     _opened.append(SessionRepository(conn))
@@ -17,7 +18,6 @@ def memory_repository() -> SessionRepository:
 
 @pytest.fixture(autouse=True)
 def isolated_storage(monkeypatch):
-    """Sessions and the CLI open a repository from config; never let a test touch data/sensai.db."""
     for module in ("sensai.orchestration.session", "sensai.surfaces.cli"):
         monkeypatch.setattr(f"{module}.open_repository", lambda config: memory_repository())
     yield

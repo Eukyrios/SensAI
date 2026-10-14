@@ -1,3 +1,5 @@
+# Tests for structured output: validation, repair and the events it produces.
+
 from dataclasses import replace
 
 import pytest
@@ -23,8 +25,6 @@ GOOD = '{"correction": "私は学校に行きます", "error_type": "particle"}'
 BAD = '{"correction": "私は学校に行きます", "error_type": "grammar"}'
 
 
-# --- the pure functions ---------------------------------------------------------------------------
-
 def test_instructions_carry_the_schema():
     text = structured.instructions(SCHEMA)
     assert "only one JSON object" in text and '"error_type"' in text and "particle" in text
@@ -32,8 +32,8 @@ def test_instructions_carry_the_schema():
 
 @pytest.mark.parametrize("schema, think, expected", [
     (None, False, None),
-    (SCHEMA, False, "json"),        # Ollama ignores a schema in format when think=false
-    (SCHEMA, True, SCHEMA),         # ...and enforces it when the model reasons
+    (SCHEMA, False, "json"),
+    (SCHEMA, True, SCHEMA),
 ])
 def test_request_format(schema, think, expected):
     spec = AgentSpec(name="a", model="m", num_ctx=1, output_schema=schema, think=think)
@@ -59,7 +59,7 @@ def test_check_reports_missing_and_extra_fields():
     _, problems = structured.check('{"correction": "x", "extra": 1}', SCHEMA)
     assert any("'error_type' is a required property" in p for p in problems)
     assert any("Additional properties" in p for p in problems)
-    assert all(p.startswith("reply:") for p in problems)      # root-level errors are labelled
+    assert all(p.startswith("reply:") for p in problems)
 
 
 @pytest.mark.parametrize("text", ["私は学校へ行きます", "", "```"])
@@ -80,10 +80,7 @@ def test_failure_message_quotes_and_truncates_the_reply():
     assert long.endswith("z" * structured.MAX_SHOWN + "…")
 
 
-# --- inside run_turn ------------------------------------------------------------------------------
-
 class ScriptedClient(FakeClient):
-    """Answers each call with the next scripted reply, and records what it was sent."""
 
     def __init__(self, *replies, stats=None):
         super().__init__(stats=stats)
@@ -92,7 +89,7 @@ class ScriptedClient(FakeClient):
     def chat_stream(self, model, messages, **options):
         self.calls.append((model, messages, options))
         reply = self.replies.pop(0)
-        yield from (reply[i:i + 7] for i in range(0, len(reply), 7))   # streamed in pieces
+        yield from (reply[i:i + 7] for i in range(0, len(reply), 7))
         return self.stats
 
 
@@ -144,7 +141,7 @@ async def test_one_repair_attempt_fixes_the_reply():
     _, retry, _ = session.client.calls[1]
     assert retry[-2] == {"role": "assistant", "content": BAD}
     assert retry[-1]["role"] == "user" and "error_type: 'grammar'" in retry[-1]["content"]
-    assert session.history[-1]["content"] == GOOD          # only the valid reply is kept
+    assert session.history[-1]["content"] == GOOD
 
 
 async def test_second_failure_is_reported_loudly_and_rolled_back():
@@ -156,7 +153,7 @@ async def test_second_failure_is_reported_loudly_and_rolled_back():
     assert error.kind == "invalid_output"
     assert "not valid JSON" in error.message and "not json at all" in error.message
     assert events[3].ok is False
-    assert session.history == [] and len(session.client.calls) == 2    # exactly one repair
+    assert session.history == [] and len(session.client.calls) == 2
 
 
 async def test_stats_are_summed_over_the_repair():
