@@ -287,3 +287,12 @@ async def test_stopped_turn_without_output_removes_the_question(session):
         await task
     gate.set()
     assert session.repo.load_history(session.id) == []
+
+
+async def test_abandoned_turn_drops_the_unanswered_question(session):
+    turn = run_turn(session, "hello")
+    async for event in turn:
+        if isinstance(event, ev.Token):
+            break                                   # the caller stops reading mid-reply
+    await turn.aclose()
+    assert session.history == []
