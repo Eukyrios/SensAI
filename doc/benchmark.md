@@ -44,7 +44,7 @@ missing models, so it can be added by upgrading Ollama and pulling it.
 
 ### Context size (`num_ctx`)
 
-The sensei runs with `num_ctx = 2048` since #200. Measured on `qwen3.5:9b`:
+The benchmark above ran with `num_ctx = 2048`, the sensei's setting from #200. Measured on `qwen3.5:9b`:
 
 | `num_ctx` | Speed | Loaded size | Processor |
 |-----------|-------|-------------|-----------|
@@ -64,8 +64,8 @@ dropping the oldest messages after a few exchanges, long before `max_history_tur
   worst failure, so accuracy beats speed. At 18–23 t/s it still writes faster than anyone reads.
 - **`qwen3.5:4b` is the fallback** for laptops with less than 8 GB of VRAM (`--model qwen3.5:4b`):
   three times faster, but its answers need checking.
-- **Recommended: set `num_ctx` back to 8192** in `agents/sensei.toml`. It costs ~10% speed and gives
-  the model the whole recent conversation. To be agreed with the team (it was lowered in #200).
+- **`num_ctx` is back to 8192** in `agents/sensei.toml` (it was lowered to 2048 in #200). It costs
+  ~10% speed and gives the model the whole recent conversation.
 - **To do:** run `gemma4:12b-it-qat` once Ollama is upgraded, and measure the other team laptops
   (rule 4 of the plan: the same settings must behave the same everywhere).
 
