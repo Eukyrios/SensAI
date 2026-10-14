@@ -293,7 +293,7 @@ level, **so that** examples match what I'm studying.
 - [ ] Running the evaluation produces a score per answer and an average per system version.
 - [ ] Two versions (e.g. two models) can be compared in one table.
 
-**Verified by:** evaluation run on the bake-off test cases.
+**Verified by:** an evaluation run on the benchmark questions (`doc/benchmark.md`).
 
 ---
 

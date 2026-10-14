@@ -6,6 +6,7 @@ No data ever leaves the machine.
 📄 Full work plan: [`doc/work_plan.pdf`](doc/work_plan.pdf)
 🗺️ Architecture: [overview](doc/architecture_overview.png) · [detailed](doc/architecture_detailed.png)
 🗂️ Previous README: [`doc/README_old.md`](doc/README_old.md)
+📊 Model benchmark: [`doc/benchmark.md`](doc/benchmark.md)
 
 ## Architecture
 
@@ -46,7 +47,7 @@ python3 -m venv venv        # on Ubuntu, `python` only exists inside the venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
 
-ollama pull qwen3.5:9b      # default model (fits an 8 GB GPU); lighter option: qwen3.5:4b
+ollama pull qwen3.5:9b      # default model (see doc/benchmark.md); lighter option: qwen3.5:4b
 ollama pull bge-m3          # RAG embeddings (layer 5)
 ```
 
@@ -65,7 +66,7 @@ Other entry points:
 
 ```bash
 python -m sensai.surfaces.demo            # renders and logs a scripted turn, no model needed
-python -m scripts.bake_off                # benchmark the candidate models on 20 Japanese prompts
+python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
 ```
 
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
@@ -271,7 +272,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | Layer | Content |
 |-------|---------|
 | 1 | Foundations: contracts (events, AgentSpec, Handoff, config), SQLite, Ollama transport, CLI + logger |
-| 2 | Base loop: `run_turn()`, persistence, model bake-off, error handling |
+| 2 | Base loop: `run_turn()`, persistence, model benchmark, error handling |
 | 3 | Real memory: structured output, ledger, own tools, metrics v1 |
 | 4 | Multi-agent: orchestrator, per-agent context, ReAct corrector, trace view |
 | 5 | Knowledge & routing: router, compression, RAG + external MCP, judge |
@@ -300,7 +301,7 @@ sensai/
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
   surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
 agents/           one TOML spec per agent: sensei (default), checker (T5 demo)
-scripts/          bake_off.py: model benchmark                                  (C)
+scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
