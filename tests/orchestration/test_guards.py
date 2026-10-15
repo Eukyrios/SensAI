@@ -143,3 +143,14 @@ async def test_the_turn_budget_stops_the_run():
     session.client.release.set()
     assert events[2].kind == "turn_budget" and "0.2s budget" in events[2].message
     assert session.history == []
+
+
+async def test_the_demo_loop_is_stopped_then_answered_by_the_sensei():
+    replies = (json.dumps({"note": "on", "handoff": {"to": target, "reason": "loop"}})
+               for target in ("demo/pong", "demo/ping"))
+    session = Session(make_config(agents={"default": "demo/ping"}), client=ScriptedClient(*replies, "Ohayou"))
+    events = await collect(session)
+    assert [event.agent for event in events if isinstance(event, ev.AgentRunStarted)] == [
+        "demo/ping", "demo/pong", "sensei"]
+    assert [event.kind for event in events if isinstance(event, ev.Error)] == ["handoff_cycle"]
+    assert session.history[-1] == {"role": "assistant", "content": "Ohayou"}

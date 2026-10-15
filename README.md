@@ -59,7 +59,8 @@ python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 python -m sensai --list-sessions          # list the stored sessions (id, date, model, title)
 python -m sensai --session <id>           # resume a stored session
-python -m sensai --agent checker          # talk to another agent from agents/ (here: JSON corrections)
+python -m sensai --agent checker          # start with another agent: the checker corrects, then hands off to the sensei
+python -m sensai --agent demo/ping        # infinite-loop demo: ping and pong hand off forever until the guards stop them
 ```
 
 Other entry points:
@@ -300,7 +301,8 @@ sensai/
   knowledge/      tools, MCP client, RAG pipeline                               (C)
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
   surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
-agents/           one TOML spec per agent: sensei (default), checker (T5 demo)
+agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the sensei),
+                  demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
@@ -324,10 +326,13 @@ Built modules, then planned ones with the layer that adds them.
 | | `ids.py` | uuid ids for sessions, turns and runs |
 | `llm/` | `ollama.py` | chat streaming, embeddings, `/api/tags`, `/api/show` |
 | `orchestration/` | `session.py` | `Session`: active agent, history, profile, client |
-| | `turn.py` | `run_turn()`: guardrails → context → model → events |
+| | `turn.py` | `run_turn()`: guardrails → orchestrator → keep or roll back the history |
+| | `orchestrator.py` | runs the agents of a turn: handoff chain, guards, fallback to the sensei |
+| | `guards.py` | max hops, handoff cycles, turn budget, per-agent timeout |
+| | `executor.py` | `AgentRun`: runs one `AgentSpec` and emits its events |
+| | `context.py` | an agent's messages: its prompt, profile, handoff note, recent history |
+| | `stream.py` | thread bridge from the blocking Ollama stream to asyncio |
 | | `structured.py` | structured output: schema in the prompt, validation, one repair |
-| | *`executor.py`* | runs one `AgentSpec`, ReAct strategy for the corrector (layer 4) |
-| | *`orchestrator.py`* | handoffs and guards: max hops, cycles, budget, timeouts (layer 4) |
 | | *`router.py`* | rules → embeddings → classifier cascade (layer 5) |
 | `memory/` | `db.py` | SQLite connection: WAL, foreign keys, `:memory:` for tests |
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
@@ -357,8 +362,8 @@ Built modules, then planned ones with the layer that adds them.
   (model, `num_ctx`, prompt, tools, output schema). Adding the corrector or the judge means adding a file.
 - **One transport for every agent.** `OllamaClient.chat_stream(model, messages, num_ctx=..., format=...)`
   takes the model and options on each call, so agents with different models share one client. Errors carry a
-  `kind` (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`; the turn loop adds `empty_input`
-  and `invalid_output`) that surfaces can display, including failures in the middle of a reply. The stream
+  `kind` (`model_missing`, `connection`, `timeout`, `bad_request`, `stream`; the turn loop adds `empty_input`,
+  `invalid_output`, and the guards `max_hops`, `handoff_cycle`, `turn_budget`) that surfaces can display, including failures in the middle of a reply. The stream
   yields the reply as text tokens, and the model's reasoning as `Thought` items when thinking is on; its
   return value is a `ChatStats` with the final chunk's token counts and durations, which `run_turn()` puts
   into `TurnFinished`.
@@ -379,13 +384,36 @@ Built modules, then planned ones with the layer that adds them.
 | 6 · Check and show | `trust` (judge, output guardrails, logging) → events → `surfaces` |
 
 Today a turn is `run_turn(session, text)` in `orchestration/turn.py`: an async generator that yields
-`TurnStarted → AgentRunStarted → [Thinking…] → Token… → AgentRunFinished → TurnFinished` for one agent,
-with `StructuredOutput` instead of `Token` for an agent that has an `output_schema`, and `Error` or
-`GuardrailTriggered` when they apply. `Session` (`orchestration/session.py`) holds the active agent, the
-history, the learner profile and the client, and stores each message. There is no orchestrator yet
-(layer 4), so one agent answers each turn. Every turn goes `run_turn() → JsonlLogger → CLIRenderer`:
+`TurnStarted`, then each agent run as `AgentRunStarted → [Thinking…] → Token… → AgentRunFinished`
+(`StructuredOutput` instead of `Token` for an agent that has an `output_schema`), then `TurnFinished`, with
+`Error` or `GuardrailTriggered` when they apply. `Session` (`orchestration/session.py`) holds the active
+agent, the history, the learner profile and the client, and stores each message. Every turn goes `run_turn() → JsonlLogger → CLIRenderer`:
 the logger writes each event to `[logging].path` (`logs/sensai.jsonl`) and the renderer prints it and
 keeps the last turn's metrics and trace for `/metrics` and `/trace`.
+
+### Multi-agent turns (A2)
+
+The `Orchestrator` (`orchestration/orchestrator.py`) starts each turn with the session's agent. An agent
+that lists `handoffs = ["sensei"]` in its spec gets a required `handoff` field in its output schema:
+`{"to": "sensei", "reason": "..."}` passes the turn on, `null` ends it. The orchestrator then emits a
+`HandoffEvent` and runs the named agent under the first one (`parent_run_id`), with the first agent's
+validated output (minus `handoff`) as the payload, shown to it as a note in its context. Only the last
+agent's answer is stored in the history.
+
+Guards (`orchestration/guards.py`, `[orchestration]` in `config.toml`) stop a crew that loops or hangs:
+
+| Guard | Stops the turn when | Setting |
+|-------|---------------------|---------|
+| Max hops | more than `max_hops` handoffs happen in one turn | `max_hops = 3` |
+| Cycle | an agent receives the turn after it already ran in this turn | always on |
+| Turn budget | all the agents of the turn take longer than the budget | `turn_budget_s = 180` |
+| Agent timeout | one agent takes longer than its spec's `timeout_s` | in `agents/<name>.toml` |
+
+When the chain fails (an agent error, invalid output, a timeout or a guard), the fallback agent
+(`[agents] fallback = "sensei"`) answers the learner instead, with the last handoff's findings. There
+is no fallback when Ollama is down, when the turn budget is spent, or when the sensei already ran.
+`python -m sensai --agent demo/ping` shows it: ping and pong hand off to each other, the cycle guard
+stops them, the sensei answers, and `/trace` lists the three runs.
 
 ### Structured output (T5)
 
