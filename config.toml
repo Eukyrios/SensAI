@@ -10,6 +10,10 @@ dir = "agents"
 default = "sensei"
 model_override = ""          # set by --model; empty = use each agent's own model
 
+[orchestration]
+max_hops = 3                 # handoffs allowed in one turn
+turn_budget_s = 180          # time for every agent of one turn together; each agent also has its timeout_s
+
 [storage]
 db_path = "data/sensai.db"
 

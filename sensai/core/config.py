@@ -18,6 +18,7 @@ ENV_PREFIX = "SENSAI_"
 DEFAULTS: dict[str, dict[str, Any]] = {
     "ollama": {"url": "http://localhost:11434", "timeout_s": 60},
     "agents": {"dir": "agents", "default": "sensei", "model_override": ""},
+    "orchestration": {"max_hops": 3, "turn_budget_s": 180},
     "storage": {"db_path": "data/sensai.db"},
     "memory": {"max_history_turns": 20, "profile": "default"},
     "guardrails": {"enabled": True},
