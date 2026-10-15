@@ -238,9 +238,9 @@ async def test_profile_is_in_the_prompt_but_never_stored():
     session = Session(make_config(), client=FakeClient(), repo=repo)
     await collect(session, "hello")
     messages = session.client.calls[0][1]
-    assert messages[0] == {"role": "system", "content": session.spec.system_prompt}
-    assert messages[1]["role"] == "system" and "N5 learner" in messages[1]["content"]
-    assert messages[2] == {"role": "user", "content": "hello"}
+    assert messages[0]["role"] == "system" and messages[0]["content"].startswith(session.spec.system_prompt)
+    assert "N5 learner" in messages[0]["content"]
+    assert messages[1:] == [{"role": "user", "content": "hello"}]
     stored = [m["content"] for m in repo.list_messages(session.id)]
     assert len(stored) == 2 and not any("N5 learner" in c for c in stored)
 

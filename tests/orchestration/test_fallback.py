@@ -104,7 +104,7 @@ async def test_a_stopped_loop_falls_back_with_the_last_findings(tmp_path):
     events = await collect(session)
     assert agents_run(events) == ["ping", "pong", "sensei"]
     model, messages, _ = client.calls[2]
-    assert model == "qwen3.5:4b" and '"to ping"' in messages[1]["content"]
+    assert model == "qwen3.5:4b" and '"to ping"' in messages[0]["content"]
     assert session.history[-1]["content"] == EXPLANATION
 
 
