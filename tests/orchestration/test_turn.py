@@ -10,7 +10,8 @@ from sensai.core import events as ev
 from sensai.llm.ollama import ChatStats, OllamaError, Thought
 from sensai.orchestration import turn as turn_module
 from sensai.orchestration.session import Session
-from sensai.orchestration.turn import build_context, run_turn, stream_tokens
+from sensai.orchestration.stream import stream_tokens
+from sensai.orchestration.turn import build_context, run_turn
 from tests.fakes import FakeClient, make_config
 
 
