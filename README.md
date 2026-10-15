@@ -297,7 +297,7 @@ sensai/
   core/           shared contracts: messages, errors, config, events, specs    (A)
   llm/            Ollama HTTP transport, the only code that calls the model    (C)
   orchestration/  turn loop, executor, orchestrator, router                     (A)
-  memory/         SQLite storage, sessions, ledger, context budgeting           (B)
+  memory/         SQLite storage, sessions, ledger                              (B)
   knowledge/      tools, MCP client, RAG pipeline                               (C)
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
   surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
@@ -330,7 +330,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `orchestrator.py` | runs the agents of a turn: handoff chain, guards, fallback to the sensei |
 | | `guards.py` | max hops, handoff cycles, turn budget, per-agent timeout |
 | | `executor.py` | `AgentRun`: runs one `AgentSpec` and emits its events |
-| | `context.py` | an agent's messages: its prompt, profile, handoff note, recent history |
+| | `context.py` | per-agent context: providers (profile, handoff note) and history fitted to `num_ctx` |
 | | `stream.py` | thread bridge from the blocking Ollama stream to asyncio |
 | | `structured.py` | structured output: schema in the prompt, validation, one repair |
 | | *`router.py`* | rules → embeddings → classifier cascade (layer 5) |
@@ -338,7 +338,6 @@ Built modules, then planned ones with the layer that adds them.
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
 | | `ledger.py` | `errors`, `srs_cards`, `facts` with per-agent write ownership |
-| | *`context.py`* | context providers and builder with token budget (layer 4) |
 | | *`compression.py`* | sliding-window summarisation (layer 5) |
 | | *`srs.py`* | spaced-repetition scheduling for the curriculum agent (layer 6) |
 | `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools |
@@ -378,7 +377,7 @@ Built modules, then planned ones with the layer that adds them.
 |-------|---------|
 | 1 · Input | `surfaces` → `trust` (input guardrails) |
 | 2 · Decide | `orchestration` (orchestrator, router) |
-| 3 · Build the prompt | `memory` (context builder, budget) with the agent's spec from `core` |
+| 3 · Build the prompt | `orchestration` (context builder, budget) with the agent's spec from `core` |
 | 4 · Run the loop | `orchestration` (executor) → `llm`, `knowledge` (tools, RAG) |
 | 5 · Remember | `memory` (sessions, ledger) |
 | 6 · Check and show | `trust` (judge, output guardrails, logging) → events → `surfaces` |
@@ -397,8 +396,10 @@ The `Orchestrator` (`orchestration/orchestrator.py`) starts each turn with the s
 that lists `handoffs = ["sensei"]` in its spec gets a required `handoff` field in its output schema:
 `{"to": "sensei", "reason": "..."}` passes the turn on, `null` ends it. The orchestrator then emits a
 `HandoffEvent` and runs the named agent under the first one (`parent_run_id`), with the first agent's
-validated output (minus `handoff`) as the payload, shown to it as a note in its context. Only the last
-agent's answer is stored in the history.
+validated output (minus `handoff`) as the payload, shown to it as a note in its context. Each agent's
+context is built by `ContextBuilder` (`orchestration/context.py`): its system prompt, then the learner
+profile and the handoff note as budgeted blocks, then as much recent history as fits in 75% of its
+`num_ctx` (the rest is kept for the answer). Only the last agent's answer is stored in the history.
 
 Guards (`orchestration/guards.py`, `[orchestration]` in `config.toml`) stop a crew that loops or hangs:
 
