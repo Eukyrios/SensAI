@@ -23,5 +23,5 @@ def build_context(session: Session, spec: AgentSpec, handoff: Handoff | None = N
 def handoff_note(handoff: Handoff) -> Message:
     findings = json.dumps(handoff.payload, ensure_ascii=False)
     return {"role": "system",
-            "content": f"The {handoff.from_agent} agent passed this turn to you ({handoff.reason}). "
+            "content": f"The {handoff.from_agent} agent looked at this turn first ({handoff.reason}). "
                        f"Use its findings to answer the learner's last message: {findings}"}

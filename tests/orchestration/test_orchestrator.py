@@ -60,7 +60,7 @@ async def test_receiving_agent_gets_its_prompt_the_note_and_the_question():
     model, messages, options = session.client.calls[1]
     assert model == "qwen3.5:9b" and "format" not in options
     assert messages[0]["content"].startswith("You are Sensai")
-    assert messages[1]["role"] == "system" and "checker agent passed this turn" in messages[1]["content"]
+    assert messages[1]["role"] == "system" and "checker agent looked at this turn first" in messages[1]["content"]
     assert "に for the destination" in messages[1]["content"]
     assert messages[-1] == {"role": "user", "content": "私は学校を行きます"}
 

@@ -8,6 +8,7 @@ from contextlib import aclosing
 from dataclasses import fields
 
 from ..core.agent_spec import AgentSpec
+from ..core.errors import ErrorKind
 from ..core.events import (AgentRunFinished, AgentRunStarted, Error, Event, StructuredOutput, Thinking,
                            Token)
 from ..core.ids import new_id
@@ -34,6 +35,7 @@ class AgentRun:
         self.stats: ChatStats | None = None
         self.first_output_ns: int | None = None
         self.ok = False
+        self.error_kind: ErrorKind | None = None
 
     async def events(self, messages: list[Message]) -> AsyncIterator[Event]:
         yield AgentRunStarted(turn_id=self.turn_id, run_id=self.run_id, agent=self.spec.name,
@@ -48,6 +50,7 @@ class AgentRun:
             async for event in self._answer(messages):
                 yield event
         except (OllamaError, InvalidStructuredOutput) as error:
+            self.error_kind = error.kind
             yield Error(turn_id=self.turn_id, kind=error.kind, message=str(error))
             return
         self.ok = True

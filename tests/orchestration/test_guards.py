@@ -63,7 +63,7 @@ def write_looping_agents(agents_dir, timeout_s=60):
 
 
 def looping_session(agents_dir, client, **orchestration):
-    config = make_config(agents={"dir": str(agents_dir), "default": "ping"},
+    config = make_config(agents={"dir": str(agents_dir), "default": "ping", "fallback": "ping"},
                          orchestration={**SETTINGS, **orchestration})
     return Session(config, client=client)
 

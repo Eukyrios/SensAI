@@ -8,6 +8,7 @@ timeout_s = 60
 [agents]
 dir = "agents"
 default = "sensei"
+fallback = "sensei"          # answers the learner when another agent of the turn fails
 model_override = ""          # set by --model; empty = use each agent's own model
 
 [orchestration]
