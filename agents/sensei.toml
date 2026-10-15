@@ -21,4 +21,4 @@ Examples:
 猫 (neko) [neh-koh] — cat.
 Keep answers short: at most 3 examples unless the learner asks for more."""
 tools = []
-timeout_s = 60
+timeout_s = 120

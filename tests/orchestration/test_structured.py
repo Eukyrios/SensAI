@@ -10,7 +10,7 @@ from sensai.llm.ollama import ChatStats
 from sensai.orchestration import structured
 from sensai.orchestration.session import Session
 from sensai.orchestration.turn import run_turn
-from tests.fakes import FakeClient, make_config
+from tests.fakes import ScriptedClient, make_config
 
 SCHEMA = {
     "type": "object",
@@ -78,19 +78,6 @@ def test_failure_message_quotes_and_truncates_the_reply():
     assert "x: bad" in short and short.endswith("Reply was: abc")
     long = structured.failure_message(["x: bad"], "z" * 2000)
     assert long.endswith("z" * structured.MAX_SHOWN + "…")
-
-
-class ScriptedClient(FakeClient):
-
-    def __init__(self, *replies, stats=None):
-        super().__init__(stats=stats)
-        self.replies = list(replies)
-
-    def chat_stream(self, model, messages, **options):
-        self.calls.append((model, messages, options))
-        reply = self.replies.pop(0)
-        yield from (reply[i:i + 7] for i in range(0, len(reply), 7))
-        return self.stats
 
 
 def structured_session(*replies, think=False, stats=None):
