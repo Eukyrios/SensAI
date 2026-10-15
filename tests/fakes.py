@@ -40,6 +40,19 @@ class FakeClient:
         return self.stats
 
 
+class ScriptedClient(FakeClient):
+
+    def __init__(self, *replies, stats=None):
+        super().__init__(stats=stats)
+        self.replies = list(replies)
+
+    def chat_stream(self, model, messages, **options):
+        self.calls.append((model, messages, options))
+        reply = self.replies.pop(0)
+        yield from (reply[i:i + 7] for i in range(0, len(reply), 7))
+        return self.stats
+
+
 class Returns:
 
     def __init__(self, value):

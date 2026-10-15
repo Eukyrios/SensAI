@@ -16,8 +16,9 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from ..core.agent_spec import SpecError
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
-from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, StructuredOutput,
-                           Thinking, Token, TurnFinished)
+from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, HandoffEvent,
+                           StructuredOutput, Thinking, Token, TurnFinished)
+from ..core.handoff import Handoff
 from ..llm.ollama import OllamaError
 from ..memory.repository import SessionNotFound, open_repository
 from ..orchestration.session import Session
@@ -317,6 +318,8 @@ class CLIRenderer:
                 self._render_error(kind, message)
             case StructuredOutput(data=data, attempts=attempts):
                 self._show_structured_output(data, attempts)
+            case HandoffEvent(handoff=handoff):
+                self._show_handoff(handoff)
             case TurnFinished() as finished:
                 self._finish_turn(finished)
 
@@ -339,6 +342,11 @@ class CLIRenderer:
         print(json.dumps(data, indent=2, ensure_ascii=False))
         if attempts > 1:
             print(dim("(repaired: the first reply didn't match the schema)"))
+
+    def _show_handoff(self, handoff: Handoff) -> None:
+        self.out.end_line()
+        print(dim(f"[handoff] {handoff.from_agent} → {handoff.to_agent}: {handoff.reason}"))
+        self.answer_started = self.showing_reasoning = False
 
     def _finish_turn(self, finished: TurnFinished) -> None:
         self.status(None)

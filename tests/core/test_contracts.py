@@ -105,3 +105,25 @@ def test_load_spec_accepts_a_valid_output_schema(tmp_path):
     p = tmp_path / "ok.toml"
     p.write_text('name="x"\nmodel="m"\nnum_ctx=1\n[output_schema]\ntype="object"\n', encoding="utf-8")
     assert load_spec(p).output_schema == {"type": "object"}
+
+
+def test_handoffs_add_a_handoff_field_to_the_output_schema(tmp_path):
+    p = tmp_path / "router.toml"
+    p.write_text('name="x"\nmodel="m"\nnum_ctx=1\nhandoffs=["sensei"]\n[output_schema]\ntype="object"\n'
+                 'required=["note"]\n[output_schema.properties.note]\ntype="string"\n', encoding="utf-8")
+    spec = load_spec(p)
+    assert spec.handoffs == ("sensei",)
+    assert spec.output_schema["required"] == ["note", "handoff"]
+    assert spec.output_schema["properties"]["handoff"]["properties"]["to"]["enum"] == ["sensei"]
+
+
+def test_handoffs_need_an_object_output_schema(tmp_path):
+    p = tmp_path / "bad.toml"
+    p.write_text('name="x"\nmodel="m"\nnum_ctx=1\nhandoffs=["sensei"]\n', encoding="utf-8")
+    with pytest.raises(SpecError, match="handoffs"):
+        load_spec(p)
+
+
+def test_checker_can_hand_off_to_the_sensei():
+    spec = load_spec(resolve("agents/checker.toml"))
+    assert spec.handoffs == ("sensei",) and "handoff" in spec.output_schema["required"]

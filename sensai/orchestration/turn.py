@@ -1,5 +1,5 @@
-# run_turn(): one learner turn as a stream of events. It saves the question, lets the agent executor
-# answer, then keeps or rolls back the history depending on how the agent run ended.
+# run_turn(): one learner turn as a stream of events. It saves the question, lets the orchestrator
+# run the agents, then keeps the last agent's answer or rolls the question back.
 
 import asyncio
 import time
@@ -8,9 +8,9 @@ from contextlib import aclosing
 
 from ..core.events import Error, Event, GuardrailTriggered, TurnFinished, TurnStarted
 from ..core.ids import new_id
-from ..core.messages import Message
 from ..trust import guardrails
-from .executor import AgentRun, sum_stats, system_prompt
+from .executor import sum_stats
+from .orchestrator import Orchestrator
 from .session import Session
 
 
@@ -26,7 +26,7 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
     if clean_text != learner_text:
         yield turn.guardrail_redacted_event()
     turn.save_question(clean_text)
-    async with aclosing(turn.run_agent(AgentRun(session.client, session.spec, turn.turn_id))) as events:
+    async with aclosing(turn.answer()) as events:
         async for event in events:
             yield event
     yield turn.finished_event()
@@ -38,24 +38,23 @@ class _Turn:
         self.session = session
         self.turn_id = new_id()
         self.started_ns = time.perf_counter_ns()
-        self.runs: list[AgentRun] = []
+        self.crew = Orchestrator(session, self.turn_id)
         self.question_id: str | None = None
         self.question_parent_id: str | None = None
 
-    async def run_agent(self, run: AgentRun) -> AsyncIterator[Event]:
-        self.runs.append(run)
+    async def answer(self) -> AsyncIterator[Event]:
         try:
-            async with aclosing(run.events(build_context(self.session))) as run_events:
-                async for event in run_events:
+            async with aclosing(self.crew.events()) as crew_events:
+                async for event in crew_events:
                     yield event
         except (asyncio.CancelledError, KeyboardInterrupt):
-            self.keep_partial_answer(run.text)
+            self.keep_partial_answer(self.crew.answer_text)
             raise
         except BaseException:
             self.drop_question()
             raise
-        if run.ok:
-            self.save_answer(run.text)
+        if self.crew.ok:
+            self.save_answer(self.crew.answer_text)
         else:
             self.drop_question()
 
@@ -83,9 +82,9 @@ class _Turn:
 
     def finished_event(self) -> TurnFinished:
         stats = None
-        for run in self.runs:
+        for run in self.crew.runs:
             stats = sum_stats(stats, run.stats)
-        model = self.runs[-1].spec.model if self.runs else self.session.spec.model
+        model = self.crew.runs[-1].spec.model if self.crew.runs else self.session.spec.model
         if stats is None:
             return TurnFinished(turn_id=self.turn_id, model=model, ttft_ms=self._first_output_ms(),
                                 total_duration_ns=time.perf_counter_ns() - self.started_ns)
@@ -94,13 +93,6 @@ class _Turn:
                             total_duration_ns=stats.total_duration_ns)
 
     def _first_output_ms(self) -> float | None:
-        outputs = [run.first_output_ns for run in self.runs if run.first_output_ns is not None]
+        outputs = [run.first_output_ns for run in self.crew.runs if run.first_output_ns is not None]
         return (min(outputs) - self.started_ns) / 1e6 if outputs else None
 
-
-def build_context(session: Session) -> list[Message]:
-    max_turns = session.config["memory"]["max_history_turns"]
-    profile = [session.profile] if session.profile else []
-    return ([{"role": "system", "content": system_prompt(session.spec)}]
-            + profile
-            + session.history[-max_turns * 2:])

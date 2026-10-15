@@ -11,7 +11,8 @@ from sensai.llm.ollama import ChatStats, OllamaError, Thought
 from sensai.orchestration import turn as turn_module
 from sensai.orchestration.session import Session
 from sensai.orchestration.stream import stream_tokens
-from sensai.orchestration.turn import build_context, run_turn
+from sensai.orchestration.context import build_context
+from sensai.orchestration.turn import run_turn
 from tests.fakes import FakeClient, make_config
 
 
@@ -126,7 +127,7 @@ async def test_history_is_truncated_in_context():
     for i in range(3):
         await collect(session, f"m{i}")
     assert [m["content"] for m in session.client.calls[-1][1][1:]] == ["Konnichiwa", "m2"]
-    assert build_context(session)[0]["role"] == "system"
+    assert build_context(session, session.spec)[0]["role"] == "system"
 
 
 async def test_stream_stops_the_producer_when_consumer_leaves(session):

@@ -1,12 +1,14 @@
 # Checks one Japanese sentence and replies with structured data, never prose (T5).
-# The validated reply arrives as a StructuredOutput event; the corrector (layer 4) builds on it.
+# When the sentence is wrong it hands the turn to the sensei, which explains the correction (A2).
 name = "checker"
 model = "qwen3.5:9b"
 num_ctx = 8192
 temperature = 0.1
 think = false
+handoffs = ["sensei"]
 system_prompt = """You check one Japanese sentence written by an English-speaking beginner.
 Decide whether it is correct. If it is not, give the corrected sentence, the kind of mistake, and the grammar rule in one short English sentence.
+When the sentence has a mistake, set handoff to the sensei so it explains the correction to the learner. When it is correct, set handoff to null.
 Write Japanese the way it is written in Japan, never with Chinese characters."""
 timeout_s = 60
 
