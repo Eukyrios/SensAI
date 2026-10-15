@@ -1,4 +1,5 @@
-"""Turn tracing and execution flow aggregation."""
+# Per-turn trace of the agent runs, for /trace.
+
 from dataclasses import dataclass
 from ..core.events import (
     AgentRunFinished,
@@ -21,7 +22,6 @@ class AgentTrace:
 
 
 class TurnTracer:
-    """Collects events during a turn and builds a detailed trace summary."""
 
     def __init__(self) -> None:
         self.turn_id: str | None = None
@@ -31,58 +31,54 @@ class TurnTracer:
 
     def process_event(self, event: Event) -> None:
         match event:
-            case TurnStarted(turn_id=tid):
-                self.turn_id = tid
-                self.agent_traces.clear()
-                self.guardrails_triggered.clear()
-
-            case AgentRunStarted(run_id=rid, agent=name):
-                self._current_agent = AgentTrace(agent_name=name or "agent", run_id=rid)
-                self.agent_traces.append(self._current_agent)
-
-            case Thinking(text=t):
-                if self._current_agent:
-                    self._current_agent.thought_chars += len(t)
-
+            case TurnStarted(turn_id=turn_id):
+                self._start_turn(turn_id)
+            case AgentRunStarted(run_id=run_id, agent=agent):
+                self._start_agent_run(run_id, agent)
+            case Thinking(text=text):
+                self._count_reasoning(text)
             case Token():
-                if self._current_agent:
-                    self._current_agent.tokens_count += 1
-
-            case AgentRunFinished() as finished_event:
-                if self._current_agent:
-                    self._current_agent.ok = getattr(finished_event, "ok", True)
-                    
-                    # Extraire la valeur réelle d'Ollama si disponible dans AgentRunFinished
-                    real_count = (
-                        getattr(finished_event, "eval_count", None)
-                        or getattr(finished_event, "output_tokens", None)
-                        or getattr(finished_event, "completion_tokens", None)
-                        or getattr(finished_event, "total_tokens", None)
-                    )
-                    if real_count is not None and real_count > 0:
-                        self._current_agent.tokens_count = real_count
-                        
-                self._current_agent = None
-
-            case GuardrailTriggered(rule=r):
-                self.guardrails_triggered.append(r)
+                self._count_token()
+            case AgentRunFinished(ok=ok):
+                self._finish_agent_run(ok)
+            case GuardrailTriggered(rule=rule):
+                self.guardrails_triggered.append(rule)
 
     def format_trace(self) -> str:
         if not self.turn_id:
             return "No trace recorded yet."
-
         lines = [f"[trace] Turn ID: {self.turn_id}"]
         if not self.agent_traces:
             lines.append("  (no agent execution captured)")
-        else:
-            for idx, trace in enumerate(self.agent_traces, 1):
-                status_str = "OK" if trace.ok else "FAILED"
-                lines.append(
-                    f"  {idx}. Agent '{trace.agent_name}' ({trace.run_id}) [{status_str}] "
-                    f"| {trace.tokens_count} tokens | {trace.thought_chars} reasoning chars"
-                )
-
+        lines.extend(_format_agent_run(number, trace) for number, trace in enumerate(self.agent_traces, 1))
         if self.guardrails_triggered:
             lines.append(f"  Guardrails triggered: {', '.join(self.guardrails_triggered)}")
-
         return "\n".join(lines)
+
+    def _start_turn(self, turn_id: str) -> None:
+        self.turn_id = turn_id
+        self.agent_traces.clear()
+        self.guardrails_triggered.clear()
+
+    def _start_agent_run(self, run_id: str, agent: str) -> None:
+        self._current_agent = AgentTrace(agent_name=agent or "agent", run_id=run_id)
+        self.agent_traces.append(self._current_agent)
+
+    def _count_reasoning(self, text: str) -> None:
+        if self._current_agent:
+            self._current_agent.thought_chars += len(text)
+
+    def _count_token(self) -> None:
+        if self._current_agent:
+            self._current_agent.tokens_count += 1
+
+    def _finish_agent_run(self, ok: bool) -> None:
+        if self._current_agent:
+            self._current_agent.ok = ok
+        self._current_agent = None
+
+
+def _format_agent_run(number: int, trace: AgentTrace) -> str:
+    status = "OK" if trace.ok else "FAILED"
+    return (f"  {number}. Agent '{trace.agent_name}' ({trace.run_id}) [{status}] "
+            f"| {trace.tokens_count} tokens | {trace.thought_chars} reasoning chars")

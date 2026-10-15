@@ -1,7 +1,5 @@
-"""The event stream: the only thing surfaces (CLI, logger, web UI) subscribe to.
+# The event stream: the only thing surfaces (CLI, logger, web UI) subscribe to.
 
-Events are keyword-only so new fields can be added without breaking callers.
-"""
 import time
 from dataclasses import dataclass, field
 from typing import Literal
@@ -44,17 +42,15 @@ class Token(_Base):
 
 @dataclass(frozen=True, kw_only=True)
 class Thinking(_Base):
-    """A piece of the model's reasoning, before its answer. Never part of the reply or the history."""
     run_id: str
     text: str
 
 
 @dataclass(frozen=True, kw_only=True)
 class StructuredOutput(_Base):
-    """The validated JSON reply of an agent that has an output_schema (T5)."""
     run_id: str
     data: dict
-    attempts: int = 1           # 2 when the first reply needed the repair attempt
+    attempts: int = 1
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -93,7 +89,6 @@ class Error(_Base):
 
 @dataclass(frozen=True, kw_only=True)
 class TurnFinished(_Base):
-    """Telemetry from Ollama's final chunk, using the API's field names."""
     model: str
     prompt_eval_count: int = 0
     eval_count: int = 0

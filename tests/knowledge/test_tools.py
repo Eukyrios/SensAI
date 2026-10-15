@@ -1,4 +1,5 @@
-"""Tests for the tool registry and dual path logic."""
+# Tests for the tool registry and the native/prompted tool calling.
+
 import json
 from sensai.knowledge.tools import Tool, ToolRegistry, registry, get_tools_for_model
 

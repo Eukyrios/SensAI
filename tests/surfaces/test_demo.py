@@ -1,4 +1,5 @@
-"""Test for the demo script execution."""
+# Test for the demo script.
+
 import pytest
 from sensai.surfaces.demo import run_demo
 

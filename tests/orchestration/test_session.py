@@ -1,3 +1,5 @@
+# Tests for Session: model switching, thinking, reset and resume.
+
 import pytest
 
 from sensai.llm.ollama import OllamaError
@@ -60,8 +62,6 @@ def test_switching_to_a_model_that_cannot_reason_turns_thinking_off():
     s.set_model("qwen3.5:4b")
     assert (s.spec.model, s.spec.think) == ("qwen3.5:4b", False)
 
-
-# --- persistence ---
 
 from sensai.memory.repository import SessionNotFound
 from tests.conftest import memory_repository

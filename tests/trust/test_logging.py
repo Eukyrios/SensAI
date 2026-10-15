@@ -1,10 +1,12 @@
-"""Tests for the JSONL logger."""
+# Tests for the JSONL logger.
+
 import json
 import pytest
 from pathlib import Path
 
 from sensai.core.events import Token, TurnFinished, TurnStarted
 from sensai.trust.logging import JsonlLogger
+from tests.fakes import events_stream
 
 
 @pytest.mark.asyncio
@@ -12,13 +14,11 @@ async def test_jsonl_logger_writes_events(tmp_path: Path):
     log_file = tmp_path / "events.jsonl"
     logger = JsonlLogger(log_file)
 
-    async def mock_stream():
-        yield TurnStarted(session_id="s1", turn_id="t1", user_input="Hello")
-        yield Token(turn_id="t1", run_id="r1", text="Hello")
-        yield TurnFinished(turn_id="t1", model="qwen3.5:9b")
-
+    stream = events_stream(TurnStarted(session_id="s1", turn_id="t1", user_input="Hello"),
+                           Token(turn_id="t1", run_id="r1", text="Hello"),
+                           TurnFinished(turn_id="t1", model="qwen3.5:9b"))
     events = []
-    async for event in logger.log_stream(mock_stream()):
+    async for event in logger.log_stream(stream):
         events.append(event)
 
     assert len(events) == 3

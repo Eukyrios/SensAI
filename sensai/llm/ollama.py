@@ -1,4 +1,5 @@
-"""Direct HTTP calls to Ollama. One client per server; each call says which model and options to use."""
+# Ollama HTTP transport: chat streaming, telemetry, embeddings, /api/tags and /api/show.
+
 import json
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -47,111 +48,59 @@ class OllamaClient:
     def __init__(self, url: str, timeout_s: int = 60):
         self.url = url.rstrip("/")
         self.timeout_s = timeout_s
-        self._show_cache: dict[str, dict] = {}
+        self._details_by_model: dict[str, dict] = {}
 
     def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
                     temperature: float = 0.3, think: bool = False,
                     format: dict | str | None = None) -> Iterator[str | Thought]:
-        """Stream the reply token by token. num_ctx is required: never rely on Ollama's default.
-
-        `format` constrains the reply: "json" for any JSON object, or a JSON schema. See
-        orchestration/structured.py for when Ollama actually enforces a schema.
-        """
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": True,
-            "think": think,
-            "options": {"temperature": temperature, "num_ctx": num_ctx},
-        }
-        if format is not None:
-            payload["format"] = format
-        r = self._post("/api/chat", payload, stream=True)
-        if r.status_code == 404:
-            r.close()
-            raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
-        if r.status_code == 400:
-            text = r.text
-            r.close()
-            raise OllamaError("bad_request", f"Ollama rejected the request: {text}")
-        if not r.ok:
-            text = r.text
-            r.close()
-            raise OllamaError("stream", f"Ollama error {r.status_code}: {text}")
-
+        payload = _chat_payload(model, messages, num_ctx, temperature, think, format)
+        response = self._post("/api/chat", payload, stream=True)
         try:
-            for line in r.iter_lines():
-                if not line:
-                    continue
-                try:
-                    chunk = json.loads(line)
-                except json.JSONDecodeError:
-                    raise OllamaError("stream", "malformed json")
-
-                if "error" in chunk:
-                    raise OllamaError("stream", chunk["error"])
-
-                msg = chunk.get("message", {})
-                
-                thinking = msg.get("thinking", "")
-                if thinking:
-                    yield Thought(thinking)
-
-                token = msg.get("content", "")
-                if token:
-                    yield token
-
-                if chunk.get("done"):
-                    return ChatStats.from_chunk(chunk)
-        except (requests.exceptions.ChunkedEncodingError, requests.ConnectionError):
-            raise OllamaError("connection", "Connection broken in the middle of the reply")
-        except requests.exceptions.ReadTimeout:
-            raise OllamaError("timeout", "Timeout in the middle of the reply")
+            _raise_for_chat_status(response, model)
+            return (yield from _read_reply(response))
         finally:
-            r.close()
+            response.close()
 
     def list_models(self) -> list[str]:
-        """Names of the installed models, e.g. ["llama3.2:latest"] (GET /api/tags)."""
-        r = self._request("GET", "/api/tags")
-        if not r.ok:
-            raise OllamaError("bad_request", f"Cannot list models ({r.status_code}): {r.text}")
-        return [m["name"] for m in r.json().get("models", [])]
+        response = self._request("GET", "/api/tags")
+        if not response.ok:
+            raise OllamaError("bad_request", f"Cannot list models ({response.status_code}): {response.text}")
+        return [entry["name"] for entry in response.json().get("models", [])]
 
     def require_model(self, model: str) -> None:
-        """Raise model_missing unless the model is installed. A name without a tag means ':latest'."""
-        wanted = model if ":" in model else f"{model}:latest"
-        if wanted not in self.list_models():
-            raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
+        full_name = model if ":" in model else f"{model}:latest"
+        if full_name not in self.list_models():
+            raise _model_missing(model)
 
     def embed(self, text: str, model: str) -> list[float]:
-        r = self._post("/api/embed", {"model": model, "input": text})
-        if not r.ok:
-            raise OllamaError("bad_request", f"Embedding error {r.status_code}: {r.text}")
-        return r.json()["embeddings"][0]
-
-    def _get_show(self, model: str) -> dict:
-        if model in self._show_cache:
-            return self._show_cache[model]
-        r = self._post("/api/show", {"model": model})
-        if r.status_code == 404:
-            raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
-        if not r.ok:
-            raise OllamaError("bad_request", f"Cannot fetch model details ({r.status_code}): {r.text}")
-        data = r.json()
-        self._show_cache[model] = data
-        return data
+        response = self._post("/api/embed", {"model": model, "input": text})
+        if not response.ok:
+            raise OllamaError("bad_request", f"Embedding error {response.status_code}: {response.text}")
+        return response.json()["embeddings"][0]
 
     def capabilities(self, model: str) -> set[str]:
-        data = self._get_show(model)
-        return set(data.get("capabilities", []))
+        return set(self._model_details(model).get("capabilities", []))
 
     def context_length(self, model: str) -> int | None:
-        data = self._get_show(model)
-        model_info = data.get("model_info", {})
-        arch = model_info.get("general.architecture")
-        if not arch:
+        model_info = self._model_details(model).get("model_info", {})
+        architecture = model_info.get("general.architecture")
+        if not architecture:
             return None
-        return model_info.get(f"{arch}.context_length")
+        return model_info.get(f"{architecture}.context_length")
+
+    def _model_details(self, model: str) -> dict:
+        if model not in self._details_by_model:
+            self._details_by_model[model] = self._fetch_model_details(model)
+        return self._details_by_model[model]
+
+    def _fetch_model_details(self, model: str) -> dict:
+        response = self._post("/api/show", {"model": model})
+        if response.status_code == 404:
+            raise _model_missing(model)
+        if not response.ok:
+            raise OllamaError("bad_request",
+                              f"Cannot fetch model details ({response.status_code}): {response.text}")
+        return response.json()
 
     def _post(self, path: str, payload: dict, stream: bool = False):
         return self._request("POST", path, json=payload, stream=stream)
@@ -163,3 +112,65 @@ class OllamaClient:
             raise OllamaError("connection", f"Cannot reach Ollama at {self.url} (is `ollama serve` running?)") from None
         except requests.Timeout:
             raise OllamaError("timeout", "Ollama did not answer in time") from None
+
+
+def _chat_payload(model: str, messages: list[Message], num_ctx: int, temperature: float,
+                  think: bool, format: dict | str | None) -> dict:
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "think": think,
+        "options": {"temperature": temperature, "num_ctx": num_ctx},
+    }
+    if format is not None:
+        payload["format"] = format
+    return payload
+
+
+def _raise_for_chat_status(response, model: str) -> None:
+    if response.status_code == 404:
+        raise _model_missing(model)
+    if response.status_code == 400:
+        raise OllamaError("bad_request", f"Ollama rejected the request: {response.text}")
+    if not response.ok:
+        raise OllamaError("stream", f"Ollama error {response.status_code}: {response.text}")
+
+
+def _read_reply(response) -> Iterator[str | Thought]:
+    for chunk in _stream_chunks(response):
+        if "error" in chunk:
+            raise OllamaError("stream", chunk["error"])
+        yield from _chunk_pieces(chunk.get("message", {}))
+        if chunk.get("done"):
+            return ChatStats.from_chunk(chunk)
+    return None
+
+
+def _stream_chunks(response) -> Iterator[dict]:
+    try:
+        for line in response.iter_lines():
+            if line:
+                yield _parse_chunk(line)
+    except (requests.exceptions.ChunkedEncodingError, requests.ConnectionError):
+        raise OllamaError("connection", "Connection broken in the middle of the reply")
+    except requests.exceptions.ReadTimeout:
+        raise OllamaError("timeout", "Timeout in the middle of the reply")
+
+
+def _parse_chunk(line: bytes) -> dict:
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        raise OllamaError("stream", "malformed json") from None
+
+
+def _chunk_pieces(message: dict) -> Iterator[str | Thought]:
+    if message.get("thinking"):
+        yield Thought(message["thinking"])
+    if message.get("content"):
+        yield message["content"]
+
+
+def _model_missing(model: str) -> OllamaError:
+    return OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")

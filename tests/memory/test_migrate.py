@@ -1,3 +1,5 @@
+# Tests for the migration runner and the schema.
+
 from sensai.memory import db
 from sensai.memory.migrate import MIGRATIONS_DIR, migrate
 
@@ -34,7 +36,7 @@ def test_migrate_sets_user_version(conn):
 
 
 def test_migrate_is_idempotent(conn):
-    migrate(conn)  # rerunning must not raise (e.g. "table already exists")
+    migrate(conn)
     assert conn.execute("PRAGMA user_version").fetchone()[0] == LATEST
 
 
@@ -42,7 +44,7 @@ def test_migrate_skips_already_applied_versions():
     conn = db.connect(":memory:")
     try:
         conn.execute(f"PRAGMA user_version = {LATEST}")
-        migrate(conn)  # nothing pending: must not try to recreate the tables
+        migrate(conn)
         tables = {row["name"] for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'"
         )}

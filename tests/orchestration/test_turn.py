@@ -1,5 +1,8 @@
+# Tests for run_turn(): event order, history, errors and cancellation.
+
 import asyncio
 import threading
+from functools import partial
 
 import pytest
 
@@ -23,6 +26,36 @@ async def collect(session, text):
 def kinds(events):
     return [type(e).__name__ for e in events]
 
+
+
+def mask_everything(text, config):
+    return "[masked]"
+
+
+def endless_stream(release, closed, model, messages, **options):
+    try:
+        while True:
+            release.wait(1)
+            yield "x"
+    finally:
+        closed.set()
+
+
+def late_stream(gate, model, messages, **options):
+    gate.wait(2)
+    yield "late"
+
+
+def stalls_after_first_token(first_token, model, messages, **options):
+    yield "Kon"
+    first_token.set()
+    threading.Event().wait(2)
+    yield "nichiwa"
+
+
+def history_spy(session, seen, model, messages, **options):
+    seen.append(session.repo.load_history(session.id))
+    yield "ok"
 
 async def test_event_order_and_ids(session):
     events = await collect(session, "  hello  ")
@@ -80,10 +113,10 @@ async def test_unexpected_error_propagates_and_rolls_back(session):
 
 
 async def test_guardrail_change_is_reported(session, monkeypatch):
-    monkeypatch.setattr(turn_module.guardrails, "filter_input", lambda text, config: "[masked]")
+    monkeypatch.setattr(turn_module.guardrails, "filter_input", mask_everything)
     events = await collect(session, "my email is a@b.c")
-    g = next(e for e in events if isinstance(e, ev.GuardrailTriggered))
-    assert (g.side, g.action) == ("input", "redact")
+    guardrail = next(event for event in events if isinstance(event, ev.GuardrailTriggered))
+    assert (guardrail.side, guardrail.action) == ("input", "redact")
     assert session.history[0]["content"] == "[masked]"
 
 
@@ -99,15 +132,7 @@ async def test_stream_stops_the_producer_when_consumer_leaves(session):
     closed = threading.Event()
     release = threading.Event()
 
-    def endless(model, messages, **options):
-        try:
-            while True:
-                release.wait(1)
-                yield "x"
-        finally:
-            closed.set()
-
-    session.client.chat_stream = endless
+    session.client.chat_stream = partial(endless_stream, release, closed)
     stream = stream_tokens(session.client, session.spec, [])
     release.set()
     assert await stream.__anext__() == "x"
@@ -118,11 +143,7 @@ async def test_stream_stops_the_producer_when_consumer_leaves(session):
 async def test_cancellation_before_any_token_drops_the_question(session):
     gate = threading.Event()
 
-    def slow(model, messages, **options):
-        gate.wait(2)
-        yield "late"
-
-    session.client.chat_stream = slow
+    session.client.chat_stream = partial(late_stream, gate)
     task = asyncio.ensure_future(collect(session, "hello"))
     await asyncio.sleep(0.05)
     task.cancel()
@@ -140,7 +161,7 @@ async def test_turn_finished_carries_ollama_stats():
     assert (finished.prompt_eval_count, finished.eval_count) == (35, 12)
     assert finished.total_duration_ns == 500_000_000
     assert not any(isinstance(e, ev.Token) and not isinstance(e.text, str) for e in events)
-    assert session.history[-1]["content"] == "Konnichiwa"     # stats never leak into the reply
+    assert session.history[-1]["content"] == "Konnichiwa"
 
 
 async def test_turn_finished_without_stats_measures_duration(session):
@@ -158,13 +179,7 @@ async def test_stream_tokens_yields_stats_last(session):
 async def test_stopped_turn_keeps_question_and_partial_reply(session):
     first_token = threading.Event()
 
-    def slow(model, messages, **options):
-        yield "Kon"
-        first_token.set()
-        threading.Event().wait(2)
-        yield "nichiwa"
-
-    session.client.chat_stream = slow
+    session.client.chat_stream = partial(stalls_after_first_token, first_token)
     task = asyncio.ensure_future(collect(session, "hello"))
     await asyncio.to_thread(first_token.wait, 2)
     await asyncio.sleep(0.05)
@@ -184,10 +199,8 @@ async def test_thinking_becomes_events_and_stays_out_of_the_reply():
     thinking = [e for e in events if isinstance(e, ev.Thinking)]
     assert "".join(t.text for t in thinking) == "Is it a greeting?"
     assert thinking[0].run_id == events[1].run_id
-    assert session.history[-1] == {"role": "assistant", "content": "Konnichiwa"}   # no reasoning
+    assert session.history[-1] == {"role": "assistant", "content": "Konnichiwa"}
 
-
-# --- persistence (#67 #69) ---
 
 from tests.conftest import memory_repository
 
@@ -201,11 +214,7 @@ async def test_turn_is_saved_and_reloads_identically(session):
 async def test_user_message_is_saved_before_the_model_is_called(session):
     seen = []
 
-    def spy(model, messages, **options):
-        seen.append(session.repo.load_history(session.id))
-        yield "ok"
-
-    session.client.chat_stream = spy
+    session.client.chat_stream = partial(history_spy, session, seen)
     await collect(session, "hello")
     assert seen == [[{"role": "user", "content": "hello"}]]
 
@@ -255,13 +264,7 @@ async def test_unexpected_error_removes_the_stored_question(session):
 async def test_stopped_turn_stores_question_and_partial_reply(session):
     first_token = threading.Event()
 
-    def slow(model, messages, **options):
-        yield "Kon"
-        first_token.set()
-        threading.Event().wait(2)
-        yield "nichiwa"
-
-    session.client.chat_stream = slow
+    session.client.chat_stream = partial(stalls_after_first_token, first_token)
     task = asyncio.ensure_future(collect(session, "hello"))
     await asyncio.to_thread(first_token.wait, 2)
     await asyncio.sleep(0.05)
@@ -275,11 +278,7 @@ async def test_stopped_turn_stores_question_and_partial_reply(session):
 async def test_stopped_turn_without_output_removes_the_question(session):
     gate = threading.Event()
 
-    def slow(model, messages, **options):
-        gate.wait(2)
-        yield "late"
-
-    session.client.chat_stream = slow
+    session.client.chat_stream = partial(late_stream, gate)
     task = asyncio.ensure_future(collect(session, "hello"))
     await asyncio.sleep(0.05)
     task.cancel()
@@ -287,3 +286,12 @@ async def test_stopped_turn_without_output_removes_the_question(session):
         await task
     gate.set()
     assert session.repo.load_history(session.id) == []
+
+
+async def test_abandoned_turn_drops_the_unanswered_question(session):
+    turn = run_turn(session, "hello")
+    async for event in turn:
+        if isinstance(event, ev.Token):
+            break                                   # the caller stops reading mid-reply
+    await turn.aclose()
+    assert session.history == []

@@ -1,3 +1,5 @@
+# Tests for the layered config loader.
+
 import pytest
 
 from sensai.core import config as cfg
@@ -31,7 +33,7 @@ def test_precedence_file_env_cli(tmp_path):
     assert load_config(p, env=env)["ollama"]["url"] == "http://env"
 
     c = load_config(p, env=env, cli={"ollama": {"url": "http://cli", "timeout_s": None}})
-    assert (c["ollama"]["url"], c["ollama"]["timeout_s"]) == ("http://cli", 5)   # None = not given
+    assert (c["ollama"]["url"], c["ollama"]["timeout_s"]) == ("http://cli", 5)
 
 
 @pytest.mark.parametrize("raw, key, expected", [
@@ -48,7 +50,7 @@ def test_env_coercion(raw, key, expected):
 def test_env_ignores_unrelated_names_and_coerces_floats():
     c = load_config(env={"OTHER": "x", "SENSAI_NOSEPARATOR": "x"})
     assert "noseparator" not in c and "other" not in c
-    assert cfg._coerce("1.5", 0.5) == 1.5
+    assert cfg._convert_env_value("1.5", 0.5) == 1.5
 
 
 def test_file_keeps_unset_defaults_and_adds_sections(tmp_path):

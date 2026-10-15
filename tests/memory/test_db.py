@@ -1,22 +1,34 @@
+# Tests for the SQLite connection setup.
+
+import operator
 import sqlite3
+from functools import partial
 
 import pytest
 
 from sensai.memory import db
 
 
+class ConnectionOpener:
+
+    def __init__(self):
+        self.opened = []
+
+    def __call__(self, path):
+        connection = db.connect(path)
+        self.opened.append(connection)
+        return connection
+
+    def close_all(self):
+        for connection in self.opened:
+            connection.close()
+
+
 @pytest.fixture
 def open_conn():
-    opened = []
-
-    def _connect(path):
-        c = db.connect(path)
-        opened.append(c)
-        return c
-
-    yield _connect
-    for c in opened:
-        c.close()
+    opener = ConnectionOpener()
+    yield opener
+    opener.close_all()
 
 
 def test_connect_memory_returns_row_factory_connection(open_conn):
@@ -48,7 +60,7 @@ def test_connect_creates_parent_directory(tmp_path, open_conn):
 
 
 def test_connect_resolves_relative_path_via_core_config(tmp_path, monkeypatch, open_conn):
-    monkeypatch.setattr(db, "resolve", lambda p: tmp_path / p)
+    monkeypatch.setattr(db, "resolve", partial(operator.truediv, tmp_path))
     conn = open_conn("nested/sensai.db")
     conn.execute("CREATE TABLE t (id INTEGER)")
     conn.commit()

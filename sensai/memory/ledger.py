@@ -1,4 +1,5 @@
-"""Learner ledger: errors, srs_cards and facts, written by agents, one owner per table (#88 #89 #90)."""
+# Learner ledger: errors, srs_cards and facts, written by agents, one owner per table.
+
 from __future__ import annotations
 
 import sqlite3
@@ -6,7 +7,6 @@ import sqlite3
 from ..core.ids import new_id
 from ..knowledge.tools import Tool
 
-# Writable columns of each table: anything else is rejected, so an agent cannot set an id or a date.
 COLUMNS = {
     "errors": ("session_id", "sentence", "correction", "error_type", "resolved"),
     "srs_cards": ("front", "back", "ease", "interval_days", "due_date"),
@@ -17,16 +17,15 @@ REQUIRED = {
     "srs_cards": ("front", "back"),
     "facts": ("key", "value"),
 }
-# Only the owner writes a table; every agent can read all of them.
 DEFAULT_OWNERS = {"errors": "corrector", "srs_cards": "sensei", "facts": "sensei"}
 
 
 class WriteNotAllowed(PermissionError):
-    """The agent does not own this table."""
+    pass
 
 
 class RowNotFound(LookupError):
-    """No row with this id in the table."""
+    pass
 
 
 class Ledger:
@@ -51,14 +50,15 @@ class Ledger:
     def create(self, agent: str, table: str, *, row_id: str | None = None, **fields) -> str:
         self._check_write(agent, table)
         self._check_fields(table, fields)
-        missing = [c for c in REQUIRED[table] if c not in fields]
+        missing = [column for column in REQUIRED[table] if column not in fields]
         if missing:
             raise ValueError(f"missing field(s) for {table}: {', '.join(missing)}")
         row_id = row_id or new_id()
-        cols = ", ".join(("id", *fields))
-        marks = ", ".join("?" * (len(fields) + 1))
+        columns = ", ".join(("id", *fields))
+        placeholders = ", ".join("?" * (len(fields) + 1))
         with self.conn:
-            self.conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({marks})", (row_id, *fields.values()))
+            self.conn.execute(f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+                              (row_id, *fields.values()))
         return row_id
 
     def read(self, table: str, row_id: str) -> sqlite3.Row:
@@ -69,10 +69,9 @@ class Ledger:
         return row
 
     def list(self, table: str, **filters) -> list[sqlite3.Row]:
-        """Rows in insertion order, optionally filtered by equality on writable columns."""
         self._check_table(table)
         self._check_fields(table, filters)
-        where = " AND ".join(f"{c} = ?" for c in filters)
+        where = " AND ".join(f"{column} = ?" for column in filters)
         sql = f"SELECT * FROM {table}" + (f" WHERE {where}" if where else "") + " ORDER BY rowid"
         return self.conn.execute(sql, tuple(filters.values())).fetchall()
 
@@ -81,12 +80,13 @@ class Ledger:
         self._check_fields(table, fields)
         if not fields:
             raise ValueError("nothing to update")
-        sets = ", ".join(f"{c} = ?" for c in fields)
+        assignments = ", ".join(f"{column} = ?" for column in fields)
         if table == "facts":
-            sets += ", updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+            assignments += ", updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
         with self.conn:
-            cur = self.conn.execute(f"UPDATE {table} SET {sets} WHERE id = ?", (*fields.values(), row_id))
-        if cur.rowcount == 0:
+            cursor = self.conn.execute(f"UPDATE {table} SET {assignments} WHERE id = ?",
+                                       (*fields.values(), row_id))
+        if cursor.rowcount == 0:
             raise RowNotFound(f"{table} {row_id}")
 
     def delete(self, agent: str, table: str, row_id: str) -> None:
@@ -97,37 +97,54 @@ class Ledger:
             raise RowNotFound(f"{table} {row_id}")
 
     def tools(self, agent: str) -> list[Tool]:
-        """CRUD tools bound to `agent`: the model calls them, and the ownership check still applies."""
-        table = {"type": "string", "enum": list(COLUMNS)}
-        fields = {"type": "object", "description": "column name -> value"}
+        return _LedgerToolset(self, agent).tools()
 
-        def create(table: str, fields: dict) -> dict:
-            return {"id": self.create(agent, table, **fields)}
 
-        def read(table: str, id: str | None = None, filters: dict | None = None):
-            if id is not None:
-                return dict(self.read(table, id))
-            return [dict(r) for r in self.list(table, **(filters or {}))]
+_TABLE_ARGUMENT = {"type": "string", "enum": list(COLUMNS)}
+_FIELDS_ARGUMENT = {"type": "object", "description": "column name -> value"}
+_ID_ARGUMENT = {"type": "string"}
 
-        def update(table: str, id: str, fields: dict) -> dict:
-            self.update(agent, table, id, **fields)
-            return {"updated": id}
 
-        def delete(table: str, id: str) -> dict:
-            self.delete(agent, table, id)
-            return {"deleted": id}
+def _object_schema(properties: dict, required: list[str]) -> dict:
+    return {"type": "object", "properties": properties, "required": required}
 
-        def schema(properties: dict, required: list[str]) -> dict:
-            return {"type": "object", "properties": properties, "required": required}
 
+class _LedgerToolset:
+
+    def __init__(self, ledger: Ledger, agent: str):
+        self.ledger = ledger
+        self.agent = agent
+
+    def tools(self) -> list[Tool]:
         return [
             Tool("ledger_create", "Add a row to errors, srs_cards or facts (only the tables you own).",
-                 schema({"table": table, "fields": fields}, ["table", "fields"]), create),
+                 _object_schema({"table": _TABLE_ARGUMENT, "fields": _FIELDS_ARGUMENT}, ["table", "fields"]),
+                 self.create),
             Tool("ledger_read", "Read one row by id, or list rows of errors, srs_cards or facts.",
-                 schema({"table": table, "id": {"type": "string"}, "filters": fields}, ["table"]), read),
+                 _object_schema({"table": _TABLE_ARGUMENT, "id": _ID_ARGUMENT, "filters": _FIELDS_ARGUMENT},
+                                ["table"]),
+                 self.read),
             Tool("ledger_update", "Change fields of a row you own.",
-                 schema({"table": table, "id": {"type": "string"}, "fields": fields}, ["table", "id", "fields"]),
-                 update),
+                 _object_schema({"table": _TABLE_ARGUMENT, "id": _ID_ARGUMENT, "fields": _FIELDS_ARGUMENT},
+                                ["table", "id", "fields"]),
+                 self.update),
             Tool("ledger_delete", "Delete a row you own.",
-                 schema({"table": table, "id": {"type": "string"}}, ["table", "id"]), delete),
+                 _object_schema({"table": _TABLE_ARGUMENT, "id": _ID_ARGUMENT}, ["table", "id"]),
+                 self.delete),
         ]
+
+    def create(self, table: str, fields: dict) -> dict:
+        return {"id": self.ledger.create(self.agent, table, **fields)}
+
+    def read(self, table: str, id: str | None = None, filters: dict | None = None):
+        if id is not None:
+            return dict(self.ledger.read(table, id))
+        return [dict(row) for row in self.ledger.list(table, **(filters or {}))]
+
+    def update(self, table: str, id: str, fields: dict) -> dict:
+        self.ledger.update(self.agent, table, id, **fields)
+        return {"updated": id}
+
+    def delete(self, table: str, id: str) -> dict:
+        self.ledger.delete(self.agent, table, id)
+        return {"deleted": id}

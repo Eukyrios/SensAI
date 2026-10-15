@@ -1,3 +1,5 @@
+# Tests for the learner ledger and its per-agent write ownership.
+
 import json
 
 import pytest
@@ -54,7 +56,7 @@ def test_only_the_owner_writes(ledger):
         ledger.update("sensei", "errors", eid, resolved=1)
     with pytest.raises(WriteNotAllowed):
         ledger.delete("sensei", "errors", eid)
-    assert ledger.read("errors", eid)["resolved"] == 0      # untouched, and anyone can read
+    assert ledger.read("errors", eid)["resolved"] == 0
 
 
 def test_owners_can_be_overridden(conn):

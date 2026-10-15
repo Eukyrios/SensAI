@@ -1,3 +1,5 @@
+# Tests for the Ollama transport.
+
 import json
 
 import pytest
@@ -37,16 +39,26 @@ def client():
     return OllamaClient("http://ollama:11434/")
 
 
-def patch_post(monkeypatch, result):
-    sent = {}
+class RecordingTransport:
 
-    def fake_request(method, url, **kwargs):
-        sent.update(method=method, url=url, **kwargs)
-        if isinstance(result, Exception):
-            raise result
-        return result
-    monkeypatch.setattr(ollama.requests, "request", fake_request)
-    return sent
+    def __init__(self, result):
+        self.result = result
+        self.sent = {}
+        self.models_asked = []
+
+    def request(self, method, url, **kwargs):
+        self.sent.update(method=method, url=url, **kwargs)
+        if "json" in kwargs and "model" in kwargs["json"]:
+            self.models_asked.append(kwargs["json"]["model"])
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+def patch_post(monkeypatch, result):
+    transport = RecordingTransport(result)
+    monkeypatch.setattr(ollama.requests, "request", transport.request)
+    return transport.sent
 
 
 def test_chat_stream_sends_options_and_yields_tokens(monkeypatch, client):
@@ -172,7 +184,6 @@ def test_response_closed_after_normal_end(monkeypatch, client):
 
 
 def drain(stream):
-    """Collect the tokens and the generator's return value (the ChatStats)."""
     tokens = []
     while True:
         try:
@@ -222,16 +233,12 @@ def test_capabilities_and_context_length(monkeypatch, client):
 
 
 def test_show_is_cached_per_model(monkeypatch, client):
-    calls = []
-
-    def fake_request(method, url, **kwargs):
-        calls.append(kwargs["json"]["model"])
-        return FakeResponse(payload=SHOW)
-    monkeypatch.setattr(ollama.requests, "request", fake_request)
+    transport = RecordingTransport(FakeResponse(payload=SHOW))
+    monkeypatch.setattr(ollama.requests, "request", transport.request)
     client.capabilities("a")
     client.context_length("a")
     client.capabilities("b")
-    assert calls == ["a", "b"]
+    assert transport.models_asked == ["a", "b"]
 
 
 def test_missing_details_are_empty(monkeypatch, client):
