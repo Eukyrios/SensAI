@@ -54,12 +54,12 @@ ollama pull bge-m3          # RAG embeddings (layer 5)
 ## Usage
 
 ```bash
-python -m sensai                          # start the chat
+python -m sensai                          # start the chat; the router picks the agent for each message
 python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 python -m sensai --list-sessions          # list the stored sessions (id, date, model, title)
 python -m sensai --session <id>           # resume a stored session
-python -m sensai --agent checker          # start with another agent: the checker corrects, then hands off to the sensei
+python -m sensai --agent checker          # always start with this agent (turns the router off)
 python -m sensai --agent demo/ping        # infinite-loop demo: ping and pong hand off forever until the guards stop them
 ```
 
@@ -307,6 +307,7 @@ scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
+routing.toml      routes: which agent starts a turn, with the router's rules and examples
 ```
 
 Runtime files (`data/*.db`, `logs/`) are created on first run and never committed.
@@ -333,7 +334,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `context.py` | per-agent context: providers (profile, handoff note) and history fitted to `num_ctx` |
 | | `stream.py` | thread bridge from the blocking Ollama stream to asyncio |
 | | `structured.py` | structured output: schema in the prompt, validation, one repair |
-| | *`router.py`* | rules → embeddings → classifier cascade (layer 5) |
+| | `router.py` | picks the agent that starts a turn: rules (tier 1); embeddings and classifier next |
 | `memory/` | `db.py` | SQLite connection: WAL, foreign keys, `:memory:` for tests |
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
@@ -415,6 +416,14 @@ When the chain fails (an agent error, invalid output, a timeout or a guard), the
 is no fallback when Ollama is down, when the turn budget is spent, or when the sensei already ran.
 `python -m sensai --agent demo/ping` shows it: ping and pong hand off to each other, the cycle guard
 stops them, the sensei answers, and `/trace` lists the three runs.
+
+### Routing (A2)
+
+Without `--agent`, the `Router` (`orchestration/router.py`) picks the agent that starts each turn from
+the routes in `routing.toml`, tried in file order. Tier 1 matches each route's regex rules: a message
+written only in Japanese, or a request to check next to some Japanese, goes to the checker; an English
+question goes to the sensei. When no rule matches, the default agent (`[agents] default`) answers.
+Every decision records its tier, its confidence and why. `--agent <name>` turns routing off.
 
 ### Structured output (T5)
 

@@ -514,8 +514,17 @@ def test_agent_flag_selects_the_agent(monkeypatch, capsys):
     monkeypatch.setattr(cli, "plain_chat", plain_chat)
     monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient()))
     cli.main(["--agent", "checker"])
-    spec = plain_chat.calls[0][0].spec
-    assert spec.name == "checker" and spec.output_schema["required"][0] == "sentence"
+    session = plain_chat.calls[0][0]
+    assert session.spec.name == "checker" and session.spec.output_schema["required"][0] == "sentence"
+    assert session.router is None
+
+
+def test_without_agent_flag_the_router_picks_the_agent(monkeypatch):
+    plain_chat = Recorder()
+    monkeypatch.setattr(cli, "plain_chat", plain_chat)
+    monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient()))
+    cli.main([])
+    assert plain_chat.calls[0][0].router is not None
 
 
 def test_unknown_agent_flag_exits(monkeypatch):

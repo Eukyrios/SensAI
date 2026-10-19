@@ -15,6 +15,10 @@ model_override = ""          # set by --model; empty = use each agent's own mode
 max_hops = 3                 # handoffs allowed in one turn
 turn_budget_s = 180          # time for every agent of one turn together; each agent also has its timeout_s
 
+[router]
+enabled = true               # pick the agent that starts each turn; --agent turns it off
+routes = "routing.toml"      # routes with their tier 1 rules and tier 2 examples
+
 [storage]
 db_path = "data/sensai.db"
 
