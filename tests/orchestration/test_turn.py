@@ -10,7 +10,9 @@ from sensai.core import events as ev
 from sensai.llm.ollama import ChatStats, OllamaError, Thought
 from sensai.orchestration import turn as turn_module
 from sensai.orchestration.session import Session
-from sensai.orchestration.turn import build_context, run_turn, stream_tokens
+from sensai.orchestration.stream import stream_tokens
+from sensai.orchestration.context import build_context
+from sensai.orchestration.turn import run_turn
 from tests.fakes import FakeClient, make_config
 
 
@@ -125,7 +127,7 @@ async def test_history_is_truncated_in_context():
     for i in range(3):
         await collect(session, f"m{i}")
     assert [m["content"] for m in session.client.calls[-1][1][1:]] == ["Konnichiwa", "m2"]
-    assert build_context(session)[0]["role"] == "system"
+    assert build_context(session, session.spec)[0]["role"] == "system"
 
 
 async def test_stream_stops_the_producer_when_consumer_leaves(session):
@@ -236,9 +238,9 @@ async def test_profile_is_in_the_prompt_but_never_stored():
     session = Session(make_config(), client=FakeClient(), repo=repo)
     await collect(session, "hello")
     messages = session.client.calls[0][1]
-    assert messages[0] == {"role": "system", "content": session.spec.system_prompt}
-    assert messages[1]["role"] == "system" and "N5 learner" in messages[1]["content"]
-    assert messages[2] == {"role": "user", "content": "hello"}
+    assert messages[0]["role"] == "system" and messages[0]["content"].startswith(session.spec.system_prompt)
+    assert "N5 learner" in messages[0]["content"]
+    assert messages[1:] == [{"role": "user", "content": "hello"}]
     stored = [m["content"] for m in repo.list_messages(session.id)]
     assert len(stored) == 2 and not any("N5 learner" in c for c in stored)
 

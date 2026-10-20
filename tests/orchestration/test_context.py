@@ -1,9 +1,15 @@
-from dataclasses import dataclass
+# Tests for the per-agent context: token estimate, calibration, providers, budget and build_context().
+
+from dataclasses import dataclass, replace
 
 import pytest
 
 from sensai.core.agent_spec import AgentSpec
-from sensai.orchestration.context import ContextBuilder, ContextProvider, TokenEstimator
+from sensai.core.handoff import Handoff
+from sensai.orchestration.context import ContextBuilder, ContextProvider, TokenEstimator, build_context
+from sensai.orchestration.session import Session
+from tests.conftest import memory_repository
+from tests.fakes import FakeClient, make_config
 
 SPEC = AgentSpec(name="a", model="m", num_ctx=1000, system_prompt="sys")
 
@@ -97,3 +103,16 @@ def test_builder_calibrate_updates_the_estimator():
     builder = ContextBuilder()
     builder.calibrate([user("a" * 70)], 10)
     assert builder.estimator.chars_per_token > 3.5
+
+
+def test_build_context_fits_the_profile_note_and_history_in_the_agent_budget():
+    repo = memory_repository()
+    repo.save_profile("default", "N5 learner")
+    session = Session(make_config(), client=FakeClient(), repo=repo)
+    session.history = [user("old " * 2000), user("question")]
+    handoff = Handoff("checker", "sensei", "particle", {"rule": "use に"}, hop=1, run_id="r1")
+    messages = build_context(session, replace(session.spec, num_ctx=2048), handoff)
+    system = messages[0]["content"]
+    assert system.index("N5 learner") < system.index("checker agent looked at this turn first")
+    assert '"rule": "use に"' in system
+    assert messages[1:] == [user("question")]

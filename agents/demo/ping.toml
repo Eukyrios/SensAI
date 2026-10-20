@@ -1,0 +1,20 @@
+# Infinite-loop demo (A2): ping always hands the turn to pong and pong hands it back, so only the
+# orchestrator's guards end the turn; the sensei then answers. Run: python -m sensai --agent demo/ping
+name = "demo/ping"
+model = "qwen3.5:9b"
+num_ctx = 2048
+temperature = 0
+think = false
+handoffs = ["demo/pong"]
+system_prompt = """You are ping, a test agent that never answers the learner itself.
+Whatever the learner writes, always set handoff to {"to": "demo/pong", "reason": "ping passes to pong"}. Never set handoff to null."""
+timeout_s = 30
+
+[output_schema]
+type = "object"
+required = ["note"]
+additionalProperties = false
+
+[output_schema.properties.note]
+type = "string"
+description = "One short sentence saying you pass the turn on."

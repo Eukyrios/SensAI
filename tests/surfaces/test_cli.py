@@ -9,6 +9,7 @@ import pytest
 
 from sensai.core import events as ev
 from sensai.core.events import Error, GuardrailTriggered, Token, TurnFinished
+from sensai.core.handoff import Handoff
 from sensai.llm.ollama import ChatStats, OllamaClient, Thought
 from sensai.orchestration.session import Session
 from sensai.surfaces import cli
@@ -71,6 +72,13 @@ async def test_cli_renderer_handles_guardrail_triggered(capsys):
     captured = capsys.readouterr().err
     assert "[guardrail] input block: no_pii" in captured
 
+
+
+@pytest.mark.asyncio
+async def test_cli_renderer_shows_the_handoff(capsys):
+    handoff = Handoff("checker", "sensei", "particle mistake", {"is_correct": False}, hop=1, run_id="r1")
+    await CLIRenderer().render_stream(events_stream(ev.HandoffEvent(turn_id="t1", handoff=handoff)))
+    assert "[handoff] checker → sensei: particle mistake" in capsys.readouterr().out
 
 @pytest.mark.asyncio
 async def test_cli_renderer_handles_all_error_kinds(capsys):
