@@ -25,6 +25,8 @@ class Session:
         self.history: list[Message] = []
         self.leaf: str | None = None
         self.stored = False
+        self.summary = ""
+        self.summarized = 0
 
     @classmethod
     def resume(cls, config: dict, session_id: str, client: OllamaClient | None = None,
@@ -64,3 +66,5 @@ class Session:
         self.id = new_id()
         self.leaf = None
         self.stored = False
+        self.summary = ""
+        self.summarized = 0

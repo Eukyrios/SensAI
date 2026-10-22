@@ -22,7 +22,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "router": {"enabled": True, "routes": "routing.toml", "embed_model": "bge-m3", "embed_on_cpu": True,
                "embedding_threshold": 0.55, "embedding_margin": 0.05, "classifier": "classifier"},
     "storage": {"db_path": "data/sensai.db"},
-    "memory": {"max_history_turns": 20, "profile": "default"},
+    "memory": {"max_history_turns": 20, "profile": "default",
+               "summary": {"enabled": True, "trigger": 0.7, "keep_recent": 6}},
     "guardrails": {"enabled": True},
     "logging": {"level": "INFO", "path": "logs/sensai.jsonl"},
 }

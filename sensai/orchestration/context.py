@@ -12,6 +12,7 @@ from ..core.handoff import Handoff
 from ..core.messages import Message
 from .executor import system_prompt
 from .session import Session
+from .summary import SummaryProvider, compress
 
 DEFAULT_CHARS_PER_TOKEN = 3.5
 REPLY_RESERVE = 0.25
@@ -122,7 +123,11 @@ class ContextBuilder:
 def build_context(session: Session, spec: AgentSpec, handoff: Handoff | None = None) -> list[Message]:
     max_turns = session.config["memory"]["max_history_turns"]
     builder = ContextBuilder(_blocks(session, handoff))
-    return builder.build(spec, session.history[-max_turns * 2:], system=system_prompt(spec))
+    system = system_prompt(spec)
+    window = builder.budget(spec) - builder.estimator.estimate(system)
+    compress(session, spec, window, builder.estimator.estimate_messages)
+    builder.providers.extend(_summary_blocks(session))
+    return builder.build(spec, session.history[session.summarized:][-max_turns * 2:], system=system)
 
 
 def handoff_note(handoff: Handoff) -> str:
@@ -138,6 +143,10 @@ def _blocks(session: Session, handoff: Handoff | None) -> list[ContextProvider]:
     if handoff is not None:
         blocks.append(TextBlock("handoff", priority=1, max_share=0.3, text=handoff_note(handoff)))
     return blocks
+
+
+def _summary_blocks(session: Session) -> list[ContextProvider]:
+    return [SummaryProvider(session.summary)] if session.summary else []
 
 
 def _highest_priority_first(provider: ContextProvider) -> int:

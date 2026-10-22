@@ -173,7 +173,17 @@ The `[memory]` section controls what the chat remembers:
 [memory]
 max_history_turns = 20   # turns of history sent to the model
 profile = "default"      # name of the learner profile injected into every prompt
+
+[memory.summary]
+enabled = true           # fold older turns into a running summary
+trigger = 0.7            # share of the history budget that starts a summary
+keep_recent = 6          # newest messages kept as they are
 ```
+
+When the history passes `trigger`, the model summarises the older turns; the summary is added to
+the system prompt (`orchestration/summary.py`) and those turns leave the window. If Ollama fails
+while summarising, the turn goes on with the plain window. The summary lives in the session and is
+rebuilt after `Session.resume`.
 
 ## Persistence
 
