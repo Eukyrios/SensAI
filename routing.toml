@@ -7,16 +7,23 @@ agent = "checker"
 description = "The learner wrote a Japanese sentence and wants it checked or corrected."
 rules = [
     # only Japanese text (kana, kanji, Japanese punctuation): a practice sentence
-    '^[\s　-〿぀-ヿ一-鿿！-｠]+$',
+    '^[\s\u3000-\u303f\u3040-\u30ff\u4e00-\u9fff\uff01-\uff60]+$',
     # an explicit request to check, next to some Japanese
-    '(?is)^(?=.*[぀-ヿ一-鿿]).*\b(check|correct|mistakes?|is (this|it) (right|ok|okay))\b',
+    '(?is)^(?=.*[\u3040-\u30ff\u4e00-\u9fff]).*\b(check|correct|mistakes?|is (this|it) (right|ok|okay))\b',
 ]
 examples = [
     "私は学校を行きます",
+    "昨日、友達と映画を見ました",
     "Is this correct: 昨日、映画を見ました",
     "Can you check my sentence? 猫が好きです",
-    "watashi wa sushi wo tabemasu, is it right?",
     "Did I make a mistake here: 本を読みました",
+    "watashi wa sushi wo tabemasu, is it right?",
+    "ashita tomodachi to kouen ni ikimasu",
+    "kare wa sensei desu",
+    "boku no namae wa Tom desu",
+    "sumimasen, eki wa doko desu ka",
+    "please correct: watashi wa nihongo wo benkyou shimasu",
+    "here is my sentence: kyou wa samui desu",
 ]
 
 [[routes]]
@@ -33,4 +40,11 @@ examples = [
     "Explain the te-form",
     "Translate: I would like a coffee",
     "What does 飛行機 mean?",
+    "Teach me the days of the week",
+    "Give me some words about the weather",
+    "How do I count objects in Japanese?",
+    "What are the polite forms of verbs?",
+    "Tell me about honorific language",
+    "I want to learn hiragana",
+    "Any tips to remember kanji?",
 ]

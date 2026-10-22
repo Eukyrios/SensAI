@@ -41,7 +41,8 @@ class Orchestrator:
         return self.runs[-1].text if self.runs else ""
 
     async def events(self, question: str) -> AsyncIterator[Event]:
-        async with aclosing(self._handoff_chain(self._first_agent(question))) as chain_events:
+        first_agent = await self._first_agent(question)
+        async with aclosing(self._handoff_chain(first_agent)) as chain_events:
             async for event in chain_events:
                 yield event
         fallback = self._fallback_run()
@@ -53,10 +54,10 @@ class Orchestrator:
             async for event in fallback_events:
                 yield event
 
-    def _first_agent(self, question: str) -> AgentSpec:
+    async def _first_agent(self, question: str) -> AgentSpec:
         if self.session.router is None:
             return self.session.spec
-        self.route = self.session.router.route(question)
+        self.route = await asyncio.to_thread(self.session.router.route, question)
         if self.route.agent == self.session.spec.name:
             return self.session.spec
         return spec_for(self.route.agent, self.session.config)

@@ -17,9 +17,9 @@ class Session:
         self.config = config
         self.id = session_id or new_id()
         self.spec: AgentSpec = spec_for(config["agents"]["default"], config)
-        self.router: Router | None = load_router(config)
         ollama_settings = config["ollama"]
         self.client = client or OllamaClient(ollama_settings["url"], ollama_settings["timeout_s"])
+        self.router: Router | None = load_router(config, self.client)
         self.repo = repo or open_repository(config)
         self.profile: Message | None = self.repo.profile_system_message(config["memory"]["profile"])
         self.history: list[Message] = []

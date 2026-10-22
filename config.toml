@@ -18,6 +18,10 @@ turn_budget_s = 180          # time for every agent of one turn together; each a
 [router]
 enabled = true               # pick the agent that starts each turn; --agent turns it off
 routes = "routing.toml"      # routes with their tier 1 rules and tier 2 examples
+embed_model = "bge-m3"       # tier 2 model; empty = no embedding tier
+embed_on_cpu = true          # keeps the GPU for the chat model, so it is never swapped out
+embedding_threshold = 0.55   # tier 2 decides only above this similarity...
+embedding_margin = 0.05      # ...and this far ahead of the next route
 
 [storage]
 db_path = "data/sensai.db"
