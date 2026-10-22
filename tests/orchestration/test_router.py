@@ -1,4 +1,4 @@
-# Tests for the router: routes from routing.toml, tier 1 rules, tier 2 embeddings, the default and the wiring.
+# Tests for the router: routes from routing.toml, the three tiers, the default and the wiring.
 
 import json
 import re
@@ -8,8 +8,9 @@ import pytest
 from sensai.core import events as ev
 from sensai.core.config import resolve
 from sensai.llm.ollama import OllamaError
-from sensai.orchestration.router import (EmbeddingTier, Route, RouteDecision, Router, RoutingError, RuleTier, cosine,
-                                         load_router, load_routes)
+from sensai.core.agent_spec import AgentSpec
+from sensai.orchestration.router import (ClassifierTier, EmbeddingTier, Route, RouteDecision, Router, RoutingError,
+                                         RuleTier, classifier_schema, cosine, load_router, load_routes)
 from sensai.orchestration.session import Session
 from sensai.orchestration.turn import run_turn
 from tests.fakes import FakeClient, ScriptedClient, make_config
@@ -184,6 +185,57 @@ def test_embeddings_decide_what_rules_leave_alone():
     assert router.route("query").tier == "embeddings"
 
 
-def test_the_embedding_tier_is_optional():
-    assert len(load_router(routed_config(embed_model=""), FakeClient()).tiers) == 1
-    assert len(load_router(routed_config(), FakeClient()).tiers) == 2
+def tier_types(router):
+    return [type(tier).__name__ for tier in router.tiers]
+
+
+def test_the_embedding_and_classifier_tiers_are_optional():
+    assert tier_types(load_router(routed_config(), FakeClient())) == ["RuleTier", "EmbeddingTier", "ClassifierTier"]
+    assert tier_types(load_router(routed_config(embed_model="", classifier=""), FakeClient())) == ["RuleTier"]
+
+
+CLASSIFIER = AgentSpec(name="classifier", model="qwen3.5:9b", num_ctx=2048, temperature=0,
+                       system_prompt="You route messages.")
+
+
+def classifier_reply(agent="checker", confidence=0.8):
+    return json.dumps({"agent": agent, "confidence": confidence, "reason": "a romaji sentence"})
+
+
+def test_classifier_picks_a_route_with_its_confidence():
+    decision = ClassifierTier(ROUTES, ScriptedClient(classifier_reply()), CLASSIFIER).decide("ore wa")
+    assert decision == RouteDecision("checker", "classifier", 0.8, "a romaji sentence")
+
+
+def test_classifier_sees_the_routes_and_answers_in_json():
+    client = ScriptedClient(classifier_reply())
+    ClassifierTier(ROUTES, client, CLASSIFIER).decide("ore wa")
+    model, messages, options = client.calls[0]
+    assert model == "qwen3.5:9b" and messages[1] == {"role": "user", "content": "ore wa"}
+    system = messages[0]["content"]
+    assert system.startswith("You route messages.") and "- checker: The learner wrote" in system
+    assert '"enum": ["checker", "sensei"]' in system
+    assert options == {"num_ctx": 2048, "temperature": 0, "think": False, "format": "json"}
+
+
+@pytest.mark.parametrize("reply", ["not json", classifier_reply(agent="nobody"), classifier_reply(confidence=3)])
+def test_an_invalid_classifier_reply_decides_nothing(reply):
+    assert ClassifierTier(ROUTES, ScriptedClient(reply), CLASSIFIER).decide("ore wa") is None
+
+
+def test_classifier_errors_decide_nothing():
+    client = FakeClient(error=OllamaError("timeout", "slow"))
+    assert ClassifierTier(ROUTES, client, CLASSIFIER).decide("ore wa") is None
+
+
+def test_classifier_only_runs_when_the_other_tiers_are_unsure():
+    client = ScriptedClient(classifier_reply(agent="sensei", confidence=0.6))
+    router = Router([RuleTier(ROUTES), ClassifierTier(ROUTES, client, CLASSIFIER)], "sensei")
+    assert router.route("私は学校を行きます").tier == "rules" and client.calls == []
+    assert router.route("I like anime").tier == "classifier" and len(client.calls) == 1
+
+
+def test_classifier_schema_limits_the_agents():
+    schema = classifier_schema(["checker", "sensei"])
+    assert schema["properties"]["agent"]["enum"] == ["checker", "sensei"]
+    assert schema["required"] == ["agent", "confidence", "reason"]

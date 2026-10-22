@@ -302,6 +302,7 @@ sensai/
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
   surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
 agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the sensei),
+                  classifier (router tier 3),
                   demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
 tests/            one folder per package, mirroring sensai/
@@ -334,7 +335,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `context.py` | per-agent context: providers (profile, handoff note) and history fitted to `num_ctx` |
 | | `stream.py` | thread bridge from the blocking Ollama stream to asyncio |
 | | `structured.py` | structured output: schema in the prompt, validation, one repair |
-| | `router.py` | picks the agent that starts a turn: rules (tier 1), embeddings (tier 2); classifier next |
+| | `router.py` | picks the agent that starts a turn: rules, embeddings, then the classifier agent |
 | `memory/` | `db.py` | SQLite connection: WAL, foreign keys, `:memory:` for tests |
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
@@ -426,7 +427,10 @@ question goes to the sensei. Tier 2 handles what the rules leave alone (e.g. a s
 embeds the message with `bge-m3` and picks the route whose closest example is at least
 `embedding_threshold` similar (0.55) and `embedding_margin` (0.05) ahead of the next route. It runs on
 the CPU (~0.2 s per message) so the chat model keeps the GPU; without `bge-m3` the tier stays silent.
-When no tier decides, the default agent (`[agents] default`) answers.
+Tier 3 runs only when both are unsure: the classifier agent (`agents/classifier.toml`, same model as
+the sensei, so nothing is swapped) gets the route descriptions and answers `{agent, confidence, reason}`
+in JSON, with `agent` limited to the route names (~2 s). An invalid reply or an Ollama error decides
+nothing. When no tier decides, the default agent (`[agents] default`) answers.
 Every decision records its tier, its confidence and why. `--agent <name>` turns routing off.
 
 ### Structured output (T5)

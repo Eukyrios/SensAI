@@ -1,7 +1,7 @@
 # Router: decides which agent starts a learner turn, with a cascade of tiers from the cheapest to the
 # most expensive. Tier 1 matches each route's regex rules from routing.toml; tier 2 compares the message
-# with each route's examples by embedding similarity; when no tier decides, the default agent answers.
-# Every decision says which tier made it and how sure it is.
+# with each route's examples by embedding similarity; tier 3 asks the classifier agent to pick a route.
+# When no tier decides, the default agent answers. Every decision says which tier made it and how sure.
 
 import math
 import re
@@ -9,8 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
+from ..core.agent_spec import AgentSpec, spec_for
 from ..core.config import load_toml, resolve
+from ..core.messages import Message
 from ..llm.ollama import OllamaClient, OllamaError
+from . import structured
 
 TierName = Literal["rules", "embeddings", "classifier", "default"]
 
@@ -95,6 +98,33 @@ class EmbeddingTier:
         return self.examples
 
 
+class ClassifierTier:
+
+    def __init__(self, routes: list[Route], client: OllamaClient, spec: AgentSpec):
+        self.client = client
+        self.spec = spec
+        self.schema = classifier_schema([route.agent for route in routes])
+        self.system_prompt = "\n\n".join([spec.system_prompt, _route_list(routes),
+                                           structured.schema_instructions(self.schema)])
+
+    def decide(self, text: str) -> RouteDecision | None:
+        try:
+            reply = self._ask(text)
+        except OllamaError:
+            return None
+        data, problems = structured.validate_reply(reply, self.schema)
+        if problems:
+            return None
+        return RouteDecision(data["agent"], "classifier", round(data["confidence"], 3), data["reason"])
+
+    def _ask(self, text: str) -> str:
+        messages: list[Message] = [{"role": "system", "content": self.system_prompt},
+                                   {"role": "user", "content": text}]
+        stream = self.client.chat_stream(self.spec.model, messages, num_ctx=self.spec.num_ctx,
+                                         temperature=self.spec.temperature, think=False, format="json")
+        return "".join(piece for piece in stream if isinstance(piece, str))
+
+
 class Tier(Protocol):
 
     def decide(self, text: str) -> RouteDecision | None: ...
@@ -123,6 +153,8 @@ def load_router(config: dict, client: OllamaClient) -> Router | None:
     tiers: list[Tier] = [RuleTier(routes)]
     if settings["embed_model"]:
         tiers.append(EmbeddingTier(routes, client, settings))
+    if settings["classifier"]:
+        tiers.append(ClassifierTier(routes, client, spec_for(settings["classifier"], config)))
     return Router(tiers, config["agents"]["default"])
 
 
@@ -143,6 +175,17 @@ def _route_from(entry: dict, path: str | Path) -> Route:
         raise RoutingError(f"{path}: invalid rule in route '{entry.get('agent')}': {error}") from None
 
 
+def classifier_schema(agents: list[str]) -> dict:
+    return {
+        "type": "object",
+        "properties": {"agent": {"type": "string", "enum": agents},
+                       "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                       "reason": {"type": "string", "description": "Why, in a few words."}},
+        "required": ["agent", "confidence", "reason"],
+        "additionalProperties": False,
+    }
+
+
 def cosine(first: list[float], second: list[float]) -> float:
     norms = math.sqrt(sum(value * value for value in first)) * math.sqrt(sum(value * value for value in second))
     return sum(a * b for a, b in zip(first, second)) / norms if norms else 0.0
@@ -150,6 +193,10 @@ def cosine(first: list[float], second: list[float]) -> float:
 
 def _score(ranked: tuple[Example, float]) -> float:
     return ranked[1]
+
+
+def _route_list(routes: list[Route]) -> str:
+    return "Routes:\n" + "\n".join(f"- {route.agent}: {route.description}" for route in routes)
 
 
 def _check_agents_exist(routes: list[Route], config: dict) -> None:

@@ -20,7 +20,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "agents": {"dir": "agents", "default": "sensei", "fallback": "sensei", "model_override": ""},
     "orchestration": {"max_hops": 3, "turn_budget_s": 180},
     "router": {"enabled": True, "routes": "routing.toml", "embed_model": "bge-m3", "embed_on_cpu": True,
-               "embedding_threshold": 0.55, "embedding_margin": 0.05},
+               "embedding_threshold": 0.55, "embedding_margin": 0.05, "classifier": "classifier"},
     "storage": {"db_path": "data/sensai.db"},
     "memory": {"max_history_turns": 20, "profile": "default"},
     "guardrails": {"enabled": True},

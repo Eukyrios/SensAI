@@ -22,6 +22,7 @@ embed_model = "bge-m3"       # tier 2 model; empty = no embedding tier
 embed_on_cpu = true          # keeps the GPU for the chat model, so it is never swapped out
 embedding_threshold = 0.55   # tier 2 decides only above this similarity...
 embedding_margin = 0.05      # ...and this far ahead of the next route
+classifier = "classifier"    # tier 3 agent (agents/classifier.toml); empty = no classifier tier
 
 [storage]
 db_path = "data/sensai.db"
