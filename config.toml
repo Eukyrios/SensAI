@@ -22,6 +22,11 @@ db_path = "data/sensai.db"
 max_history_turns = 20
 profile = "default"          # learner profile injected into every prompt (learner_profiles.name)
 
+[memory.summary]
+enabled = true               # fold older turns into a running summary
+trigger = 0.7                # when the unsummarised history passes this share of the history budget
+keep_recent = 6              # newest messages never summarised
+
 [guardrails]
 enabled = true
 
