@@ -20,7 +20,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "agents": {"dir": "agents", "default": "sensei", "fallback": "sensei", "model_override": ""},
     "orchestration": {"max_hops": 3, "turn_budget_s": 180},
     "storage": {"db_path": "data/sensai.db"},
-    "memory": {"max_history_turns": 20, "profile": "default"},
+    "memory": {"max_history_turns": 20, "profile": "default",
+               "summary": {"enabled": True, "trigger": 0.7, "keep_recent": 6}},
     "guardrails": {"enabled": True},
     "logging": {"level": "INFO", "path": "logs/sensai.jsonl"},
 }
