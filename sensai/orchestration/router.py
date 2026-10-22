@@ -1,7 +1,9 @@
 # Router: decides which agent starts a learner turn, with a cascade of tiers from the cheapest to the
 # most expensive. Tier 1 matches each route's regex rules from routing.toml; tier 2 compares the message
 # with each route's examples by embedding similarity; tier 3 asks the classifier agent to pick a route.
-# When no tier decides, the default agent answers. Every decision says which tier made it and how sure.
+# When no tier decides, the default agent answers. A message starting with @<agent> overrides every
+# tier, and a decision below the confidence floor falls back to the sensei. Every decision says which
+# tier made it, how sure it is and why.
 
 import math
 import re
@@ -15,7 +17,8 @@ from ..core.messages import Message
 from ..llm.ollama import OllamaClient, OllamaError
 from . import structured
 
-TierName = Literal["rules", "embeddings", "classifier", "default"]
+TierName = Literal["override", "rules", "embeddings", "classifier", "floor", "default"]
+OVERRIDE = re.compile(r"^@([\w/-]+)\s+(.+)$", re.DOTALL)
 
 
 class RoutingError(ValueError):
@@ -132,16 +135,39 @@ class Tier(Protocol):
 
 class Router:
 
-    def __init__(self, tiers: list[Tier], default_agent: str):
+    def __init__(self, tiers: list[Tier], default_agent: str, fallback_agent: str = "sensei",
+                 confidence_floor: float = 0.0, agents: frozenset[str] = frozenset()):
         self.tiers = tiers
         self.default_agent = default_agent
+        self.fallback_agent = fallback_agent
+        self.confidence_floor = confidence_floor
+        self.agents = agents
 
     def route(self, text: str) -> RouteDecision:
+        override = self.override(text)
+        if override is not None:
+            return override
         for tier in self.tiers:
             decision = tier.decide(text)
             if decision is not None:
-                return decision
+                return self._above_floor(decision)
         return RouteDecision(self.default_agent, "default", 0.0, "no tier decided")
+
+    def override(self, text: str) -> RouteDecision | None:
+        match = OVERRIDE.match(text.strip())
+        if match is None or match.group(1) not in self.agents:
+            return None
+        return RouteDecision(match.group(1), "override", 1.0, f"the learner asked for @{match.group(1)}")
+
+    def strip_override(self, text: str) -> str:
+        return OVERRIDE.match(text.strip()).group(2) if self.override(text) else text
+
+    def _above_floor(self, decision: RouteDecision) -> RouteDecision:
+        if decision.confidence >= self.confidence_floor:
+            return decision
+        return RouteDecision(self.fallback_agent, "floor", decision.confidence,
+                             f"{decision.agent} by {decision.tier} is below the {self.confidence_floor} floor "
+                             f"({decision.reason})")
 
 
 def load_router(config: dict, client: OllamaClient) -> Router | None:
@@ -155,7 +181,8 @@ def load_router(config: dict, client: OllamaClient) -> Router | None:
         tiers.append(EmbeddingTier(routes, client, settings))
     if settings["classifier"]:
         tiers.append(ClassifierTier(routes, client, spec_for(settings["classifier"], config)))
-    return Router(tiers, config["agents"]["default"])
+    agents = config["agents"]
+    return Router(tiers, agents["default"], agents["fallback"], settings["confidence_floor"], _agent_names(config))
 
 
 def load_routes(path: str | Path) -> list[Route]:
@@ -197,6 +224,11 @@ def _score(ranked: tuple[Example, float]) -> float:
 
 def _route_list(routes: list[Route]) -> str:
     return "Routes:\n" + "\n".join(f"- {route.agent}: {route.description}" for route in routes)
+
+
+def _agent_names(config: dict) -> frozenset[str]:
+    agents_dir = resolve(config["agents"]["dir"])
+    return frozenset(path.relative_to(agents_dir).with_suffix("").as_posix() for path in agents_dir.rglob("*.toml"))
 
 
 def _check_agents_exist(routes: list[Route], config: dict) -> None:

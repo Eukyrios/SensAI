@@ -1,4 +1,4 @@
-# Tests for the router: routes from routing.toml, the three tiers, the default and the wiring.
+# Tests for the router: routes, the three tiers, the override, the floor, the default and the wiring.
 
 import json
 import re
@@ -239,3 +239,68 @@ def test_classifier_schema_limits_the_agents():
     schema = classifier_schema(["checker", "sensei"])
     assert schema["properties"]["agent"]["enum"] == ["checker", "sensei"]
     assert schema["required"] == ["agent", "confidence", "reason"]
+
+
+class FixedTier:
+
+    def __init__(self, decision):
+        self.decision = decision
+
+    def decide(self, text):
+        return self.decision
+
+
+AGENTS = frozenset({"sensei", "checker", "demo/ping"})
+
+
+def floor_router(decision, floor=0.5):
+    return Router([FixedTier(decision)], "sensei", "sensei", floor, AGENTS)
+
+
+def test_at_agent_overrides_every_tier():
+    router = floor_router(RouteDecision("sensei", "rules", 1.0, "x"))
+    decision = router.route("@checker kinou eiga wo mimashita")
+    assert decision == RouteDecision("checker", "override", 1.0, "the learner asked for @checker")
+    assert router.route("@demo/ping hello").agent == "demo/ping"
+
+
+@pytest.mark.parametrize("text", ["@nobody hello", "@checker", "mail me @checker please", "email@checker.com hi"])
+def test_only_a_known_agent_at_the_start_overrides(text):
+    router = floor_router(RouteDecision("sensei", "rules", 1.0, "x"))
+    assert router.route(text).tier == "rules" and router.strip_override(text) == text
+
+
+def test_strip_override_keeps_the_message():
+    router = floor_router(None)
+    assert router.strip_override("  @checker 猫が\n好きです ") == "猫が\n好きです"
+
+
+def test_unsure_decisions_fall_back_to_the_sensei():
+    decision = floor_router(RouteDecision("checker", "classifier", 0.3, "maybe a sentence")).route("x")
+    assert (decision.agent, decision.tier, decision.confidence) == ("sensei", "floor", 0.3)
+    assert decision.reason == "checker by classifier is below the 0.5 floor (maybe a sentence)"
+
+
+def test_sure_decisions_pass_the_floor():
+    decision = RouteDecision("checker", "embeddings", 0.5, "close")
+    assert floor_router(decision).route("x") == decision
+
+
+def test_the_router_knows_every_agent_for_the_override():
+    agents = load_router(routed_config(), FakeClient()).agents
+    assert {"sensei", "checker", "classifier", "demo/ping", "demo/pong"} <= agents
+
+
+async def test_the_turn_emits_the_decision_and_stores_the_message_without_the_override():
+    session = Session(routed_config(), client=ScriptedClient(CHECKED, "Perfect!"))
+    events = [event async for event in run_turn(session, "@checker kinou eiga wo mimashita")]
+    route = next(event for event in events if isinstance(event, ev.RouteDecided))
+    assert (route.agent, route.tier) == ("checker", "override")
+    assert type(events[1]).__name__ == "RouteDecided"
+    assert session.history[0] == {"role": "user", "content": "kinou eiga wo mimashita"}
+
+
+async def test_no_decision_event_when_routing_is_off():
+    session = Session(make_config(), client=FakeClient())
+    events = [event async for event in run_turn(session, "hello")]
+    assert not any(isinstance(event, ev.RouteDecided) for event in events)

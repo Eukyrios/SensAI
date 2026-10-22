@@ -10,7 +10,7 @@ from contextlib import aclosing
 
 from ..core.agent_spec import AgentSpec, spec_for
 from ..core.errors import ErrorKind
-from ..core.events import AgentRunFinished, Error, Event, HandoffEvent
+from ..core.events import AgentRunFinished, Error, Event, HandoffEvent, RouteDecided
 from ..core.handoff import Handoff
 from .context import build_context
 from .executor import AgentRun
@@ -42,6 +42,9 @@ class Orchestrator:
 
     async def events(self, question: str) -> AsyncIterator[Event]:
         first_agent = await self._first_agent(question)
+        if self.route is not None:
+            yield RouteDecided(turn_id=self.turn_id, agent=self.route.agent, tier=self.route.tier,
+                               confidence=self.route.confidence, reason=self.route.reason)
         async with aclosing(self._handoff_chain(first_agent)) as chain_events:
             async for event in chain_events:
                 yield event

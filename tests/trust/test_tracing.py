@@ -4,6 +4,7 @@ from sensai.core.events import (
     AgentRunFinished,
     AgentRunStarted,
     GuardrailTriggered,
+    RouteDecided,
     Thinking,
     Token,
     TurnStarted,
@@ -45,3 +46,13 @@ def test_turn_tracer_records_and_formats_execution():
     assert "[OK]" in trace_output
     assert "1 tokens" in trace_output
     assert "Guardrails triggered: no_pii" in trace_output
+
+
+def test_trace_shows_the_routing_decision_of_the_turn():
+    tracer = TurnTracer()
+    tracer.process_event(TurnStarted(turn_id="t1", session_id="s", user_input="kinou eiga wo mimashita"))
+    tracer.process_event(RouteDecided(turn_id="t1", agent="checker", tier="embeddings", confidence=0.654,
+                                      reason="closest example 'kare wa sensei desu'"))
+    assert "Routed to 'checker' by embeddings (0.65): closest example 'kare wa sensei desu'" in tracer.format_trace()
+    tracer.process_event(TurnStarted(turn_id="t2", session_id="s", user_input="hi"))
+    assert "Routed" not in tracer.format_trace()

@@ -23,6 +23,7 @@ embed_on_cpu = true          # keeps the GPU for the chat model, so it is never 
 embedding_threshold = 0.55   # tier 2 decides only above this similarity...
 embedding_margin = 0.05      # ...and this far ahead of the next route
 classifier = "classifier"    # tier 3 agent (agents/classifier.toml); empty = no classifier tier
+confidence_floor = 0.5       # a decision less sure than this goes to the fallback agent (sensei)
 
 [storage]
 db_path = "data/sensai.db"

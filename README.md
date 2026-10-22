@@ -441,6 +441,12 @@ Tier 3 runs only when both are unsure: the classifier agent (`agents/classifier.
 the sensei, so nothing is swapped) gets the route descriptions and answers `{agent, confidence, reason}`
 in JSON, with `agent` limited to the route names (~2 s). An invalid reply or an Ollama error decides
 nothing. When no tier decides, the default agent (`[agents] default`) answers.
+
+Starting a message with `@<agent>` (e.g. `@checker kinou eiga wo mimashita`) overrides every tier; the
+prefix is removed before the message is stored. A tier decision below `confidence_floor` (0.5) goes to
+the fallback agent (the sensei). Each decision is a `RouteDecided` event (agent, tier, confidence,
+reason): it is written to the event log and `/trace` shows it, e.g.
+`Routed to 'checker' by embeddings (0.57): closest example 'sumimasen, eki wa doko desu ka'`.
 Every decision records its tier, its confidence and why. `--agent <name>` turns routing off.
 
 ### Structured output (T5)
