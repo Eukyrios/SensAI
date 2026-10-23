@@ -14,7 +14,7 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | 🚧 ledger built, not used by an agent yet |
 | [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | 🚧 registry built, tools return placeholder data, MCP in layer 5 |
 | [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | 🚧 event log, `/metrics` and `/trace` built |
-| [A2](#a2--multi-agent-orchestration) | Multi-agent orchestration | ★★★ | 4–5 | A | 🚧 contracts built |
+| [A2](#a2--multi-agent-orchestration) | Multi-agent orchestration | ★★★ | 4–5 | A | ✅ handoffs, guards, fallback, three-tier router |
 | [A1](#a1--reasoning-loop-react) | Reasoning loop (ReAct) | ★★★ | 4 | C | ⏳ |
 | [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4–5 | B | ⏳ |
 | [R1](#r1--basic-rag) | Basic RAG | ★★ | 5 | C | ⏳ |
@@ -200,6 +200,27 @@ of the lesson.
 - [ ] Both cases are covered by automated tests that run without a real model.
 
 **Verified by:** guard tests with a looping and a failing agent; demo: the deliberate loop.
+
+### A2-3 · The right specialist without choosing one
+**As a** learner, **I want** each message to reach the agent that fits it without picking one myself,
+**so that** I can just type a sentence or a question and get the right kind of answer.
+
+- [x] A sentence in Japanese or romaji goes to the checker; an English question goes to the sensei.
+- [x] Obvious cases are routed by rules with no model call; unclear ones by embedding similarity, then by the classifier agent only when both are unsure.
+- [x] `/trace` and the event log show which tier decided, its confidence and why.
+
+**Verified by:** router tests for each tier; demo: "kinou eiga wo mimashita" routed by embeddings.
+
+### A2-4 · I can still choose, and an unsure router doesn't guess
+**As a** learner, **I want** to send a message to a given agent when I know what I want, and the
+router to fall back to the sensei when it isn't sure, **so that** a routing mistake never sends me
+to the wrong specialist.
+
+- [x] A message starting with `@checker` goes to the checker whatever the tiers say, and is stored without the prefix.
+- [x] A decision below the confidence floor (0.5) goes to the sensei, and the trace says why.
+- [x] `--agent <name>` turns routing off for the whole session.
+
+**Verified by:** override and floor tests; demo: "@checker I like anime".
 
 ---
 

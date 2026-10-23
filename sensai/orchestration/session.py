@@ -7,6 +7,7 @@ from ..core.ids import new_id
 from ..core.messages import Message
 from ..llm.ollama import OllamaClient
 from ..memory.repository import SessionRepository, open_repository
+from .router import Router, load_router
 
 
 class Session:
@@ -18,6 +19,7 @@ class Session:
         self.spec: AgentSpec = spec_for(config["agents"]["default"], config)
         ollama_settings = config["ollama"]
         self.client = client or OllamaClient(ollama_settings["url"], ollama_settings["timeout_s"])
+        self.router: Router | None = load_router(config, self.client)
         self.repo = repo or open_repository(config)
         self.profile: Message | None = self.repo.profile_system_message(config["memory"]["profile"])
         self.history: list[Message] = []

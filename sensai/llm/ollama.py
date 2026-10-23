@@ -72,11 +72,17 @@ class OllamaClient:
         if full_name not in self.list_models():
             raise _model_missing(model)
 
-    def embed(self, text: str, model: str) -> list[float]:
-        response = self._post("/api/embed", {"model": model, "input": text})
+    def embed(self, text: str, model: str, **options) -> list[float]:
+        return self.embed_many([text], model, **options)[0]
+
+    def embed_many(self, texts: list[str], model: str, **options) -> list[list[float]]:
+        payload = {"model": model, "input": texts, **({"options": options} if options else {})}
+        response = self._post("/api/embed", payload)
+        if response.status_code == 404:
+            raise _model_missing(model)
         if not response.ok:
             raise OllamaError("bad_request", f"Embedding error {response.status_code}: {response.text}")
-        return response.json()["embeddings"][0]
+        return response.json()["embeddings"]
 
     def capabilities(self, model: str) -> set[str]:
         return set(self._model_details(model).get("capabilities", []))

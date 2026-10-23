@@ -25,8 +25,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
     clean_text = guardrails.filter_input(learner_text, session.config)
     if clean_text != learner_text:
         yield turn.guardrail_redacted_event()
-    turn.save_question(clean_text)
-    async with aclosing(turn.answer()) as events:
+    turn.save_question(session.router.strip_override(clean_text) if session.router else clean_text)
+    async with aclosing(turn.answer(clean_text)) as events:
         async for event in events:
             yield event
     yield turn.finished_event()
@@ -42,9 +42,9 @@ class _Turn:
         self.question_id: str | None = None
         self.question_parent_id: str | None = None
 
-    async def answer(self) -> AsyncIterator[Event]:
+    async def answer(self, question: str) -> AsyncIterator[Event]:
         try:
-            async with aclosing(self.crew.events()) as crew_events:
+            async with aclosing(self.crew.events(question)) as crew_events:
                 async for event in crew_events:
                     yield event
         except (asyncio.CancelledError, KeyboardInterrupt):

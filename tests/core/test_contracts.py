@@ -28,6 +28,7 @@ def all_events(turn):
         ev.StructuredOutput(turn_id=turn, run_id="r1", data={"ok": True}),
         ev.ToolCall(turn_id=turn, run_id="r1", name="kanji", args={"k": "日"}),
         ev.ToolResult(turn_id=turn, run_id="r1", name="kanji", result="sun"),
+        ev.RouteDecided(turn_id=turn, agent="checker", tier="rules", confidence=1.0, reason="matched"),
         ev.HandoffEvent(turn_id=turn, handoff=h),
         ev.GuardrailTriggered(turn_id=turn, side="input", rule="pii", action="redact"),
         ev.Error(turn_id=turn, kind="connection", message="down"),
