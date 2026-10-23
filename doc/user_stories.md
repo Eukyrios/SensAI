@@ -230,9 +230,9 @@ to the wrong specialist.
 **As a** learner, **I want** the corrector to verify its correction with a tool before answering,
 **so that** I'm never taught a wrong correction.
 
-- [ ] The trace shows the steps: think, tool call, verification, answer.
-- [ ] When the verification contradicts the first idea, the final answer is revised.
-- [ ] The loop stops after a fixed number of steps and works on a context of about 800 tokens.
+- [x] The trace shows the steps: think, tool call, verification, answer.
+- [x] When the verification contradicts the first idea, the final answer is revised.
+- [x] The loop stops after a fixed number of steps and works on a context of about 800 tokens.
 
 **Verified by:** ReAct tests with scripted model outputs.
 
@@ -240,8 +240,8 @@ to the wrong specialist.
 **As a** learner, **I want** to see why a sentence was wrong, **so that** I learn the rule
 instead of memorising one fix.
 
-- [ ] The answer names the grammar rule behind the correction.
-- [ ] The reasoning steps can be expanded in the trace.
+- [x] The answer names the grammar rule behind the correction.
+- [x] The reasoning steps can be expanded in the trace.
 
 **Verified by:** demo: expand the corrector's run in `/trace`.
 
