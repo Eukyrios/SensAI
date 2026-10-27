@@ -31,11 +31,11 @@ def test_error_crud(ledger):
 
 
 def test_srs_card_defaults_and_list_filter(ledger):
-    cid = ledger.create("sensei", "srs_cards", front="猫", back="cat")
+    cid = ledger.create("curriculum", "srs_cards", front="猫", back="cat")
     row = ledger.read("srs_cards", cid)
     assert (row["ease"], row["interval_days"]) == (2.5, 0)
     assert row["due_date"]
-    ledger.create("sensei", "srs_cards", front="犬", back="dog")
+    ledger.create("curriculum", "srs_cards", front="犬", back="dog")
     assert [r["id"] for r in ledger.list("srs_cards", front="猫")] == [cid]
     assert len(ledger.list("srs_cards")) == 2
 
