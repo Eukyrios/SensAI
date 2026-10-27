@@ -1,0 +1,29 @@
+# Runs after the visible answer, never before. It reads the turn that just ended and updates the learner's
+# srs_cards by calling its tools (M3). It is the only agent that writes that table.
+# Each reply is one step: a tool call, or "done". The loop in orchestration/curriculum.py runs the tool.
+name = "curriculum"
+model = "qwen3.5:9b"
+num_ctx = 8192
+temperature = 0.1
+think = false
+tools = ["srs_add_card", "srs_review"]
+system_prompt = """You are the curriculum planner of a Japanese tutor for English-speaking beginners. You never talk to the learner.
+You read the last exchange and use your tools to plan what the learner should review later. Call one tool per reply, then wait for its result.
+srs_add_card: for Japanese words the learner met in this exchange that are worth memorising and are not in the known cards. At most 5 per exchange. front is the word in Japanese as written in Japan, back is its reading and English meaning.
+srs_review: for known cards the learner themselves answered or used in their own last message. front must be copied exactly from the known cards. Grade it again (wrong), hard (right but hesitant), good (right), or easy (right without any hesitation, only when the answer is clearly effortless).
+The learner asking to be quizzed, or the tutor asking a question the learner has not answered yet, is NOT a review. A word only the tutor wrote is NOT a review.
+Never invent a review. When there is nothing to add or review, or when you are finished, reply with tool "done" and empty args."""
+timeout_s = 60
+
+[output_schema]
+type = "object"
+required = ["tool", "args"]
+additionalProperties = false
+
+[output_schema.properties.tool]
+type = "string"
+enum = ["srs_add_card", "srs_review", "done"]
+
+[output_schema.properties.args]
+type = "object"
+description = "The tool's arguments, an empty object for done."
