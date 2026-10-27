@@ -324,9 +324,9 @@ level, **so that** examples match what I'm studying.
 **As a** learner, **I want** the most relevant explanation to reach the tutor, not a near-miss,
 **so that** answers are precise.
 
-- [ ] Retrieved chunks are reranked before entering the context.
-- [ ] Chunks below the relevance threshold are dropped, and their scores show in the trace.
-- [ ] On the same question, the reranked answer cites a better source than R1 did.
+- [x] Retrieved chunks are reranked before entering the context.
+- [x] Chunks below the relevance threshold are dropped, and their scores show in the trace.
+- [x] On the same question, the reranked answer cites a better source than R1 did.
 
 **Verified by:** reranking tests; demo: the same question with R1 and R2.
 
@@ -334,8 +334,8 @@ level, **so that** examples match what I'm studying.
 **As** an N5 learner, **I want** advanced (N1) material kept out of my answers,
 **so that** explanations stay within what I can understand.
 
-- [ ] Chunks are filtered by the learner's JLPT level from the profile.
-- [ ] Changing the profile level changes which chunks can be retrieved.
+- [x] Chunks are filtered by the learner's JLPT level from the profile.
+- [x] Changing the profile level changes which chunks can be retrieved.
 
 **Verified by:** filter tests with a mixed-level corpus.
 
