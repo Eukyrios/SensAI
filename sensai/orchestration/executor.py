@@ -39,7 +39,7 @@ class AgentRun:
 
     async def events(self, messages: list[Message]) -> AsyncIterator[Event]:
         yield AgentRunStarted(turn_id=self.turn_id, run_id=self.run_id, agent=self.spec.name,
-                              parent_run_id=self.parent_run_id)
+                              parent_run_id=self.parent_run_id, prompt_hash=self.spec.prompt_hash)
         async with aclosing(self._answer_safely(messages)) as answer_events:
             async for event in answer_events:
                 yield event

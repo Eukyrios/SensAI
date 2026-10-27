@@ -22,7 +22,7 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [R2](#r2--advanced-rag) | Advanced RAG | ★★★ | 6 | C | ⏳ |
 | [EV2](#ev2--content--privacy-guardrails) | Content & privacy guardrails | ★★★ | 6 | D | ⏳ |
 | [A5](#a5--persona) | Persona | ★ | 6 | A | ⏳ |
-| [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ⏳ |
+| [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ✅ built |
 | [X1](#x1--web-ui) | Web UI | ★ | 7 | A · D | ⏳ |
 | [EV4](#ev4--adversarial-testing) | Adversarial testing | ★★ | 7 | C | ⏳ |
 | [A6](#a6--semantic-cache) | Semantic cache (optional) | ★★ | 7 | B | ⏳ |
@@ -372,8 +372,8 @@ during a lesson, **so that** I can practise in the style I need without starting
 **As** the team, **we want** every agent run to record the version of the prompt it used,
 **so that** we can trace a bad answer back to the prompt that caused it.
 
-- [ ] Prompts are stored by content hash; editing a prompt creates a new hash.
-- [ ] Every `agent_runs` row stores the hash of its prompt.
+- [x] Prompts are stored by content hash; editing a prompt creates a new hash.
+- [x] Every `agent_runs` row stores the hash of its prompt.
 
 **Verified by:** versioning tests.
 
@@ -381,8 +381,8 @@ during a lesson, **so that** I can practise in the style I need without starting
 **As** the team, **we want** to compare two prompt versions on quality and latency and roll back,
 **so that** prompt changes are decisions backed by numbers.
 
-- [ ] Metrics can be grouped by prompt hash.
-- [ ] An agent can be pinned back to a previous prompt version by its hash.
+- [x] Metrics can be grouped by prompt hash.
+- [x] An agent can be pinned back to a previous prompt version by its hash.
 
 **Verified by:** metrics grouped by version after two runs.
 

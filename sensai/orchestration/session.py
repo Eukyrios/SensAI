@@ -6,6 +6,7 @@ from ..core.agent_spec import AgentSpec, spec_for
 from ..core.ids import new_id
 from ..core.messages import Message
 from ..llm.ollama import OllamaClient
+from ..memory.prompts import PromptStore
 from ..memory.repository import SessionRepository, open_repository
 
 
@@ -19,6 +20,7 @@ class Session:
         ollama_settings = config["ollama"]
         self.client = client or OllamaClient(ollama_settings["url"], ollama_settings["timeout_s"])
         self.repo = repo or open_repository(config)
+        self.prompts = PromptStore(self.repo.conn)
         self.profile: Message | None = self.repo.profile_system_message(config["memory"]["profile"])
         self.history: list[Message] = []
         self.leaf: str | None = None

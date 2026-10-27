@@ -182,7 +182,8 @@ in `config.toml` (`:memory:` for tests).
 
 - **Connection** (`db.py`): one `connect(path)` with `PRAGMA foreign_keys = ON`,
   `journal_mode = WAL`, and `row_factory = sqlite3.Row`.
-- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`, `003_ledger.sql`): `sessions` → `messages` (FK, cascade) → `turns`
+- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`, `003_ledger.sql`,
+  `004_prompt_versions.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
   per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
   Ids are **text uuids** from `sensai.core.ids.new_id()`, the same ids the events carry
@@ -193,8 +194,9 @@ in `config.toml` (`:memory:` for tests).
   and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
   place so a later layer can branch a message (edits/retries) or nest an agent run without a
   migration.
-  Today the chat writes `sessions` and `messages` (plus the profile and the ledger tables); `turns` and
-  `agent_runs` exist but nothing records them yet, so per-turn data lives in the event log for now.
+  The chat writes `sessions` and `messages` (plus the profile and the ledger tables). A turn whose
+  answer is kept also writes its `turns` row and one `agent_runs` row per agent that ran (`kind =
+  "agent"`, with `agent`, `prompt_hash` and `tokens`); a failed or stopped turn records neither.
 - **Migrations** (`migrate.py`): applies every `NNN_*.sql` file above the DB's
   `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
 - **Access pattern** (`repository.py`): a synchronous `SessionRepository`
@@ -261,7 +263,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ⏳ |
 | EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
 | A5 | Switchable personas mid-session | ★ | 6 | ⏳ |
-| A4 | Prompt versioning (content hash) | ★ | 6 | ⏳ |
+| A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ⏳ |
 | EV4 | Adversarial suite | ★★ | 7 | ⏳ |
 | A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
@@ -338,6 +340,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
 | | `ledger.py` | `errors`, `srs_cards`, `facts` with per-agent write ownership |
+| | `prompts.py` | `PromptStore`: prompts by content hash, pins, run metrics per prompt |
 | | *`compression.py`* | sliding-window summarisation (layer 5) |
 | | *`srs.py`* | spaced-repetition scheduling for the curriculum agent (layer 6) |
 | `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools |
@@ -433,6 +436,23 @@ data, or `Error(kind="invalid_output")` with the reply that failed.
   invalid, the turn fails loudly with `invalid_output`, and the question isn't kept in the history.
 - The schema guarantees the shape of the reply, not that it's right: checking the content is the
   job of the corrector's tools (A1, layer 4) and the judge (EV1, layer 5).
+
+### Prompt versioning (A4)
+
+Every agent's system prompt is versioned by its content: `AgentSpec.prompt_hash` is the first 12 hex
+digits of its SHA-256, so editing a prompt gives it a new hash and nothing has to be numbered by hand.
+
+- **Stored on first use.** Before each run, the orchestrator hands the spec to the `PromptStore`
+  (`memory/prompts.py`), which saves the prompt in the `prompts` table under its hash (agent, content,
+  date). `AgentRunStarted` carries the hash, so the JSONL log has it too.
+- **Recorded on every run.** When a turn's answer is kept, each of its agent runs is written to
+  `agent_runs` with its prompt hash, status, duration and tokens.
+- **Compared by numbers.** `session.prompts.metrics("sensei")` groups that agent's runs by prompt
+  hash: runs, successful runs, average duration (ms) and average tokens. `versions("sensei")` lists
+  its hashes, oldest first.
+- **Rolled back by hash.** `prompt_version = "<hash>"` in `agents/<name>.toml` pins the agent to
+  that stored prompt: it runs with it instead of the one in the file. An unknown hash fails the turn
+  with a `SpecError`.
 
 ## Organisation
 
