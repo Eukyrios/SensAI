@@ -112,7 +112,7 @@ the correction, the rule), **so that** my mistakes can be stored and reviewed la
 **As a** learner, **I want** the tutor to remember the mistakes I make, **so that** it brings them
 back until I've mastered them.
 
-- [ ] Writing a wrong sentence adds a row to `errors` (sentence, correction, error type).
+- [x] Writing a wrong sentence adds a row to `errors` (sentence, correction, error type), once the corrector verified it.
 - [ ] In the next session, the tutor brings up that exact mistake.
 - [ ] The agent writes these records itself through tools, not through hard-coded calls.
 
@@ -140,7 +140,9 @@ back until I've mastered them.
 - [x] `conjugate` returns the requested form (e.g. the て-form) and `kanji` returns readings and stroke count.
 - [x] Tools work both with native tool calling and with the prompted fallback, chosen from `/api/show`.
 
-**Verified by:** tool unit tests; demo: "what does 食べる mean, and its て-form?".
+**Verified by:** `tests/knowledge/test_japanese.py` (conjugator, dictionary, kanji), `tests/orchestration/test_tool_use.py`
+(native and prompted paths), `tests/orchestration/test_knowledge_turn.py` (sensei calls a tool in a turn);
+demo: "what does 食べる mean, and its て-form?" then `/trace`.
 
 ### T1-2 · Plug in an existing MCP server
 **As a** developer of the tutor, **I want** to connect a pre-existing MCP server next to our own tools,
@@ -149,8 +151,12 @@ back until I've mastered them.
 - [x] The external server's tools appear in the same tool list as our own.
 - [x] The model calls one of them during a turn and uses the result.
 - [x] If the server is unavailable, the turn continues without it and the trace says so.
+- [x] Our own tools are also served as an MCP server (`python -m sensai.knowledge.mcp_server`) and work through the same client.
+- [ ] Demo with the pre-existing server (`uvx mcp-server-time`, configured in `config.toml`): run once on the demo machine.
 
-**Verified by:** MCP client tests against a stub server; demo with the real server.
+**Verified by:** `tests/knowledge/test_mcp_stdio.py` (real stdio subprocess: our server and a fake one with pagination,
+ping, errors, timeout, crash); `tests/orchestration/test_knowledge_turn.py` (servers start once, unavailable ones
+reported); demo: the banner lists `[mcp] time: get_current_time, convert_time`, then "what time is it in Tokyo?".
 
 ---
 
@@ -234,7 +240,10 @@ to the wrong specialist.
 - [x] When the verification contradicts the first idea, the final answer is revised.
 - [x] The loop stops after a fixed number of steps and works on a context of about 800 tokens.
 
-**Verified by:** ReAct tests with scripted model outputs.
+**Verified by:** `tests/knowledge/test_react.py` (scripted outputs), `tests/orchestration/test_tool_use.py` (the
+corrector as an agent: steps streamed, invented Observation cut, final answer before any tool sent back);
+`tests/orchestration/test_knowledge_turn.py` (checker → corrector → sensei; only a verified correction is
+written to `errors`).
 
 ### A1-2 · Understand the rule, not just the fix
 **As a** learner, **I want** to see why a sentence was wrong, **so that** I learn the rule
@@ -243,7 +252,7 @@ instead of memorising one fix.
 - [x] The answer names the grammar rule behind the correction.
 - [x] The reasoning steps can be expanded in the trace.
 
-**Verified by:** demo: expand the corrector's run in `/trace`.
+**Verified by:** demo: "私は学校を行きます", then `/trace` (corrector run with its tool call and result).
 
 ---
 
@@ -281,7 +290,9 @@ trust them and read further.
 - [x] The retrieved chunks are visible in the trace.
 - [x] A question the corpus doesn't cover is answered without a fake citation.
 
-**Verified by:** retrieval tests on a fixture corpus; demo: "when do I use は vs が?".
+**Verified by:** `tests/knowledge/test_rag_and_mcp.py`, `tests/knowledge/test_retrieval.py`,
+`tests/orchestration/test_knowledge_turn.py` (passages in the sensei's prompt, a `Sources:` line when it cites
+nothing); demo: "when do I use は vs が?" then "how do I say cat?" (no source).
 
 ### R1-2 · Material at my level
 **As a** learner preparing the N4, **I want** explanations drawn from material tagged with my JLPT
@@ -291,7 +302,7 @@ level, **so that** examples match what I'm studying.
 - [x] Filtering on N4 returns only N4 (or lower) chunks.
 - [x] A newly ingested document becomes searchable without code changes.
 
-**Verified by:** ingest and filter tests.
+**Verified by:** ingest and filter tests; the corpus is `corpus/*.md` with one `# Title [N5]` header per section.
 
 ---
 
@@ -328,7 +339,8 @@ level, **so that** examples match what I'm studying.
 - [x] Chunks below the relevance threshold are dropped, and their scores show in the trace.
 - [x] On the same question, the reranked answer cites a better source than R1 did.
 
-**Verified by:** reranking tests; demo: the same question with R1 and R2.
+**Verified by:** `tests/knowledge/test_advanced_rag.py`, `tests/knowledge/test_retrieval.py` (model reranker,
+hybrid and lexical fallbacks); demo: `/trace` shows each candidate's cosine score → rerank score.
 
 ### R2-2 · No material above my level
 **As** an N5 learner, **I want** advanced (N1) material kept out of my answers,
@@ -337,7 +349,8 @@ level, **so that** examples match what I'm studying.
 - [x] Chunks are filtered by the learner's JLPT level from the profile.
 - [x] Changing the profile level changes which chunks can be retrieved.
 
-**Verified by:** filter tests with a mixed-level corpus.
+**Verified by:** filter tests with a mixed-level corpus; demo: profile "Level: N5", then "explain humble
+language" (N3 material) gets no passage.
 
 ---
 
