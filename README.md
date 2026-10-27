@@ -118,14 +118,14 @@ $ python -m sensai
 Sensai (qwen3.5:9b) — type /help for commands
 
 > how do I say cat?
-猫 (neko) [neh-koh] — cat.
+猫 (neko) — cat.
 370 prompt + 14 reply tokens · first token 10.3s · 11.1s
 
 > /model qwen3.5:4b
 Model: qwen3.5:4b (history kept)
 ```
 
-Every Japanese word or sentence comes as `characters (romaji) [pronunciation] — translation`
+Every Japanese word or sentence comes as `characters (romaji) — translation`
 (set in `agents/sensei.toml`). The first reply after starting waits for Ollama to load the model
 (here ~10 s); later replies start in under a second.
 
