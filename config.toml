@@ -22,6 +22,10 @@ db_path = "data/sensai.db"
 max_history_turns = 20
 profile = "default"          # learner profile injected into every prompt (learner_profiles.name)
 
+[curriculum]
+enabled = true              # the curriculum agent updates the srs_cards after each answer
+max_steps = 8                # tool calls it may make in one pass
+
 [guardrails]
 enabled = true
 
