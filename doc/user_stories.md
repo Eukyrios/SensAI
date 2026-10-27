@@ -146,9 +146,9 @@ back until I've mastered them.
 **As a** developer of the tutor, **I want** to connect a pre-existing MCP server next to our own tools,
 **so that** Sensai gains capabilities we didn't have to write.
 
-- [ ] The external server's tools appear in the same tool list as our own.
-- [ ] The model calls one of them during a turn and uses the result.
-- [ ] If the server is unavailable, the turn continues without it and the trace says so.
+- [x] The external server's tools appear in the same tool list as our own.
+- [x] The model calls one of them during a turn and uses the result.
+- [x] If the server is unavailable, the turn continues without it and the trace says so.
 
 **Verified by:** MCP client tests against a stub server; demo with the real server.
 
@@ -277,9 +277,9 @@ the start, **so that** long lessons don't lose their thread.
 **As a** learner, **I want** grammar explanations to cite where they come from, **so that** I can
 trust them and read further.
 
-- [ ] A grammar answer includes a citation (document and section) from the corpus.
-- [ ] The retrieved chunks are visible in the trace.
-- [ ] A question the corpus doesn't cover is answered without a fake citation.
+- [x] A grammar answer includes a citation (document and section) from the corpus.
+- [x] The retrieved chunks are visible in the trace.
+- [x] A question the corpus doesn't cover is answered without a fake citation.
 
 **Verified by:** retrieval tests on a fixture corpus; demo: "when do I use は vs が?".
 
@@ -287,9 +287,9 @@ trust them and read further.
 **As a** learner preparing the N4, **I want** explanations drawn from material tagged with my JLPT
 level, **so that** examples match what I'm studying.
 
-- [ ] Every chunk carries its JLPT level and source as metadata.
-- [ ] Filtering on N4 returns only N4 (or lower) chunks.
-- [ ] A newly ingested document becomes searchable without code changes.
+- [x] Every chunk carries its JLPT level and source as metadata.
+- [x] Filtering on N4 returns only N4 (or lower) chunks.
+- [x] A newly ingested document becomes searchable without code changes.
 
 **Verified by:** ingest and filter tests.
 
