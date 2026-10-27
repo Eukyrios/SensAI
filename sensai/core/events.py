@@ -70,6 +70,14 @@ class ToolResult(_Base):
 
 
 @dataclass(frozen=True, kw_only=True)
+class RouteDecided(_Base):
+    agent: str
+    tier: str
+    confidence: float
+    reason: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class HandoffEvent(_Base):
     handoff: Handoff
 
@@ -98,4 +106,4 @@ class TurnFinished(_Base):
 
 
 Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | StructuredOutput
-         | ToolCall | ToolResult | HandoffEvent | GuardrailTriggered | Error | TurnFinished)
+         | ToolCall | ToolResult | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished)

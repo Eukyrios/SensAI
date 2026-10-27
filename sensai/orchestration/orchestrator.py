@@ -1,6 +1,7 @@
-# Orchestrator: runs the agents of one learner turn. It starts with the session's agent and, while an
-# agent's validated output asks for a handoff, runs the agent it names with that output as payload.
-# Each run's prompt is resolved by the prompt store first: saved by hash, or swapped for its pinned version.
+# Orchestrator: runs the agents of one learner turn. It starts with the agent the router picks (the
+# session's agent when routing is off) and, while an agent's validated output asks for a handoff,
+# runs the agent it names with that output as payload. Each run's prompt is resolved by the prompt
+# store first: saved by hash, or swapped for its pinned version.
 # The guards check every handoff and give every run a deadline. When the chain fails, the fallback
 # agent (the sensei) answers instead, unless Ollama is down, the budget is spent or it already ran.
 
@@ -8,13 +9,14 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 
-from ..core.agent_spec import spec_for
+from ..core.agent_spec import AgentSpec, spec_for
 from ..core.errors import ErrorKind
-from ..core.events import AgentRunFinished, Error, Event, HandoffEvent
+from ..core.events import AgentRunFinished, Error, Event, HandoffEvent, RouteDecided
 from ..core.handoff import Handoff
 from .context import build_context
 from .executor import AgentRun
 from .guards import GuardStop, TurnGuards
+from .router import RouteDecision
 from .session import Session
 
 NO_FALLBACK: tuple[ErrorKind, ...] = ("connection", "turn_budget")
@@ -29,6 +31,7 @@ class Orchestrator:
         self.runs: list[AgentRun] = []
         self.handoffs: list[Handoff] = []
         self.stop_kind: ErrorKind | None = None
+        self.route: RouteDecision | None = None
 
     @property
     def ok(self) -> bool:
@@ -38,8 +41,12 @@ class Orchestrator:
     def answer_text(self) -> str:
         return self.runs[-1].text if self.runs else ""
 
-    async def events(self) -> AsyncIterator[Event]:
-        async with aclosing(self._handoff_chain()) as chain_events:
+    async def events(self, question: str) -> AsyncIterator[Event]:
+        first_agent = await self._first_agent(question)
+        if self.route is not None:
+            yield RouteDecided(turn_id=self.turn_id, agent=self.route.agent, tier=self.route.tier,
+                               confidence=self.route.confidence, reason=self.route.reason)
+        async with aclosing(self._handoff_chain(first_agent)) as chain_events:
             async for event in chain_events:
                 yield event
         fallback = self._fallback_run()
@@ -51,9 +58,17 @@ class Orchestrator:
             async for event in fallback_events:
                 yield event
 
-    async def _handoff_chain(self) -> AsyncIterator[Event]:
+    async def _first_agent(self, question: str) -> AgentSpec:
+        if self.session.router is None:
+            return self.session.spec
+        self.route = await asyncio.to_thread(self.session.router.route, question)
+        if self.route.agent == self.session.spec.name:
+            return self.session.spec
+        return spec_for(self.route.agent, self.session.config)
+
+    async def _handoff_chain(self, first_agent: AgentSpec) -> AsyncIterator[Event]:
         handoff = None
-        run = AgentRun(self.session.client, self.session.spec, self.turn_id)
+        run = AgentRun(self.session.client, first_agent, self.turn_id)
         while True:
             async with aclosing(self._guarded_run(run, handoff)) as run_events:
                 async for event in run_events:

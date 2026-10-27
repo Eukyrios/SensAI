@@ -42,8 +42,8 @@ HELP = "Commands: " + "  ".join(usage for usage, _ in COMMANDS.values())
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     with _exit_on_startup_error(args):
-        config = load_config(args.config, cli={"agents": {"model_override": args.model,
-                                                          "default": args.agent}})
+        config = load_config(args.config, cli={"agents": {"model_override": args.model, "default": args.agent},
+                                               "router": {"enabled": False if args.agent else None}})
         if args.list_sessions:
             list_sessions(config)
             return

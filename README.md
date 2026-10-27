@@ -48,18 +48,18 @@ source venv/bin/activate
 pip install -r requirements-dev.txt
 
 ollama pull qwen3.5:9b      # default model (see doc/benchmark.md); lighter option: qwen3.5:4b
-ollama pull bge-m3          # RAG embeddings (layer 5)
+ollama pull bge-m3          # embeddings: router tier 2 and RAG (layer 5)
 ```
 
 ## Usage
 
 ```bash
-python -m sensai                          # start the chat
+python -m sensai                          # start the chat; the router picks the agent for each message
 python -m sensai --model qwen3.5:4b       # use another model for every agent
 python -m sensai --config my-config.toml  # use another config file
 python -m sensai --list-sessions          # list the stored sessions (id, date, model, title)
 python -m sensai --session <id>           # resume a stored session
-python -m sensai --agent checker          # start with another agent: the checker corrects, then hands off to the sensei
+python -m sensai --agent checker          # always start with this agent (turns the router off)
 python -m sensai --agent demo/ping        # infinite-loop demo: ping and pong hand off forever until the guards stop them
 ```
 
@@ -173,7 +173,17 @@ The `[memory]` section controls what the chat remembers:
 [memory]
 max_history_turns = 20   # turns of history sent to the model
 profile = "default"      # name of the learner profile injected into every prompt
+
+[memory.summary]
+enabled = true           # fold older turns into a running summary
+trigger = 0.7            # share of the history budget that starts a summary
+keep_recent = 6          # newest messages kept as they are
 ```
+
+When the history passes `trigger`, the model summarises the older turns; the summary is added to
+the system prompt (`orchestration/summary.py`) and those turns leave the window. If Ollama fails
+while summarising, the turn goes on with the plain window. The summary lives in the session and is
+rebuilt after `Session.resume`.
 
 ## Persistence
 
@@ -304,11 +314,13 @@ sensai/
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
   surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
 agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the sensei),
+                  classifier (router tier 3),
                   demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
+routing.toml      routes: which agent starts a turn, with the router's rules and examples
 ```
 
 Runtime files (`data/*.db`, `logs/`) are created on first run and never committed.
@@ -335,7 +347,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `context.py` | per-agent context: providers (profile, handoff note) and history fitted to `num_ctx` |
 | | `stream.py` | thread bridge from the blocking Ollama stream to asyncio |
 | | `structured.py` | structured output: schema in the prompt, validation, one repair |
-| | *`router.py`* | rules → embeddings → classifier cascade (layer 5) |
+| | `router.py` | picks the agent that starts a turn: rules, embeddings, then the classifier agent |
 | `memory/` | `db.py` | SQLite connection: WAL, foreign keys, `:memory:` for tests |
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
@@ -418,6 +430,27 @@ When the chain fails (an agent error, invalid output, a timeout or a guard), the
 is no fallback when Ollama is down, when the turn budget is spent, or when the sensei already ran.
 `python -m sensai --agent demo/ping` shows it: ping and pong hand off to each other, the cycle guard
 stops them, the sensei answers, and `/trace` lists the three runs.
+
+### Routing (A2)
+
+Without `--agent`, the `Router` (`orchestration/router.py`) picks the agent that starts each turn from
+the routes in `routing.toml`, tried in file order. Tier 1 matches each route's regex rules: a message
+written only in Japanese, or a request to check next to some Japanese, goes to the checker; an English
+question goes to the sensei. Tier 2 handles what the rules leave alone (e.g. a sentence in romaji): it
+embeds the message with `bge-m3` and picks the route whose closest example is at least
+`embedding_threshold` similar (0.55) and `embedding_margin` (0.05) ahead of the next route. It runs on
+the CPU (~0.2 s per message) so the chat model keeps the GPU; without `bge-m3` the tier stays silent.
+Tier 3 runs only when both are unsure: the classifier agent (`agents/classifier.toml`, same model as
+the sensei, so nothing is swapped) gets the route descriptions and answers `{agent, confidence, reason}`
+in JSON, with `agent` limited to the route names (~2 s). An invalid reply or an Ollama error decides
+nothing. When no tier decides, the default agent (`[agents] default`) answers.
+
+Starting a message with `@<agent>` (e.g. `@checker kinou eiga wo mimashita`) overrides every tier; the
+prefix is removed before the message is stored. A tier decision below `confidence_floor` (0.5) goes to
+the fallback agent (the sensei). Each decision is a `RouteDecided` event (agent, tier, confidence,
+reason): it is written to the event log and `/trace` shows it, e.g.
+`Routed to 'checker' by embeddings (0.57): closest example 'sumimasen, eki wa doko desu ka'`.
+Every decision records its tier, its confidence and why. `--agent <name>` turns routing off.
 
 ### Structured output (T5)
 

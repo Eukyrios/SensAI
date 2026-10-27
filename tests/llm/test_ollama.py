@@ -102,6 +102,19 @@ def test_embed(monkeypatch, client):
     assert client.embed("x", "e") == [0.1, 0.2]
 
 
+def test_embed_many_sends_every_text_and_the_options(monkeypatch, client):
+    sent = patch_post(monkeypatch, FakeResponse(payload={"embeddings": [[1.0], [2.0]]}))
+    assert client.embed_many(["a", "b"], "bge-m3", num_gpu=0) == [[1.0], [2.0]]
+    assert sent["json"] == {"model": "bge-m3", "input": ["a", "b"], "options": {"num_gpu": 0}}
+
+
+def test_embed_missing_model(monkeypatch, client):
+    patch_post(monkeypatch, FakeResponse(status=404, text="not found"))
+    with pytest.raises(OllamaError) as error:
+        client.embed("x", "bge-m3")
+    assert error.value.kind == "model_missing"
+
+
 def test_embed_error(monkeypatch, client):
     patch_post(monkeypatch, FakeResponse(status=500, text="boom"))
     with pytest.raises(OllamaError, match="Embedding"):
