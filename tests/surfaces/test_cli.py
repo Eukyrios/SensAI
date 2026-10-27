@@ -147,6 +147,25 @@ def test_slash_command_model_switch(capsys):
     assert "Model: qwen3.5:4b" in capsys.readouterr().out
 
 
+def test_persona_command_lists_and_marks_the_active_one(capsys):
+    session = Session(make_config(), client=FakeClient())
+    assert run_command(session, "/persona") is True
+    out = capsys.readouterr().out
+    assert " * teacher " in out and "   casual " in out and "Strict teacher" in out
+
+
+def test_persona_command_switches(capsys):
+    session = Session(make_config(), client=FakeClient())
+    run_command(session, "/persona casual")
+    assert session.persona.name == "casual" and "Persona: casual (history kept)" in capsys.readouterr().out
+
+
+def test_persona_command_reports_an_unknown_persona(capsys):
+    session = Session(make_config(), client=FakeClient())
+    run_command(session, "/persona nobody")
+    assert "unknown persona 'nobody'" in capsys.readouterr().err and session.persona.name == "teacher"
+
+
 def test_slash_command_unknown(capsys):
     session = MagicMock()
     assert run_command(session, "/unknown") is True
@@ -515,8 +534,17 @@ def test_agent_flag_selects_the_agent(monkeypatch, capsys):
     monkeypatch.setattr(cli, "plain_chat", plain_chat)
     monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient()))
     cli.main(["--agent", "checker"])
-    spec = plain_chat.calls[0][0].spec
-    assert spec.name == "checker" and spec.output_schema["required"][0] == "sentence"
+    session = plain_chat.calls[0][0]
+    assert session.spec.name == "checker" and session.spec.output_schema["required"][0] == "sentence"
+    assert session.router is None
+
+
+def test_without_agent_flag_the_router_picks_the_agent(monkeypatch):
+    plain_chat = Recorder()
+    monkeypatch.setattr(cli, "plain_chat", plain_chat)
+    monkeypatch.setattr(cli, "Session", partial(Session, client=FakeClient()))
+    cli.main([])
+    assert plain_chat.calls[0][0].router is not None
 
 
 def test_unknown_agent_flag_exits(monkeypatch):

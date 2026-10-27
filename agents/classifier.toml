@@ -1,0 +1,10 @@
+# Router tier 3: picks the route of a learner message that the rules and embeddings left undecided.
+# The router appends the routes and the JSON schema to this prompt; same model as the sensei, so no swap.
+name = "classifier"
+model = "qwen3.5:9b"
+num_ctx = 2048
+temperature = 0
+think = false
+system_prompt = """You route a message from an English-speaking learner of Japanese to the agent that should answer it.
+Pick exactly one of the routes below, from what the learner wants. Give your confidence between 0 and 1: below 0.5 when the message could fit several routes or none."""
+timeout_s = 20

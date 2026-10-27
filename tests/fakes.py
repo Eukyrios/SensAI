@@ -5,7 +5,7 @@ from sensai.llm.ollama import OllamaError
 
 
 def make_config(**sections):
-    return load_config(env={}, cli={"curriculum": {"enabled": False}, **sections})
+    return load_config(env={}, cli={"router": {"enabled": False}, "curriculum": {"enabled": False}, **sections})
 
 
 class FakeClient:
@@ -31,6 +31,12 @@ class FakeClient:
             raise self.startup_error
         if model not in self.models:
             raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
+
+    def embed(self, text, model, **options):
+        return self.embed_many([text], model, **options)[0]
+
+    def embed_many(self, texts, model, **options):
+        raise OllamaError("model_missing", f"Model '{model}' not found (run `ollama pull {model}`)")
 
     def chat_stream(self, model, messages, **options):
         self.calls.append((model, messages, options))

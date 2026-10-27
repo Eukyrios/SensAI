@@ -4,9 +4,12 @@ from dataclasses import replace
 
 from ..core.agent_spec import AgentSpec, spec_for
 from ..core.ids import new_id
+from ..core.persona import Persona, persona_for
 from ..core.messages import Message
 from ..llm.ollama import OllamaClient
+from ..memory.prompts import PromptStore
 from ..memory.repository import SessionRepository, open_repository
+from .router import Router, load_router
 
 
 class Session:
@@ -18,11 +21,16 @@ class Session:
         self.spec: AgentSpec = spec_for(config["agents"]["default"], config)
         ollama_settings = config["ollama"]
         self.client = client or OllamaClient(ollama_settings["url"], ollama_settings["timeout_s"])
+        self.router: Router | None = load_router(config, self.client)
         self.repo = repo or open_repository(config)
+        self.prompts = PromptStore(self.repo.conn)
+        self.persona: Persona = persona_for(config["personas"]["default"], config)
         self.profile: Message | None = self.repo.profile_system_message(config["memory"]["profile"])
         self.history: list[Message] = []
         self.leaf: str | None = None
         self.stored = False
+        self.summary = ""
+        self.summarized = 0
 
     @classmethod
     def resume(cls, config: dict, session_id: str, client: OllamaClient | None = None,
@@ -44,6 +52,9 @@ class Session:
         self.repo.discard_leaf(message_id)
         self.leaf = parent_id
 
+    def set_persona(self, name: str) -> None:
+        self.persona = persona_for(name, self.config)
+
     def set_model(self, model: str) -> None:
         self.client.require_model(model)
         think = self.spec.think and self.can_think(model)
@@ -62,3 +73,5 @@ class Session:
         self.id = new_id()
         self.leaf = None
         self.stored = False
+        self.summary = ""
+        self.summarized = 0

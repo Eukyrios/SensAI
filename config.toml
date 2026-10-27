@@ -15,6 +15,20 @@ model_override = ""          # set by --model; empty = use each agent's own mode
 max_hops = 3                 # handoffs allowed in one turn
 turn_budget_s = 180          # time for every agent of one turn together; each agent also has its timeout_s
 
+[router]
+enabled = true               # pick the agent that starts each turn; --agent turns it off
+routes = "routing.toml"      # routes with their tier 1 rules and tier 2 examples
+embed_model = "bge-m3"       # tier 2 model; empty = no embedding tier
+embed_on_cpu = true          # keeps the GPU for the chat model, so it is never swapped out
+embedding_threshold = 0.55   # tier 2 decides only above this similarity...
+embedding_margin = 0.05      # ...and this far ahead of the next route
+classifier = "classifier"    # tier 3 agent (agents/classifier.toml); empty = no classifier tier
+confidence_floor = 0.5       # a decision less sure than this goes to the fallback agent (sensei)
+
+[personas]
+dir = "personas"             # one TOML per persona: name, description, tone, scope
+default = "teacher"          # persona at startup; /persona <name> switches it mid-session
+
 [storage]
 db_path = "data/sensai.db"
 
@@ -22,8 +36,13 @@ db_path = "data/sensai.db"
 max_history_turns = 20
 profile = "default"          # learner profile injected into every prompt (learner_profiles.name)
 
+[memory.summary]
+enabled = true               # fold older turns into a running summary
+trigger = 0.7                # when the unsummarised history passes this share of the history budget
+keep_recent = 6              # newest messages never summarised
+
 [curriculum]
-enabled = true              # the curriculum agent updates the srs_cards after each answer
+enabled = true               # the curriculum agent updates the srs_cards after each answer
 max_steps = 8                # tool calls it may make in one pass
 
 [guardrails]

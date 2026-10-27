@@ -25,6 +25,7 @@ class AgentRunStarted(_Base):
     run_id: str
     agent: str
     parent_run_id: str | None = None
+    prompt_hash: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -69,6 +70,14 @@ class ToolResult(_Base):
 
 
 @dataclass(frozen=True, kw_only=True)
+class RouteDecided(_Base):
+    agent: str
+    tier: str
+    confidence: float
+    reason: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class HandoffEvent(_Base):
     handoff: Handoff
 
@@ -97,4 +106,4 @@ class TurnFinished(_Base):
 
 
 Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | StructuredOutput
-         | ToolCall | ToolResult | HandoffEvent | GuardrailTriggered | Error | TurnFinished)
+         | ToolCall | ToolResult | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished)

@@ -1,0 +1,50 @@
+# Routes: which agent starts a learner turn. Tier 1 tries each route's rules in file order and the
+# first regex that matches wins; tier 2 compares the message with the examples, tier 3 asks a
+# classifier with the descriptions. With no decision, the default agent ([agents] default) answers.
+
+[[routes]]
+agent = "checker"
+description = "The learner wrote a Japanese sentence and wants it checked or corrected."
+rules = [
+    # only Japanese text (kana, kanji, Japanese punctuation): a practice sentence
+    '^[\s\u3000-\u303f\u3040-\u30ff\u4e00-\u9fff\uff01-\uff60]+$',
+    # an explicit request to check, next to some Japanese
+    '(?is)^(?=.*[\u3040-\u30ff\u4e00-\u9fff]).*\b(check|correct|mistakes?|is (this|it) (right|ok|okay))\b',
+]
+examples = [
+    "私は学校を行きます",
+    "昨日、友達と映画を見ました",
+    "Is this correct: 昨日、映画を見ました",
+    "Can you check my sentence? 猫が好きです",
+    "Did I make a mistake here: 本を読みました",
+    "watashi wa sushi wo tabemasu, is it right?",
+    "ashita tomodachi to kouen ni ikimasu",
+    "kare wa sensei desu",
+    "boku no namae wa Tom desu",
+    "sumimasen, eki wa doko desu ka",
+    "please correct: watashi wa nihongo wo benkyou shimasu",
+    "here is my sentence: kyou wa samui desu",
+]
+
+[[routes]]
+agent = "sensei"
+description = "A question about Japanese: vocabulary, grammar, readings, translation, culture or study advice."
+rules = [
+    # an English question or request
+    '(?i)^\s*(what|how|why|when|where|which|who|explain|translate|teach|tell me|give me)\b',
+    '\?\s*$',
+]
+examples = [
+    "How do you say good morning?",
+    "What is the difference between wa and ga?",
+    "Explain the te-form",
+    "Translate: I would like a coffee",
+    "What does 飛行機 mean?",
+    "Teach me the days of the week",
+    "Give me some words about the weather",
+    "How do I count objects in Japanese?",
+    "What are the polite forms of verbs?",
+    "Tell me about honorific language",
+    "I want to learn hiragana",
+    "Any tips to remember kanji?",
+]

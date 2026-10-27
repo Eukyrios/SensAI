@@ -1,6 +1,8 @@
 # AgentSpec: one agent loaded from agents/<name>.toml, with its model, num_ctx and output schema.
 # An agent that lists `handoffs` gets a `handoff` field in its output schema to pass the turn on.
+# Its system prompt is versioned by content hash; `prompt_version` pins it to an earlier hash.
 
+import hashlib
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -11,6 +13,7 @@ from .config import load_toml, resolve
 from .handoff import handoff_schema
 
 REQUIRED = ("name", "model", "num_ctx")
+PROMPT_HASH_LENGTH = 12
 
 
 class SpecError(ValueError):
@@ -29,6 +32,15 @@ class AgentSpec:
     handoffs: tuple[str, ...] = ()
     output_schema: dict | None = None
     timeout_s: int = 60
+    prompt_version: str = ""
+
+    @property
+    def prompt_hash(self) -> str:
+        return prompt_hash(self.system_prompt)
+
+
+def prompt_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:PROMPT_HASH_LENGTH]
 
 
 def load_spec(path: str | Path) -> AgentSpec:
