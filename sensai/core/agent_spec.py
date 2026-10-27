@@ -30,9 +30,13 @@ class AgentSpec:
     think: bool = False
     tools: tuple[str, ...] = ()
     handoffs: tuple[str, ...] = ()
+    handoff_required: bool = False
     output_schema: dict | None = None
     timeout_s: int = 60
     prompt_version: str = ""
+    strategy: str = ""
+    max_steps: int = 3
+    rag: bool = False
 
     @property
     def prompt_hash(self) -> str:
@@ -71,7 +75,7 @@ def _with_handoff_field(spec: AgentSpec, path: str | Path) -> AgentSpec:
     if spec.output_schema is None or spec.output_schema.get("type") != "object":
         raise SpecError(f"{path}: an agent with handoffs needs an object output_schema")
     schema = dict(spec.output_schema)
-    schema["properties"] = {**schema.get("properties", {}), "handoff": handoff_schema(spec.handoffs)}
+    schema["properties"] = {**schema.get("properties", {}), "handoff": handoff_schema(spec.handoffs, spec.handoff_required)}
     schema["required"] = [*schema.get("required", []), "handoff"]
     return replace(spec, output_schema=schema)
 
