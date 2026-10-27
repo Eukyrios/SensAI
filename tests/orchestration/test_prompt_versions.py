@@ -23,6 +23,10 @@ def agent_runs(session):
     return session.repo.conn.execute("SELECT * FROM agent_runs ORDER BY rowid").fetchall()
 
 
+def sent_spec(session):
+    return session.persona.apply(session.spec)
+
+
 def with_prompt(session, system_prompt):
     session.spec = replace(session.spec, system_prompt=system_prompt)
 
@@ -32,7 +36,7 @@ async def test_a_kept_turn_records_its_run_with_the_prompt_hash():
     events = await collect(session)
     (run,) = agent_runs(session)
     assert (run["agent"], run["kind"], run["status"]) == ("sensei", "agent", "ok")
-    assert run["prompt_hash"] == session.spec.prompt_hash
+    assert run["prompt_hash"] == sent_spec(session).prompt_hash
     assert (run["duration_ms"], run["tokens"], run["output"]) == (2, 40, "Konnichiwa")
     assert run["turn_id"] == events[0].turn_id
 
@@ -49,14 +53,14 @@ async def test_a_kept_turn_records_the_turn():
 async def test_the_prompt_is_stored_by_its_hash():
     session = Session(make_config(), client=FakeClient())
     await collect(session)
-    assert session.prompts.get("sensei", session.spec.prompt_hash) == session.spec.system_prompt
+    assert session.prompts.get("sensei", sent_spec(session).prompt_hash) == sent_spec(session).system_prompt
 
 
 async def test_run_started_event_carries_the_prompt_hash():
     session = Session(make_config(), client=FakeClient())
     events = await collect(session)
     started = next(event for event in events if isinstance(event, ev.AgentRunStarted))
-    assert started.prompt_hash == session.spec.prompt_hash
+    assert started.prompt_hash == sent_spec(session).prompt_hash
 
 
 async def test_editing_the_prompt_records_a_new_hash():
@@ -81,7 +85,7 @@ async def test_metrics_compare_two_prompt_versions():
 
 async def test_a_pinned_agent_runs_its_previous_prompt():
     session = Session(make_config(), client=FakeClient())
-    original_prompt, original_hash = session.spec.system_prompt, session.spec.prompt_hash
+    original_prompt, original_hash = sent_spec(session).system_prompt, sent_spec(session).prompt_hash
     await collect(session)
     with_prompt(session, "Answer in one sentence.")
     session.spec = replace(session.spec, prompt_version=original_hash)

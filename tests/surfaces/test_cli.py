@@ -147,6 +147,25 @@ def test_slash_command_model_switch(capsys):
     assert "Model: qwen3.5:4b" in capsys.readouterr().out
 
 
+def test_persona_command_lists_and_marks_the_active_one(capsys):
+    session = Session(make_config(), client=FakeClient())
+    assert run_command(session, "/persona") is True
+    out = capsys.readouterr().out
+    assert " * teacher " in out and "   casual " in out and "Strict teacher" in out
+
+
+def test_persona_command_switches(capsys):
+    session = Session(make_config(), client=FakeClient())
+    run_command(session, "/persona casual")
+    assert session.persona.name == "casual" and "Persona: casual (history kept)" in capsys.readouterr().out
+
+
+def test_persona_command_reports_an_unknown_persona(capsys):
+    session = Session(make_config(), client=FakeClient())
+    run_command(session, "/persona nobody")
+    assert "unknown persona 'nobody'" in capsys.readouterr().err and session.persona.name == "teacher"
+
+
 def test_slash_command_unknown(capsys):
     session = MagicMock()
     assert run_command(session, "/unknown") is True

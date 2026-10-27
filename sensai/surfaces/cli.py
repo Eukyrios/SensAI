@@ -14,6 +14,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from ..core.agent_spec import SpecError
+from ..core.persona import persona_for, persona_names
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
 from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, HandoffEvent,
@@ -30,6 +31,7 @@ from ..trust.tracing import TurnTracer
 COMMANDS = {
     "/help": ("/help", "list the commands"),
     "/model": ("/model [name]", "show the current and installed models, or switch model (history kept)"),
+    "/persona": ("/persona [name]", "show the personas, or switch persona (history kept)"),
     "/think": ("/think [on|off]", "show whether the model reasons before answering, or switch it"),
     "/metrics": ("/metrics", "show token usage, speed, and cost estimation for the last turn"),
     "/trace": ("/trace", "show the agent runs of the last turn"),
@@ -448,6 +450,24 @@ def _switch_model(session: Session, model: str) -> None:
         print(f"Thinking turned off: {model} can't reason before answering.")
 
 
+def _show_or_switch_persona(session: Session, argument: str, renderer: CLIRenderer | None) -> None:
+    try:
+        if argument:
+            session.set_persona(argument)
+            print(f"Persona: {session.persona.name} (history kept)")
+        else:
+            _show_personas(session)
+    except SpecError as error:
+        print(f"[error] {error}", file=sys.stderr)
+
+
+def _show_personas(session: Session) -> None:
+    for name in persona_names(session.config):
+        persona = persona_for(name, session.config)
+        marker = "*" if name == session.persona.name else " "
+        print(f" {marker} {name:<10} {persona.description}")
+
+
 def _show_models(session: Session) -> None:
     installed = ", ".join(session.client.list_models()) or "none"
     print(f"Model: {session.spec.model}\nInstalled: {installed}")
@@ -455,6 +475,7 @@ def _show_models(session: Session) -> None:
 
 COMMAND_HANDLERS = {
     "/help": _show_help,
+    "/persona": _show_or_switch_persona,
     "/reset": _reset_history,
     "/metrics": _show_metrics,
     "/trace": _show_trace,

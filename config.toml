@@ -25,6 +25,10 @@ embedding_margin = 0.05      # ...and this far ahead of the next route
 classifier = "classifier"    # tier 3 agent (agents/classifier.toml); empty = no classifier tier
 confidence_floor = 0.5       # a decision less sure than this goes to the fallback agent (sensei)
 
+[personas]
+dir = "personas"             # one TOML per persona: name, description, tone, scope
+default = "teacher"          # persona at startup; /persona <name> switches it mid-session
+
 [storage]
 db_path = "data/sensai.db"
 

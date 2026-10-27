@@ -80,6 +80,8 @@ exact `ollama pull` command if it isn't.
 | Command | What it does |
 |---------|--------------|
 | `/help` | list the commands |
+| `/persona` | list the personas (the active one marked `*`) |
+| `/persona <name>` | switch persona mid-session; the history is kept |
 | `/model` | show the current model and the installed ones |
 | `/model <name>` | switch model mid-session; the history is kept |
 | `/think` | show whether the model reasons before answering |
@@ -272,7 +274,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | EV1 | Judge: claim-by-claim verification | ★★★ | 5 | ⏳ |
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ⏳ |
 | EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
-| A5 | Switchable personas mid-session | ★ | 6 | ⏳ |
+| A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ⏳ |
 | EV4 | Adversarial suite | ★★ | 7 | ⏳ |
@@ -321,6 +323,7 @@ tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
 routing.toml      routes: which agent starts a turn, with the router's rules and examples
+personas/         one TOML per persona: teacher (default), strict, casual
 ```
 
 Runtime files (`data/*.db`, `logs/`) are created on first run and never committed.
@@ -337,6 +340,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `messages.py` | chat message format sent to the model |
 | | `errors.py` | error categories (`ErrorKind`) |
 | | `config.py` | layered config: defaults < `config.toml` < env < CLI |
+| | `persona.py` | personas from `personas/<name>.toml`, applied to the learner-facing agents |
 | | `ids.py` | uuid ids for sessions, turns and runs |
 | `llm/` | `ollama.py` | chat streaming, embeddings, `/api/tags`, `/api/show` |
 | `orchestration/` | `session.py` | `Session`: active agent, history, profile, client |
@@ -469,6 +473,21 @@ data, or `Error(kind="invalid_output")` with the reply that failed.
   invalid, the turn fails loudly with `invalid_output`, and the question isn't kept in the history.
 - The schema guarantees the shape of the reply, not that it's right: checking the content is the
   job of the corrector's tools (A1, layer 4) and the judge (EV1, layer 5).
+
+### Personas (A5)
+
+A persona is the voice of the agents that talk to the learner: one TOML file in `personas/` with a
+`name`, a `description`, a `tone` and a `scope`. Three ship with the project: `teacher` (the default,
+`[personas] default`), `strict` (every mistake corrected, polite Japanese only) and `casual` (a
+friendly conversation partner using plain forms). Adding a file adds a persona, with no code change.
+
+- **Applied to every learner-facing run.** Before each run, the orchestrator appends the session's
+  persona to the system prompt of agents without an `output_schema` (the sensei); the checker and the
+  classifier keep their exact prompts.
+- **Switched mid-session.** `/persona casual` changes the persona for the next turns; the history and
+  the session stay as they are, so the conversation carries on in the new tone.
+- **Versioned like any prompt.** The persona is part of the prompt, so each persona gets its own
+  prompt hash (A4) and their runs can be compared with `session.prompts.metrics("sensei")`.
 
 ### Prompt versioning (A4)
 

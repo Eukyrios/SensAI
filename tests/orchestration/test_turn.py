@@ -86,7 +86,7 @@ async def test_history_and_model_call(session):
     spec = session.spec
     assert model == spec.model
     assert options == {"num_ctx": spec.num_ctx, "temperature": spec.temperature, "think": spec.think}
-    assert messages == [{"role": "system", "content": spec.system_prompt},
+    assert messages == [{"role": "system", "content": session.persona.apply(spec).system_prompt},
                         {"role": "user", "content": "hello"}]
 
 
