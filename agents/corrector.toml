@@ -1,0 +1,7 @@
+[agent]
+name = "corrector"
+model = "qwen3.5:9b"
+num_ctx = 800
+max_steps = 3
+temperature = 0.1
+description = "ReAct specialist that verifies Japanese grammar, conjugations, and kanji with tools before correcting."
