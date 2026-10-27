@@ -5,7 +5,7 @@ from sensai.llm.ollama import OllamaError
 
 
 def make_config(**sections):
-    return load_config(env={}, cli={"router": {"enabled": False}, **sections})
+    return load_config(env={}, cli={"router": {"enabled": False}, "curriculum": {"enabled": False}, **sections})
 
 
 class FakeClient:

@@ -17,7 +17,7 @@ REQUIRED = {
     "srs_cards": ("front", "back"),
     "facts": ("key", "value"),
 }
-DEFAULT_OWNERS = {"errors": "corrector", "srs_cards": "sensei", "facts": "sensei"}
+DEFAULT_OWNERS = {"errors": "corrector", "srs_cards": "curriculum", "facts": "sensei"}
 
 
 class WriteNotAllowed(PermissionError):

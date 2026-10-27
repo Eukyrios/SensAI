@@ -1,6 +1,7 @@
 # run_turn(): one learner turn as a stream of events. It saves the question, lets the orchestrator
 # run the agents, then keeps the last agent's answer, with the turn and its agent runs, or rolls the
-# question back.
+# question back. Once the answer and TurnFinished are out, the curriculum agent updates the learner's
+# srs_cards.
 
 import asyncio
 import time
@@ -11,6 +12,7 @@ from ..core.events import Error, Event, GuardrailTriggered, TurnFinished, TurnSt
 from ..core.ids import new_id
 from ..llm.ollama import ChatStats
 from ..trust import guardrails
+from .curriculum import run_curriculum
 from .executor import AgentRun, sum_stats
 from .orchestrator import Orchestrator
 from .session import Session
@@ -32,6 +34,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
         async for event in events:
             yield event
     yield turn.finished_event()
+    if turn.crew.ok:
+        await run_curriculum(session, turn.turn_id)
 
 
 class _Turn:

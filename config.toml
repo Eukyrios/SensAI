@@ -41,6 +41,10 @@ enabled = true               # fold older turns into a running summary
 trigger = 0.7                # when the unsummarised history passes this share of the history budget
 keep_recent = 6              # newest messages never summarised
 
+[curriculum]
+enabled = true               # the curriculum agent updates the srs_cards after each answer
+max_steps = 8                # tool calls it may make in one pass
+
 [guardrails]
 enabled = true
 

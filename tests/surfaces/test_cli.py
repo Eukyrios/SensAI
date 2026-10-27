@@ -336,6 +336,7 @@ from sensai.llm.ollama import OllamaError
 
 
 def run(monkeypatch, inputs, argv=(), client=None):
+    monkeypatch.setenv("SENSAI_CURRICULUM__ENABLED", "false")
     monkeypatch.setattr("builtins.input", ScriptedInput(inputs))
     if client is not None:
         monkeypatch.setattr(cli, "Session", partial(Session, client=client))

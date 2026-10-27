@@ -249,11 +249,15 @@ in `config.toml` (`:memory:` for tests).
 - `create / read / list / update / delete`, with a whitelist of writable columns per table (an agent
   cannot set an id or a timestamp).
 - **Write ownership is enforced in the data layer**: each table has one owning agent
-  (default: `errors` → `corrector`, `srs_cards` and `facts` → `sensei`, overridable with
+  (default: `errors` → `corrector`, `srs_cards` → `curriculum`, `facts` → `sensei`, overridable with
   `Ledger(conn, owners=...)`). Any other agent gets `WriteNotAllowed`; reads are open to everyone.
 - `ledger.tools(agent)` returns four tools (`ledger_create`, `ledger_read`, `ledger_update`,
   `ledger_delete`) bound to that agent, so the model drives the CRUD itself and the ownership check
-  still applies. They are not registered on an agent yet; scheduling the SRS cards is a later task.
+  still applies. They are not registered on an agent yet.
+- **SRS cards** are scheduled by `memory/srs.py` (SM-2: a right answer pushes the next review further,
+  a wrong one brings it back to tomorrow). The `curriculum` agent (`agents/curriculum.toml`) runs after the answer and `TurnFinished` are
+  out, never before. It calls its own tools `srs_add_card` and `srs_review` (one validated step per reply,
+  at most `[curriculum] max_steps`) to add new cards and grade the ones the learner practised. A failure there is swallowed. Turn it off with `[curriculum] enabled = false`.
 
 ## Features
 
@@ -358,7 +362,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `ledger.py` | `errors`, `srs_cards`, `facts` with per-agent write ownership |
 | | `prompts.py` | `PromptStore`: prompts by content hash, pins, run metrics per prompt |
 | | *`compression.py`* | sliding-window summarisation (layer 5) |
-| | *`srs.py`* | spaced-repetition scheduling for the curriculum agent (layer 6) |
+| | `srs.py` | SM-2 spaced-repetition scheduling of the `srs_cards` |
 | `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools |
 | | *`mcp/`* | MCP client, JSON-RPC 2.0 over stdio (layer 5) |
 | | *`rag/`* | ingest, JLPT-tagged chunks, retrieval, reranking (layers 5–6) |

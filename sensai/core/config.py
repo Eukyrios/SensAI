@@ -26,6 +26,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "storage": {"db_path": "data/sensai.db"},
     "memory": {"max_history_turns": 20, "profile": "default",
                "summary": {"enabled": True, "trigger": 0.7, "keep_recent": 6}},
+    "curriculum": {"enabled": True, "max_steps": 8},
     "guardrails": {"enabled": True},
     "logging": {"level": "INFO", "path": "logs/sensai.jsonl"},
 }
