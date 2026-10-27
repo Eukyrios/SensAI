@@ -80,6 +80,8 @@ exact `ollama pull` command if it isn't.
 | Command | What it does |
 |---------|--------------|
 | `/help` | list the commands |
+| `/persona` | list the personas (the active one marked `*`) |
+| `/persona <name>` | switch persona mid-session; the history is kept |
 | `/model` | show the current model and the installed ones |
 | `/model <name>` | switch model mid-session; the history is kept |
 | `/think` | show whether the model reasons before answering |
@@ -116,14 +118,14 @@ $ python -m sensai
 Sensai (qwen3.5:9b) — type /help for commands
 
 > how do I say cat?
-猫 (neko) [neh-koh] — cat.
+猫 (neko) — cat.
 370 prompt + 14 reply tokens · first token 10.3s · 11.1s
 
 > /model qwen3.5:4b
 Model: qwen3.5:4b (history kept)
 ```
 
-Every Japanese word or sentence comes as `characters (romaji) [pronunciation] — translation`
+Every Japanese word or sentence comes as `characters (romaji) — translation`
 (set in `agents/sensei.toml`). The first reply after starting waits for Ollama to load the model
 (here ~10 s); later replies start in under a second.
 
@@ -192,7 +194,8 @@ in `config.toml` (`:memory:` for tests).
 
 - **Connection** (`db.py`): one `connect(path)` with `PRAGMA foreign_keys = ON`,
   `journal_mode = WAL`, and `row_factory = sqlite3.Row`.
-- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`, `003_ledger.sql`): `sessions` → `messages` (FK, cascade) → `turns`
+- **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`, `003_ledger.sql`,
+  `004_prompt_versions.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
   per sub-step of a turn — `rag`, `guardrail`, a tool call — with `status` and `duration_ms`).
   Ids are **text uuids** from `sensai.core.ids.new_id()`, the same ids the events carry
@@ -203,8 +206,9 @@ in `config.toml` (`:memory:` for tests).
   and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
   place so a later layer can branch a message (edits/retries) or nest an agent run without a
   migration.
-  Today the chat writes `sessions` and `messages` (plus the profile and the ledger tables); `turns` and
-  `agent_runs` exist but nothing records them yet, so per-turn data lives in the event log for now.
+  The chat writes `sessions` and `messages` (plus the profile and the ledger tables). A turn whose
+  answer is kept also writes its `turns` row and one `agent_runs` row per agent that ran (`kind =
+  "agent"`, with `agent`, `prompt_hash` and `tokens`); a failed or stopped turn records neither.
 - **Migrations** (`migrate.py`): applies every `NNN_*.sql` file above the DB's
   `PRAGMA user_version`, in order; re-running is a no-op once every file is applied.
 - **Access pattern** (`repository.py`): a synchronous `SessionRepository`
@@ -270,8 +274,8 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | EV1 | Judge: claim-by-claim verification | ★★★ | 5 | ⏳ |
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ⏳ |
 | EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
-| A5 | Switchable personas mid-session | ★ | 6 | ⏳ |
-| A4 | Prompt versioning (content hash) | ★ | 6 | ⏳ |
+| A5 | Switchable personas mid-session | ★ | 6 | ✅ |
+| A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ⏳ |
 | EV4 | Adversarial suite | ★★ | 7 | ⏳ |
 | A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
@@ -319,6 +323,7 @@ tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
 routing.toml      routes: which agent starts a turn, with the router's rules and examples
+personas/         one TOML per persona: teacher (default), strict, casual
 ```
 
 Runtime files (`data/*.db`, `logs/`) are created on first run and never committed.
@@ -335,6 +340,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `messages.py` | chat message format sent to the model |
 | | `errors.py` | error categories (`ErrorKind`) |
 | | `config.py` | layered config: defaults < `config.toml` < env < CLI |
+| | `persona.py` | personas from `personas/<name>.toml`, applied to the learner-facing agents |
 | | `ids.py` | uuid ids for sessions, turns and runs |
 | `llm/` | `ollama.py` | chat streaming, embeddings, `/api/tags`, `/api/show` |
 | `orchestration/` | `session.py` | `Session`: active agent, history, profile, client |
@@ -350,6 +356,7 @@ Built modules, then planned ones with the layer that adds them.
 | | `migrations/`, `migrate.py` | numbered SQL migrations, tracked by `PRAGMA user_version` |
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
 | | `ledger.py` | `errors`, `srs_cards`, `facts` with per-agent write ownership |
+| | `prompts.py` | `PromptStore`: prompts by content hash, pins, run metrics per prompt |
 | | *`compression.py`* | sliding-window summarisation (layer 5) |
 | | *`srs.py`* | spaced-repetition scheduling for the curriculum agent (layer 6) |
 | `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools |
@@ -466,6 +473,38 @@ data, or `Error(kind="invalid_output")` with the reply that failed.
   invalid, the turn fails loudly with `invalid_output`, and the question isn't kept in the history.
 - The schema guarantees the shape of the reply, not that it's right: checking the content is the
   job of the corrector's tools (A1, layer 4) and the judge (EV1, layer 5).
+
+### Personas (A5)
+
+A persona is the voice of the agents that talk to the learner: one TOML file in `personas/` with a
+`name`, a `description`, a `tone` and a `scope`. Three ship with the project: `teacher` (the default,
+`[personas] default`), `strict` (every mistake corrected, polite Japanese only) and `casual` (a
+friendly conversation partner using plain forms). Adding a file adds a persona, with no code change.
+
+- **Applied to every learner-facing run.** Before each run, the orchestrator appends the session's
+  persona to the system prompt of agents without an `output_schema` (the sensei); the checker and the
+  classifier keep their exact prompts.
+- **Switched mid-session.** `/persona casual` changes the persona for the next turns; the history and
+  the session stay as they are, so the conversation carries on in the new tone.
+- **Versioned like any prompt.** The persona is part of the prompt, so each persona gets its own
+  prompt hash (A4) and their runs can be compared with `session.prompts.metrics("sensei")`.
+
+### Prompt versioning (A4)
+
+Every agent's system prompt is versioned by its content: `AgentSpec.prompt_hash` is the first 12 hex
+digits of its SHA-256, so editing a prompt gives it a new hash and nothing has to be numbered by hand.
+
+- **Stored on first use.** Before each run, the orchestrator hands the spec to the `PromptStore`
+  (`memory/prompts.py`), which saves the prompt in the `prompts` table under its hash (agent, content,
+  date). `AgentRunStarted` carries the hash, so the JSONL log has it too.
+- **Recorded on every run.** When a turn's answer is kept, each of its agent runs is written to
+  `agent_runs` with its prompt hash, status, duration and tokens.
+- **Compared by numbers.** `session.prompts.metrics("sensei")` groups that agent's runs by prompt
+  hash: runs, successful runs, average duration (ms) and average tokens. `versions("sensei")` lists
+  its hashes, oldest first.
+- **Rolled back by hash.** `prompt_version = "<hash>"` in `agents/<name>.toml` pins the agent to
+  that stored prompt: it runs with it instead of the one in the file. An unknown hash fails the turn
+  with a `SpecError`.
 
 ## Organisation
 

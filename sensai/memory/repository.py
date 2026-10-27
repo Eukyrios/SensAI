@@ -125,13 +125,16 @@ class SessionRepository:
     def record_agent_run(self, turn_id: str, kind: str, status: str,
                          input: str | None = None, output: str | None = None,
                          duration_ms: int | None = None,
-                         parent_run_id: str | None = None, *, run_id: str | None = None) -> str:
+                         parent_run_id: str | None = None, *, run_id: str | None = None,
+                         agent: str | None = None, prompt_hash: str | None = None,
+                         tokens: int | None = None) -> str:
         run_id = run_id or new_id()
         with self.conn:
             self.conn.execute(
                 "INSERT INTO agent_runs (id, turn_id, kind, input, output, status, duration_ms, "
-                "parent_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (run_id, turn_id, kind, input, output, status, duration_ms, parent_run_id),
+                "parent_run_id, agent, prompt_hash, tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (run_id, turn_id, kind, input, output, status, duration_ms, parent_run_id,
+                 agent, prompt_hash, tokens),
             )
         return run_id
 

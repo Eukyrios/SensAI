@@ -21,8 +21,8 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [EV1](#ev1--automated-eval--hallucination-detection) | Eval & hallucination detection | ★★★ | 5 | D | ⏳ |
 | [R2](#r2--advanced-rag) | Advanced RAG | ★★★ | 6 | C | ⏳ |
 | [EV2](#ev2--content--privacy-guardrails) | Content & privacy guardrails | ★★★ | 6 | D | ⏳ |
-| [A5](#a5--persona) | Persona | ★ | 6 | A | ⏳ |
-| [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ⏳ |
+| [A5](#a5--persona) | Persona | ★ | 6 | A | ✅ built |
+| [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ✅ built |
 | [X1](#x1--web-ui) | Web UI | ★ | 7 | A · D | ⏳ |
 | [EV4](#ev4--adversarial-testing) | Adversarial testing | ★★ | 7 | C | ⏳ |
 | [A6](#a6--semantic-cache) | Semantic cache (optional) | ★★ | 7 | B | ⏳ |
@@ -371,8 +371,8 @@ the model sees it, **so that** practising with real sentences never leaks my dat
 **As a** learner, **I want** to switch between a strict teacher and a casual conversation partner
 during a lesson, **so that** I can practise in the style I need without starting over.
 
-- [ ] `/persona casual` switches the persona; the earlier messages stay in the context.
-- [ ] The tone of the next reply changes.
+- [x] `/persona casual` switches the persona; the earlier messages stay in the context.
+- [x] The tone of the next reply changes.
 
 **Verified by:** persona tests; demo: switch mid-conversation.
 
@@ -380,8 +380,8 @@ during a lesson, **so that** I can practise in the style I need without starting
 **As a** teacher, **I want** to create a persona by adding a configuration file,
 **so that** the same system can serve different classes without code changes.
 
-- [ ] A new file in the personas folder appears in `/persona` without any code change.
-- [ ] Its name, tone and scope are applied to the replies.
+- [x] A new file in the personas folder appears in `/persona` without any code change.
+- [x] Its name, tone and scope are applied to the replies.
 
 **Verified by:** a test loading a persona from a temporary folder.
 
@@ -393,8 +393,8 @@ during a lesson, **so that** I can practise in the style I need without starting
 **As** the team, **we want** every agent run to record the version of the prompt it used,
 **so that** we can trace a bad answer back to the prompt that caused it.
 
-- [ ] Prompts are stored by content hash; editing a prompt creates a new hash.
-- [ ] Every `agent_runs` row stores the hash of its prompt.
+- [x] Prompts are stored by content hash; editing a prompt creates a new hash.
+- [x] Every `agent_runs` row stores the hash of its prompt.
 
 **Verified by:** versioning tests.
 
@@ -402,8 +402,8 @@ during a lesson, **so that** I can practise in the style I need without starting
 **As** the team, **we want** to compare two prompt versions on quality and latency and roll back,
 **so that** prompt changes are decisions backed by numbers.
 
-- [ ] Metrics can be grouped by prompt hash.
-- [ ] An agent can be pinned back to a previous prompt version by its hash.
+- [x] Metrics can be grouped by prompt hash.
+- [x] An agent can be pinned back to a previous prompt version by its hash.
 
 **Verified by:** metrics grouped by version after two runs.
 

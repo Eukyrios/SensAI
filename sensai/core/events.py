@@ -25,6 +25,7 @@ class AgentRunStarted(_Base):
     run_id: str
     agent: str
     parent_run_id: str | None = None
+    prompt_hash: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

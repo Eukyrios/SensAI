@@ -1,6 +1,7 @@
 # Orchestrator: runs the agents of one learner turn. It starts with the agent the router picks (the
 # session's agent when routing is off) and, while an agent's validated output asks for a handoff,
-# runs the agent it names with that output as payload.
+# runs the agent it names with that output as payload. Each run gets the session's persona, then its
+# prompt is resolved by the prompt store: saved by hash, or swapped for its pinned version.
 # The guards check every handoff and give every run a deadline. When the chain fails, the fallback
 # agent (the sensei) answers instead, unless Ollama is down, the budget is spent or it already ran.
 
@@ -83,6 +84,7 @@ class Orchestrator:
             run = self._receiving_run(handoff)
 
     async def _guarded_run(self, run: AgentRun, handoff: Handoff | None) -> AsyncIterator[Event]:
+        run.spec = self.session.prompts.resolve(self.session.persona.apply(run.spec))
         self.runs.append(run)
         deadline, stop = self.guards.run_deadline(run.spec)
         async with aclosing(run.events(build_context(self.session, run.spec, handoff))) as run_events:
