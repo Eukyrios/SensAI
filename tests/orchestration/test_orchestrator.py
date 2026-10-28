@@ -3,6 +3,7 @@
 import json
 
 from sensai.core import events as ev
+from sensai.core.config import resolve
 from sensai.llm.ollama import ChatStats, OllamaError
 from sensai.orchestration.session import Session
 from sensai.orchestration.turn import run_turn
@@ -72,8 +73,11 @@ async def test_the_last_agent_answer_is_saved():
                                {"role": "assistant", "content": EXPLANATION}]
 
 
-async def test_no_handoff_ends_the_turn_with_the_first_agent():
-    session = checker_session(ScriptedClient(RIGHT))
+async def test_no_handoff_ends_the_turn_with_the_first_agent(tmp_path):
+    for name in ("checker", "sensei"):
+        spec = resolve(f"agents/{name}.toml").read_text(encoding="utf-8")
+        (tmp_path / f"{name}.toml").write_text(spec.replace("handoff_required = true\n", ""), encoding="utf-8")
+    session = Session(make_config(agents={"default": "checker", "dir": str(tmp_path)}), client=ScriptedClient(RIGHT))
     events = await collect(session)
     assert kinds(events).count("AgentRunStarted") == 1 and "HandoffEvent" not in kinds(events)
     assert session.history[-1] == {"role": "assistant", "content": RIGHT}

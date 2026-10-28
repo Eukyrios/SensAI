@@ -295,3 +295,24 @@ def test_no_format_by_default(monkeypatch, client):
     sent = patch_post(monkeypatch, FakeResponse(lines=[FINAL]))
     list(client.chat_stream("m", [], **OPTS))
     assert "format" not in sent["json"]
+
+
+def test_chat_stream_sends_tools_and_yields_native_tool_calls(monkeypatch, client):
+    lines = [{"message": {"content": "", "tool_calls": [
+                 {"function": {"name": "dictionary", "arguments": {"word": "猫"}}},
+                 {"function": {"name": "kanji", "arguments": '{"character": "猫"}'}},
+                 {"function": {"name": "bad", "arguments": "not json"}},
+                 {"function": {"name": "list", "arguments": "[1]"}}]}},
+             {"message": {"content": ""}, "done": True}]
+    sent = patch_post(monkeypatch, FakeResponse(lines=lines))
+    tools = [{"type": "function", "function": {"name": "dictionary"}}]
+    pieces = list(client.chat_stream("m", [], tools=tools, **OPTS))
+    assert sent["json"]["tools"] == tools
+    assert pieces == [ollama.ToolRequest("dictionary", {"word": "猫"}), ollama.ToolRequest("kanji", {"character": "猫"}),
+                      ollama.ToolRequest("bad", {}), ollama.ToolRequest("list", {})]
+
+
+def test_chat_stream_sends_no_tools_key_without_tools(monkeypatch, client):
+    sent = patch_post(monkeypatch, FakeResponse(lines=[{"message": {"content": "a"}, "done": True}]))
+    list(client.chat_stream("m", [], **OPTS))
+    assert "tools" not in sent["json"]
