@@ -7,14 +7,12 @@ from sensai.knowledge.tools import ToolRegistry, registry as own_registry
 SERVER_INFO = {"name": "sensai-japanese", "version": "1.0"}
 SUPPORTED_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
-
 class MCPServer:
 
     def __init__(self, tools: ToolRegistry):
         self.tools = tools
 
     def handle(self, message: dict) -> dict | None:
-        """The response to one JSON-RPC message, or None for a notification."""
         method = message.get("method")
         if "id" not in message or method is None:
             return None
@@ -49,20 +47,16 @@ class MCPServer:
         text, ok = self.tools.run(name, params.get("arguments") or {})
         return {"content": [{"type": "text", "text": text}], "isError": not ok}
 
-
 def _error(request_id: Any, code: int, message: str) -> dict:
     return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
-
 
 class _RPCError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
         self.code = code
 
-
 def _tool_spec(tool: Any) -> dict:
     return {"name": tool.name, "description": tool.description, "inputSchema": tool.parameters}
-
 
 def serve(stdin: TextIO, stdout: TextIO, server: MCPServer | None = None) -> None:
     server = server or MCPServer(own_registry)
@@ -78,7 +72,6 @@ def serve(stdin: TextIO, stdout: TextIO, server: MCPServer | None = None) -> Non
         if response is not None:
             stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             stdout.flush()
-
 
 if __name__ == "__main__":
     sys.stdin.reconfigure(encoding="utf-8")
