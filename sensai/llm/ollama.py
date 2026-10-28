@@ -1,4 +1,5 @@
-# Ollama HTTP transport: chat streaming, telemetry, embeddings, /api/tags and /api/show.
+# Ollama HTTP transport: chat streaming (text, reasoning and native tool calls), telemetry, embeddings,
+# /api/tags and /api/show.
 
 import json
 from collections.abc import Iterator
@@ -20,6 +21,10 @@ class OllamaError(RuntimeError):
 class Thought:
     text: str
 
+@dataclass(frozen=True)
+class ToolRequest:
+    name: str
+    arguments: dict
 
 @dataclass(frozen=True)
 class ChatStats:
@@ -52,8 +57,11 @@ class OllamaClient:
 
     def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
                     temperature: float = 0.3, think: bool = False,
-                    format: dict | str | None = None) -> Iterator[str | Thought]:
+                    format: dict | str | None = None,
+                    tools: list[dict] | None = None) -> Iterator[str | Thought | ToolRequest]:
         payload = _chat_payload(model, messages, num_ctx, temperature, think, format)
+        if tools:
+            payload["tools"] = tools
         response = self._post("/api/chat", payload, stream=True)
         try:
             _raise_for_chat_status(response, model)
@@ -143,7 +151,7 @@ def _raise_for_chat_status(response, model: str) -> None:
         raise OllamaError("stream", f"Ollama error {response.status_code}: {response.text}")
 
 
-def _read_reply(response) -> Iterator[str | Thought]:
+def _read_reply(response) -> Iterator[str | Thought | ToolRequest]:
     for chunk in _stream_chunks(response):
         if "error" in chunk:
             raise OllamaError("stream", chunk["error"])
@@ -171,11 +179,25 @@ def _parse_chunk(line: bytes) -> dict:
         raise OllamaError("stream", "malformed json") from None
 
 
-def _chunk_pieces(message: dict) -> Iterator[str | Thought]:
+def _chunk_pieces(message: dict) -> Iterator[str | Thought | ToolRequest]:
     if message.get("thinking"):
         yield Thought(message["thinking"])
     if message.get("content"):
         yield message["content"]
+    for call in message.get("tool_calls") or ():
+        function = call.get("function", {})
+        arguments = function.get("arguments") or {}
+        if isinstance(arguments, str):
+            arguments = _parse_arguments(arguments)
+        yield ToolRequest(function.get("name", ""), arguments)
+
+
+def _parse_arguments(text: str) -> dict:
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _model_missing(model: str) -> OllamaError:
