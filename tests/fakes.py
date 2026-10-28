@@ -5,7 +5,10 @@ from sensai.llm.ollama import OllamaError
 
 
 def make_config(**sections):
-    return load_config(env={}, cli={"router": {"enabled": False}, "curriculum": {"enabled": False}, **sections})
+    base = {"router": {"enabled": False}, "curriculum": {"enabled": False}, "rag": {"enabled": False},
+            "tools": {"enabled": False}, "mcp": {"enabled": False, "servers": []}}
+    merged = {section: {**base.get(section, {}), **values} for section, values in sections.items()}
+    return load_config(env={}, cli={**base, **merged})
 
 
 class FakeClient:
