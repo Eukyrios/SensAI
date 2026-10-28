@@ -9,24 +9,31 @@ from sensai.knowledge.tools import registry as default_registry
 
 REACT_DEFAULT_NUM_CTX = 800
 REACT_DEFAULT_MAX_STEPS = 3
+REACT_MAX_NUM_CTX = 1024
 
 REACT_SYSTEM_PROMPT = """You are a strict Japanese grammar corrector using a ReAct loop.
-Before giving a correction, you MUST verify verb forms, vocabulary, or kanji using a tool.
+Before giving a correction, you MUST verify a verb form, a word or a particle note with a tool.
 
 {tools_instructions}
 
-Follow this exact sequence:
-Step 1 - Thought & Tool Call:
-Thought: <your initial hypothesis about the mistake>
+Step 1, write exactly two lines and stop:
+Thought: <your hypothesis about the mistake>
 Action: {{"tool": "<tool_name>", "args": {{...}}}}
 
-Step 2 - After receiving Observation:
-Verification: <compare the Observation with your initial Thought; explicitly note if your first idea was wrong and needs revision>
-Rule: <name the exact Japanese grammar rule behind the correction>
-Final Answer: <corrected Japanese sentence> (<romaji>) — <clear explanation in English citing the grammar rule>
+Step 2, after the Observation, write exactly these lines:
+Verification: <compare the Observation with your Thought>
+Hypothesis: <wrong if the Observation showed your Thought was mistaken, confirmed if it agreed>
+Rule: <the grammar rule behind the correction, in one English sentence>
+Correction: <the corrected Japanese sentence only, no romaji>
+Final Answer: <corrected sentence> (<romaji>) — <short English explanation citing the rule>
 """
+MUST_VERIFY = "You must verify with a tool first. Reply with 'Thought:' and 'Action:' only."
+AFTER_OBSERVATION = ("Observation: {observation}\nNow write 'Verification:', 'Hypothesis:', 'Rule:', "
+                     "'Correction:' and 'Final Answer:'.")
+MAX_OBSERVATION_CHARS = 400
 
-_FIELD_STOP = r"(?=\n(?:Thought|Action|Verification|Rule|Final Answer):|\Z)"
+_LABELS = "Thought|Action|Verification|Hypothesis|Revised|Rule|Correction|Final Answer|Observation"
+_FIELD_STOP = rf"(?=\n\W*(?:{_LABELS})\W*:|\Z)"
 
 
 @dataclass
@@ -51,6 +58,16 @@ class ReActResult:
     revised: bool = False
     stopped_by_max_steps: bool = False
     num_ctx_used: int = REACT_DEFAULT_NUM_CTX
+    stats: list[Any] = field(default_factory=list)
+
+    @property
+    def tools_used(self) -> list[str]:
+        return [step.tool for step in self.steps if step.step == "tool_call" and step.tool]
+
+    @property
+    def verified(self) -> bool:
+        return not self.stopped_by_max_steps and any(
+            step.step == "tool_call" and observation_ok(step.observation or "") for step in self.steps)
 
     def to_trace_dict(self) -> dict[str, Any]:
         return {
@@ -64,20 +81,36 @@ class ReActResult:
             "steps": [s.to_dict() for s in self.steps],
         }
 
+def observation_ok(observation: str, need_found: bool = True) -> bool:
+    if observation.startswith("Error"):
+        return False
+    try:
+        data = json.loads(observation)
+    except json.JSONDecodeError:
+        return True
+    if not isinstance(data, dict):
+        return True
+    return "error" not in data and not (need_found and data.get("found") is False)
 
 # --- Fonctions de parsing ---
+def _clean(text: str) -> str:
+    return re.sub(rf"\*+\s*({_LABELS})\s*:\s*\*+", r"\1:", text)
 
 def _extract_field(label: str, text: str) -> str | None:
-    match = re.search(rf"{label}:\s*(.+?){_FIELD_STOP}", text, re.DOTALL)
-    return match.group(1).strip() if match else None
+    match = re.search(rf"{label}:[ \t]*(.*?){_FIELD_STOP}", text, re.DOTALL)
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
 
 
 def _parse_action_block(text: str, thought: str | None, verification: str | None) -> dict[str, Any]:
-    action_match = re.search(r"Action:\s*(\{.*\})", text, re.DOTALL)
-    if not action_match:
+    action_match = re.search(r"Action:", text)
+    start = text.find("{", action_match.end()) if action_match else -1
+    if start < 0:
         return {"type": "error", "message": "Malformed JSON in Action.", "thought": thought}
     try:
-        action_json = json.loads(action_match.group(1))
+        action_json, _end = json.JSONDecoder().raw_decode(text, start)
     except json.JSONDecodeError:
         return {"type": "error", "message": "Malformed JSON in Action.", "thought": thought}
 
@@ -93,20 +126,25 @@ def _parse_action_block(text: str, thought: str | None, verification: str | None
 
 
 def parse_react_output(text: str) -> dict[str, Any]:
+    text = _clean(text)
     thought = _extract_field("Thought", text)
     verification = _extract_field("Verification", text)
     rule = _extract_field("Rule", text)
+    revised = _extract_field("Hypothesis", text) or _extract_field("Revised", text)
+    correction = _extract_field("Correction", text)
 
     if "Action:" in text:
         return _parse_action_block(text, thought, verification)
 
-    final_match = re.search(r"Final Answer:\s*(.+)", text, re.DOTALL)
+    final_match = re.search(r"Final Answer:\s*(\S.*)", text, re.DOTALL)
     if final_match:
         return {
             "type": "final_answer",
             "thought": thought,
             "verification": verification,
             "rule": rule,
+            "revised": revised,
+            "correction": correction,
             "content": final_match.group(1).strip(),
         }
 
@@ -115,10 +153,20 @@ def parse_react_output(text: str) -> dict[str, Any]:
 
 # --- Helpers d'analyse et de communication ---
 
-def _consume_client_reply(client: Any, model: str, messages: list[dict[str, str]], num_ctx: int) -> str:
+def _consume_client_reply(client: Any, model: str, messages: list[dict[str, str]], num_ctx: int,
+                          stats: list[Any] | None = None) -> str:
     if hasattr(client, "chat_stream"):
         stream = client.chat_stream(model, messages, num_ctx=num_ctx, temperature=0.1)
-        return "".join(chunk for chunk in stream if isinstance(chunk, str))
+        pieces: list[str] = []
+        while True:
+            try:
+                chunk = next(stream)
+            except StopIteration as end:
+                if stats is not None and end.value is not None:
+                    stats.append(end.value)
+                return "".join(pieces)
+            if isinstance(chunk, str):
+                pieces.append(chunk)
     if hasattr(client, "chat"):
         return client.chat(model, messages, num_ctx=num_ctx, temperature=0.1)
     raise TypeError("Client must implement 'chat_stream' or 'chat'.")
@@ -128,7 +176,7 @@ def _detect_revision(verification_text: str | None) -> bool:
     if not verification_text:
         return False
     lowered = verification_text.lower()
-    markers = ("contradict", "wrong", "incorrect", "revised", "instead", "mistake", "exception", "not ")
+    markers = ("contradict", "wrong", "incorrect", "revise", "my first idea was", "exception")
     return any(marker in lowered for marker in markers)
 
 
@@ -156,6 +204,7 @@ def _handle_action_step(
     tool_name = parsed["action"]["tool"]
     tool_args = parsed["action"]["args"]
     observation = tool_registry.execute(tool_name, tool_args)
+    shown = observation if len(observation) <= MAX_OBSERVATION_CHARS else observation[:MAX_OBSERVATION_CHARS] + "…"
 
     record_step(ReActStep(
         step="tool_call",
@@ -167,7 +216,7 @@ def _handle_action_step(
     messages.append({"role": "assistant", "content": raw_output})
     messages.append({
         "role": "user",
-        "content": f"Observation: {observation}\nNow write 'Verification:', 'Rule:', and 'Final Answer:'.",
+        "content": AFTER_OBSERVATION.format(observation=shown),
     })
 
 
@@ -185,6 +234,8 @@ def _build_final_result(
         record_step(ReActStep(step="verification", content="Verified final answer against tool observation."))
 
     correction, rule = _extract_correction_and_rule(parsed["content"], parsed.get("rule"))
+    if parsed.get("correction"):
+        correction = _without_romaji(parsed["correction"].splitlines()[0])
     final_text = parsed["content"]
     if rule and rule.lower() not in final_text.lower():
         final_text = f"{final_text} (Grammar rule: {rule})"
@@ -235,16 +286,25 @@ def run_react_loop(
     max_steps: int = REACT_DEFAULT_MAX_STEPS,
     num_ctx: int = REACT_DEFAULT_NUM_CTX,
     trace_callback: Callable[[ReActStep], None] | None = None,
+    hint: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
+    system_template: str | None = None,
 ) -> ReActResult:
-    if num_ctx > 1024:
+    if num_ctx > REACT_MAX_NUM_CTX:
         raise ValueError(f"ReAct corrector num_ctx must remain around 800 tokens (got {num_ctx}).")
 
-    system_prompt = REACT_SYSTEM_PROMPT.format(tools_instructions=tool_registry.get_prompt_instructions())
+    template = system_template if system_template and "{tools_instructions}" in system_template \
+        else REACT_SYSTEM_PROMPT
+    system_prompt = template.format(tools_instructions=tool_registry.get_prompt_instructions())
+    question = f"Question: Check and correct this Japanese sentence: {sentence}"
+    if hint:
+        question += f"\nA first check suggested (verify it, it may be wrong): {hint}"
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Question: Check and correct this Japanese sentence: {sentence}"},
+        {"role": "user", "content": question},
     ]
     steps: list[ReActStep] = []
+    stats: list[Any] = []
     revised = False
 
     def record_step(step_obj: ReActStep) -> None:
@@ -253,21 +313,31 @@ def run_react_loop(
             trace_callback(step_obj)
 
     for _ in range(max_steps):
-        raw_output = _consume_client_reply(client, model, messages, num_ctx=num_ctx)
+        if should_stop is not None and should_stop():
+            break
+        raw_output = _consume_client_reply(client, model, messages, num_ctx=num_ctx, stats=stats)
         parsed = parse_react_output(raw_output)
+        verified = any(step.step == "tool_call" for step in steps)
 
         if parsed.get("thought"):
             record_step(ReActStep(step="think", content=parsed["thought"]))
-        if parsed.get("verification"):
+        if parsed.get("verification") and verified:
             record_step(ReActStep(step="verification", content=parsed["verification"]))
-            revised = revised or _detect_revision(parsed["verification"])
+            revised = revised or _is_revision(parsed)
 
         if parsed["type"] == "action":
-            _handle_action_step(parsed, raw_output, tool_registry, messages, record_step)
+            _handle_action_step(parsed, _until_action(raw_output), tool_registry, messages, record_step)
+            continue
+
+        if parsed["type"] == "final_answer" and not verified:
+            messages.append({"role": "assistant", "content": raw_output})
+            messages.append({"role": "user", "content": MUST_VERIFY})
             continue
 
         if parsed["type"] == "final_answer":
-            return _build_final_result(parsed, sentence, steps, revised, num_ctx, record_step)
+            result = _build_final_result(parsed, sentence, steps, revised, num_ctx, record_step)
+            result.stats = stats
+            return result
 
         messages.append({"role": "assistant", "content": raw_output})
         messages.append({
@@ -275,4 +345,25 @@ def run_react_loop(
             "content": f"Format error: {parsed.get('message')} Reply with 'Action:' or 'Final Answer:'.",
         })
 
-    return _build_fallback_result(sentence, steps, revised, max_steps, num_ctx, record_step)
+    result = _build_fallback_result(sentence, steps, revised, max_steps, num_ctx, record_step)
+    result.stats = stats
+    return result
+
+def _is_revision(parsed: dict[str, Any]) -> bool:
+    explicit = (parsed.get("revised") or "").strip().lower()
+    if explicit.startswith(("wrong", "mistaken")):
+        return True
+    if explicit.startswith(("confirmed", "correct", "right")):
+        return False
+    if explicit.startswith(("yes", "no")) and not re.search(r"\b(was|is) (correct|right|confirmed)\b",
+                                                          (parsed.get("verification") or "").lower()):
+        return explicit.startswith("yes")
+    return _detect_revision(parsed.get("verification"))
+
+def _without_romaji(line: str) -> str:
+    line = line.split("—")[0]
+    return re.sub(r"\s*[(（][\x00-\x7f\u0100-\u017f\s]*[)）]\s*$", "", line).strip()
+
+def _until_action(raw_output: str) -> str:
+    match = re.search(r"Action:\s*\{.*?\}\s*(?:\n|$)", raw_output, re.DOTALL)
+    return raw_output[:match.end()].rstrip() if match else raw_output
