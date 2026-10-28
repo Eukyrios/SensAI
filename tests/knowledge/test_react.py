@@ -181,3 +181,67 @@ def test_react_includes_grammar_rule_and_expandable_trace():
     assert len(trace_payload["steps"]) == 4
     assert trace_payload["steps"][1]["tool"] == "conjugate"
     assert "食べませんでした" in trace_payload["steps"][1]["observation"]
+
+def _run(outputs, **kwargs):
+    client = ScriptedOllamaClient(outputs)
+    return run_react_loop(client=client, model="m", sentence="私は学校を行きます", tool_registry=registry,
+                          **kwargs), client
+
+
+ACTION = 'Thought: check 行く.\nAction: {"tool": "dictionary", "args": {"word": "行く"}}'
+
+
+def test_an_action_with_an_invented_observation_or_markdown_still_runs_the_tool():
+    for text in [ACTION + '\nObservation: {"found": true}', ACTION.replace("Action:", "**Action:**"),
+                 'Thought: x\nAction: ```json\n{"tool": "kanji", "args": {"character": "行"}}\n```']:
+        assert parse_react_output(text)["type"] == "action", text
+
+
+def test_an_empty_final_answer_is_a_format_error_not_a_crash():
+    assert parse_react_output("Verification: ok\nFinal Answer:\n ")["type"] == "error"
+
+
+def test_an_empty_field_does_not_swallow_the_next_one():
+    parsed = parse_react_output("Verification: ok\nCorrection:\nFinal Answer: 私は学校に行きます — use に.")
+    assert parsed["correction"] is None and parsed["content"].startswith("私は学校に行きます")
+
+
+def test_hypothesis_confirmed_is_not_a_revision_and_romaji_is_dropped():
+    result, _client = _run([ACTION, "Verification: my hypothesis was correct.\nHypothesis: confirmed\n"
+                                    "Rule: 行く takes に.\nCorrection: 私は学校に行きます (watashi wa gakkou ni ikimasu)\n"
+                                    "Final Answer: 私は学校に行きます — use に."])
+    assert result.revised is False and result.correction == "私は学校に行きます" and result.verified
+
+
+def test_hypothesis_wrong_is_a_revision():
+    result, _client = _run([ACTION, "Verification: no.\nHypothesis: wrong\nRule: r\nCorrection: c\nFinal Answer: c"])
+    assert result.revised is True
+
+
+def test_a_verification_before_any_observation_is_ignored():
+    result, _client = _run([ACTION + "\nVerification: my first idea was wrong",
+                            "Verification: fine.\nHypothesis: confirmed\nRule: r\nCorrection: c\nFinal Answer: c"])
+    assert [step.step for step in result.steps] == ["think", "tool_call", "verification", "answer"]
+    assert result.revised is False
+
+
+def test_long_observations_are_shortened_in_the_context():
+    result, client = _run(['Thought: x\nAction: {"tool": "dictionary", "args": {"word": "go"}}', "Final Answer: x"])
+    assert client.calls_count == 2 and result.steps[1].observation.startswith("{")
+
+
+def test_the_loop_stops_when_asked():
+    result, client = _run([ACTION] * 3, should_stop=lambda: True)
+    assert client.calls_count == 0 and result.stopped_by_max_steps
+
+
+def test_a_template_from_the_spec_is_used_when_it_has_the_tool_slot():
+    seen = []
+
+    class Recording(ScriptedOllamaClient):
+        def chat_stream(self, model, messages, **kwargs):
+            seen.append(messages[0]["content"])
+            return super().chat_stream(model, messages, **kwargs)
+
+    run_react_loop(Recording(["Final Answer: x"] * 3), "m", "s", registry, system_template="Custom {tools_instructions}")
+    assert seen[0].startswith("Custom You have access")

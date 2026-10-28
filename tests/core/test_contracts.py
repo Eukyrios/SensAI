@@ -66,7 +66,7 @@ def test_handoff_requires_dict_payload():
 def test_load_spec_ok():
     spec = load_spec(SENSEI)
     assert isinstance(spec, AgentSpec)
-    assert spec.name == "sensei" and spec.model and spec.num_ctx > 0 and spec.tools == ()
+    assert spec.name == "sensei" and spec.model and spec.num_ctx > 0 and "dictionary" in spec.tools
 
 
 @pytest.mark.parametrize("drop", ["model", "num_ctx", "name"])
@@ -125,6 +125,13 @@ def test_handoffs_need_an_object_output_schema(tmp_path):
         load_spec(p)
 
 
-def test_checker_can_hand_off_to_the_sensei():
+def test_checker_hands_off_to_the_corrector_or_the_sensei_and_never_ends_the_turn():
     spec = load_spec(resolve("agents/checker.toml"))
-    assert spec.handoffs == ("sensei",) and "handoff" in spec.output_schema["required"]
+    assert spec.handoffs == ("corrector", "sensei") and "handoff" in spec.output_schema["required"]
+    assert spec.output_schema["properties"]["handoff"]["type"] == "object"
+
+
+def test_corrector_is_a_react_agent_with_the_own_tools():
+    spec = load_spec(resolve("agents/corrector.toml"))
+    assert (spec.strategy, spec.handoffs, spec.num_ctx) == ("react", ("sensei",), 1024)
+    assert set(spec.tools) == {"dictionary", "conjugate", "kanji"}

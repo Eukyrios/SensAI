@@ -4,9 +4,12 @@ from sensai.core.events import (
     AgentRunFinished,
     AgentRunStarted,
     GuardrailTriggered,
+    Retrieved,
     RouteDecided,
     Thinking,
     Token,
+    ToolCall,
+    ToolResult,
     TurnStarted,
 )
 from sensai.trust.tracing import TurnTracer
@@ -56,3 +59,22 @@ def test_trace_shows_the_routing_decision_of_the_turn():
     assert "Routed to 'checker' by embeddings (0.65): closest example 'kare wa sensei desu'" in tracer.format_trace()
     tracer.process_event(TurnStarted(turn_id="t2", session_id="s", user_input="hi"))
     assert "Routed" not in tracer.format_trace()
+
+
+def test_trace_shows_the_retrieval_and_the_tool_calls_of_each_run():
+    tracer = TurnTracer()
+    for event in [
+        TurnStarted(turn_id="t", session_id="s", user_input="q"),
+        Retrieved(turn_id="t", run_id="r1", query="q", level="N5", mode="embeddings+model",
+                  kept=[{"source": "a.md", "section": "に", "jlpt": "N5", "score": 0.9}],
+                  dropped=[{"source": "b.md", "section": "で", "initial_score": 0.5, "rerank_score": 0.1}]),
+        AgentRunStarted(turn_id="t", run_id="r1", agent="sensei"),
+        ToolCall(turn_id="t", run_id="r1", name="dictionary", args={"word": "猫"}),
+        ToolResult(turn_id="t", run_id="r1", name="dictionary", result="x" * 300, ok=False),
+        AgentRunFinished(turn_id="t", run_id="r1", agent="sensei", ok=True),
+    ]:
+        tracer.process_event(event)
+    trace = tracer.format_trace()
+    assert "rag (embeddings+model, up to N5): 1 kept, 1 dropped" in trace
+    assert "kept a.md § に [N5] 0.90" in trace and "dropped b.md § で 0.50 → 0.10" in trace
+    assert "tool dictionary(word='猫')" in trace and "→ FAILED: " + "x" * 120 + "…" in trace

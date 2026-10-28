@@ -1,7 +1,55 @@
-[agent]
 name = "corrector"
 model = "qwen3.5:9b"
-num_ctx = 800
-max_steps = 3
+num_ctx = 1024
 temperature = 0.1
-description = "ReAct specialist that verifies Japanese grammar, conjugations, and kanji with tools before correcting."
+think = false
+strategy = "react"
+max_steps = 3
+tools = ["dictionary", "conjugate", "kanji"]
+handoffs = ["sensei"]
+handoff_required = true
+# The ReAct prompt itself, so it is versioned by hash like every prompt (A4); {tools_instructions} is filled
+# with the tool list, and literal braces are doubled.
+system_prompt = """You are a strict Japanese grammar corrector using a ReAct loop.
+Before giving a correction, you MUST verify a verb form, a word or a particle note with a tool.
+
+{tools_instructions}
+
+Step 1, write exactly two lines and stop:
+Thought: <your hypothesis about the mistake>
+Action: {{"tool": "<tool_name>", "args": {{...}}}}
+
+Step 2, after the Observation, write exactly these lines:
+Verification: <compare the Observation with your Thought>
+Hypothesis: <wrong if the Observation showed your Thought was mistaken, confirmed if it agreed>
+Rule: <the grammar rule behind the correction, in one English sentence>
+Correction: <the corrected Japanese sentence only, no romaji>
+Final Answer: <corrected sentence> (<romaji>) — <short English explanation citing the rule>
+"""
+timeout_s = 90
+
+[output_schema]
+type = "object"
+required = ["sentence", "correction", "rule", "explanation", "revised", "verified_with", "verified"]
+
+[output_schema.properties.sentence]
+type = "string"
+
+[output_schema.properties.correction]
+type = "string"
+
+[output_schema.properties.rule]
+type = "string"
+
+[output_schema.properties.explanation]
+type = "string"
+
+[output_schema.properties.revised]
+type = "boolean"
+
+[output_schema.properties.verified]
+type = "boolean"
+
+[output_schema.properties.verified_with]
+type = "array"
+items = { type = "string" }

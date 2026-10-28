@@ -61,6 +61,7 @@ class _Turn:
             raise
         if self.crew.ok:
             self.record_runs(self.save_answer(self.crew.answer_text))
+            self.crew.record_errors()
         else:
             self.drop_question()
 

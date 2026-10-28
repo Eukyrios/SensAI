@@ -19,11 +19,11 @@ class Handoff:
             raise TypeError("Handoff.payload must be a dict (validated JSON)")
 
 
-def handoff_schema(targets: tuple[str, ...]) -> dict:
+def handoff_schema(targets: tuple[str, ...], required: bool = False) -> dict:
     return {
-        "type": ["object", "null"],
-        "description": "Pass this turn to another agent, with your other fields as its input; "
-                       "null to end the turn with your own reply.",
+        "type": "object" if required else ["object", "null"],
+        "description": ("Pass this turn to another agent, with your other fields as its input"
+                        + ("." if required else "; null to end the turn with your own reply.")),
         "properties": {"to": {"type": "string", "enum": list(targets)},
                        "reason": {"type": "string", "description": "Why, in a few words."}},
         "required": ["to", "reason"],

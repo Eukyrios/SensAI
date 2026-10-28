@@ -8,7 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from sensai.core import events as ev
-from sensai.core.events import Error, GuardrailTriggered, Token, TurnFinished
+from sensai.core.config import load_config
+from sensai.core.events import Error, GuardrailTriggered, Token, ToolCall, ToolResult, TurnFinished
 from sensai.core.handoff import Handoff
 from sensai.llm.ollama import ChatStats, OllamaClient, Thought
 from sensai.orchestration.session import Session
@@ -559,3 +560,32 @@ def test_metrics_and_trace_commands_show_the_last_turn(monkeypatch, capsys):
     assert "No metrics recorded yet." in before and "No trace recorded yet." in before
     assert "No metrics recorded yet." not in after and "No trace recorded yet." not in after
     assert "sensei" in after
+
+
+def test_the_banner_lists_the_mcp_servers_and_the_unavailable_ones(monkeypatch, capsys):
+    monkeypatch.setenv("SENSAI_MCP__ENABLED", "true")
+    monkeypatch.setenv("SENSAI_TOOLS__ENABLED", "true")
+    monkeypatch.setattr(cli, "load_config", _config_with_servers)
+    run_cli_test(monkeypatch, ["/quit"])
+    out, err = capsys.readouterr()
+    assert "[mcp] sensai: sensai_dictionary, sensai_conjugate, sensai_kanji" in out
+    assert "[mcp] ghost unavailable, continuing without it" in err
+
+
+def _config_with_servers(path=None, cli=None):
+    config = load_config(path, cli=cli)
+    config["mcp"]["servers"] = [
+        {"name": "sensai", "command": "{python}", "args": ["-m", "sensai.knowledge.mcp_server"], "timeout_s": 10},
+        {"name": "ghost", "command": "no-such-cmd-xyz"},
+    ]
+    return config
+
+
+async def test_the_renderer_shows_tool_calls_and_failures(capsys):
+    renderer = CLIRenderer()
+    await renderer.render_stream(events_stream(
+        ToolCall(turn_id="t", run_id="r", name="kanji", args={"character": "猫"}),
+        ToolResult(turn_id="t", run_id="r", name="kanji", result="ok", ok=True),
+        ToolResult(turn_id="t", run_id="r", name="kanji", result="boom", ok=False)))
+    out = capsys.readouterr().out
+    assert '[tool] kanji {"character": "猫"}' in out and "[tool] kanji failed: boom" in out

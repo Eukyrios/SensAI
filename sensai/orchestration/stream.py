@@ -12,8 +12,11 @@ from ..llm.ollama import ChatStats, Thought
 
 
 async def stream_tokens(client, spec: AgentSpec, messages: list[Message],
-                        format: dict | str | None = None) -> AsyncIterator[str | Thought | ChatStats]:
+                        format: dict | str | None = None,
+                        tools: list[dict] | None = None) -> AsyncIterator[str | Thought | ChatStats]:
     options = {"format": format} if format is not None else {}
+    if tools:
+        options["tools"] = tools
     open_stream = partial(client.chat_stream, spec.model, messages, num_ctx=spec.num_ctx,
                           temperature=spec.temperature, think=spec.think, **options)
     stream = _ThreadedStream(asyncio.get_running_loop())
@@ -61,13 +64,15 @@ class _ThreadedStream:
             yield item
 
     def _produce(self, open_stream: Callable[[], Iterator[str | Thought]]) -> None:
-        source = open_stream()
+        source = None
         try:
+            source = open_stream()
             self._forward(source)
         except BaseException as error:
             self._hand_over(_StreamFailed(error))
         finally:
-            source.close()
+            if source is not None and hasattr(source, "close"):
+                source.close()
 
     def _forward(self, source: Iterator[str | Thought]) -> None:
         while not self.stop_requested.is_set():

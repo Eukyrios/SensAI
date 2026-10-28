@@ -45,6 +45,46 @@ keep_recent = 6              # newest messages never summarised
 enabled = true               # the curriculum agent updates the srs_cards after each answer
 max_steps = 8                # tool calls it may make in one pass
 
+[tools]
+enabled = true               # agents listing tools in their spec may call them (T1)
+max_rounds = 3               # tool-call rounds in one agent run before it must answer
+
+# MCP servers (T1), JSON-RPC 2.0 over stdio. Their tools join the own tools; an agent lists them in its spec
+# as "mcp:<name>" (all of a server's tools). A server that cannot start is skipped and reported at startup.
+# A server gets PATH, HOME, LANG and the like from our environment, plus its own `env`, never API keys.
+[mcp]
+enabled = true               # SENSAI_MCP__ENABLED=false starts no server
+
+[[mcp.servers]]
+name = "time"                # pre-existing server: the official MCP reference time server
+command = "uvx"
+args = ["mcp-server-time==2026.10.19", "--local-timezone=Asia/Tokyo"]  # pinned: reviewed version
+timeout_s = 60               # first start downloads the package
+enabled = true
+
+[[mcp.servers]]
+name = "sensai"              # our own server (python -m sensai.knowledge.mcp_server); off in the chat,
+command = "{python}"         # where the same tools already run in-process; on to test it end to end
+args = ["-m", "sensai.knowledge.mcp_server"]
+timeout_s = 20
+enabled = false
+
+[rag]
+enabled = true               # agents with rag = true get the corpus passages for each question (R1, R2)
+corpus_dir = "corpus"        # markdown files, one "# Title [N5]" header per section
+embed_model = "bge-m3"       # embeddings for retrieval; without it retrieval falls back to word overlap
+embed_on_cpu = true
+index_path = "data/rag_index.json"  # embedding cache, keyed by content hash
+default_level = ""           # JLPT ceiling when the profile names none (e.g. "N5"); empty = no filter
+candidate_k = 5              # R1: closest chunks by cosine similarity...
+min_similarity = 0.4         # ...at least this similar
+rerank = true                # R2: rescore the candidates before they reach the context
+model_rerank = true          # the chat model scores the candidates (off: hybrid embedding score)
+relevance_threshold = 0.6    # candidates the model scores below this (0-1, from its 0-10 grade) are dropped
+hybrid_threshold = 0.5       # same, for the hybrid score
+lexical_threshold = 0.4      # same, for the word-overlap fallback
+top_k = 2                    # passages kept in the context
+
 [guardrails]
 enabled = true
 

@@ -1,5 +1,5 @@
 # Per-agent context and token budget (M2). Each provider renders one block of the system prompt
-# (learner profile, handoff note, later the ledger and RAG); the builder gives each a share of the
+# (learner profile, handoff note, RAG passages, later the ledger); the builder gives each a share of the
 # agent's num_ctx by priority, then fills what is left with the newest history. Token counts are
 # estimated from the text and can be corrected from the prompt_eval_count Ollama reports.
 
@@ -120,12 +120,14 @@ class ContextBuilder:
         return kept[::-1]
 
 
-def build_context(session: Session, spec: AgentSpec, handoff: Handoff | None = None) -> list[Message]:
+def build_context(session: Session, spec: AgentSpec, handoff: Handoff | None = None,
+                  extra: list[ContextProvider] | None = None) -> list[Message]:
     max_turns = session.config["memory"]["max_history_turns"]
-    builder = ContextBuilder(_blocks(session, handoff))
+    builder = ContextBuilder(_blocks(session, handoff) + list(extra or []))
     system = system_prompt(spec)
     window = builder.budget(spec) - builder.estimator.estimate(system)
-    compress(session, spec, window, builder.estimator.estimate_messages)
+    if spec.strategy != "react":
+        compress(session, spec, window, builder.estimator.estimate_messages)
     builder.providers.extend(_summary_blocks(session))
     return builder.build(spec, session.history[session.summarized:][-max_turns * 2:], system=system)
 

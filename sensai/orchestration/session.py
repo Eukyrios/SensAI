@@ -6,6 +6,7 @@ from ..core.agent_spec import AgentSpec, spec_for
 from ..core.ids import new_id
 from ..core.persona import Persona, persona_for
 from ..core.messages import Message
+from ..knowledge.toolbox import Knowledge
 from ..llm.ollama import OllamaClient
 from ..memory.prompts import PromptStore
 from ..memory.repository import SessionRepository, open_repository
@@ -22,6 +23,7 @@ class Session:
         ollama_settings = config["ollama"]
         self.client = client or OllamaClient(ollama_settings["url"], ollama_settings["timeout_s"])
         self.router: Router | None = load_router(config, self.client)
+        self.knowledge = Knowledge(config, self.client)
         self.repo = repo or open_repository(config)
         self.prompts = PromptStore(self.repo.conn)
         self.persona: Persona = persona_for(config["personas"]["default"], config)

@@ -21,6 +21,13 @@ def memory_repository_for(config: dict) -> SessionRepository:
 
 
 @pytest.fixture(autouse=True)
+def no_external_processes(monkeypatch):
+    """Tests that load config.toml never start its MCP servers nor reach the embedding model."""
+    monkeypatch.setenv("SENSAI_MCP__ENABLED", "false")
+    monkeypatch.setenv("SENSAI_RAG__ENABLED", "false")
+
+
+@pytest.fixture(autouse=True)
 def isolated_storage(monkeypatch):
     for module in ("sensai.orchestration.session", "sensai.surfaces.cli"):
         monkeypatch.setattr(f"{module}.open_repository", memory_repository_for)

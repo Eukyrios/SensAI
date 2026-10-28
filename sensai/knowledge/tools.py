@@ -1,8 +1,13 @@
-"""Tool registry and native/prompted dual path for the SensAI knowledge base."""
 import json
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
+from . import japanese
+DATA_DIR = Path(__file__).resolve().parent / "data"
+VERB_CLASSES = {"ichidan", "godan", "suru", "kuru"}
 
 
 @dataclass
@@ -33,15 +38,36 @@ class ToolRegistry:
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)
 
+    def names(self) -> list[str]:
+        return list(self._tools)
+
+    def __len__(self) -> int:
+        return len(self._tools)
+
+    def subset(self, names: Iterable[str]) -> "ToolRegistry":
+        chosen = ToolRegistry()
+        for name in names:
+            tool = self.get(name)
+            if tool is not None:
+                chosen.register(tool)
+        return chosen
+
     def execute(self, name: str, args: dict) -> str:
+        return self.run(name, args)[0]
+
+    def run(self, name: str, args: dict) -> tuple[str, bool]:
+        """Run a tool and say whether it worked; a failure is a message for the model, never an exception."""
         tool = self.get(name)
         if not tool:
-            return f"Error: Tool '{name}' not found."
+            return f"Error: Tool '{name}' not found.", False
+        if not isinstance(args, dict):
+            return f"Error executing {name}: arguments must be a JSON object", False
         try:
             result = tool.func(**args)
-            return json.dumps(result, ensure_ascii=False)
         except Exception as e:
-            return f"Error executing {name}: {str(e)}"
+            return f"Error executing {name}: {str(e)}", False
+        ok = not (isinstance(result, dict) and "error" in result)
+        return json.dumps(result, ensure_ascii=False, default=str), ok
 
     def get_native_tools(self) -> list[dict]:
         return [tool.to_native_schema() for tool in self._tools.values()]
@@ -55,85 +81,131 @@ class ToolRegistry:
         return instructions
 
 
-# --- Base de données locale déterministe pour les outils ---
+# --- Own tools, backed by the local data files ---
 
-_DICTIONARY_DB: dict[str, dict[str, Any]] = {
-    "食べる": {"word": "食べる", "reading": "たべる (taberu)", "meaning": "to eat", "type": "Ichidan verb (ru-verb)", "jlpt": "N5"},
-    "行く": {"word": "行く", "reading": "いく (iku)", "meaning": "to go (takes particle に or へ for destination, never を)", "type": "Godan verb (irregular te-form)", "jlpt": "N5"},
-    "見る": {"word": "見る", "reading": "みる (miru)", "meaning": "to see, to watch", "type": "Ichidan verb (ru-verb)", "jlpt": "N5"},
-    "飲む": {"word": "飲む", "reading": "のむ (nomu)", "meaning": "to drink", "type": "Godan verb (mu-verb)", "jlpt": "N5"},
-    "学校": {"word": "学校", "reading": "がっこう (gakkou)", "meaning": "school", "type": "Noun", "jlpt": "N5"},
-}
+@lru_cache(maxsize=1)
+def _dictionary() -> tuple[dict, ...]:
+    entries = json.loads((DATA_DIR / "dictionary.json").read_text(encoding="utf-8"))
+    return tuple({**entry, "romaji": japanese.particle_romaji(entry["reading"], entry["pos"])} for entry in entries)
 
-_CONJUGATION_DB: dict[str, dict[str, str]] = {
-    "食べる": {"te": "食べて", "ta": "食べた", "nai": "食べない", "polite": "食べます", "past_negative_polite": "食べませんでした"},
-    "taberu": {"te": "tabete (食べて)", "ta": "tabeta (食べた)", "nai": "tabenai (食べない)", "polite": "tabemasu (食べます)", "past_negative_polite": "tabemasen deshita (食べませんでした)"},
-    "行く": {"te": "行って", "ta": "行った", "nai": "行かない", "polite": "行きます", "past_negative_polite": "行きませんでした"},
-    "iku": {"te": "itte (行って)", "ta": "itta (行った)", "nai": "ikanai (行かない)", "polite": "ikimasu (行きます)", "past_negative_polite": "ikimasen deshita (行きませんでした)"},
-    "見る": {"te": "見て", "ta": "見た", "nai": "見ない", "polite": "見ます", "past_negative_polite": "見ませんでした"},
-    "飲む": {"te": "飲んで", "ta": "飲んだ", "nai": "飲まない", "polite": "飲みます", "past_negative_polite": "飲みませんでした"},
-}
 
-_KANJI_DB: dict[str, dict[str, Any]] = {
-    "鬱": {"kanji": "鬱", "onyomi": "ウツ (utsu)", "kunyomi": "ふさ.ぐ (fusa.gu)", "meaning": "gloom, depression, melancholy", "stroke_count": 29},
-    "食": {"kanji": "食", "onyomi": "ショク (shoku)", "kunyomi": "た.べる (ta.beru)", "meaning": "eat, food", "stroke_count": 9},
-    "行": {"kanji": "行", "onyomi": "コウ (kou), ギョウ (gyou)", "kunyomi": "い.く (i.ku), おこな.う (okona.u)", "meaning": "go, journey, carry out", "stroke_count": 6},
-    "学": {"kanji": "学", "onyomi": "ガク (gaku)", "kunyomi": "まな.ぶ (mana.bu)", "meaning": "study, learning, science", "stroke_count": 8},
-    "校": {"kanji": "校", "onyomi": "コウ (kou)", "kunyomi": "-", "meaning": "school, exam", "stroke_count": 10},
-}
+@lru_cache(maxsize=1)
+def _kanji() -> dict[str, dict]:
+    table = json.loads((DATA_DIR / "kanji.json").read_text(encoding="utf-8"))
+    return {row[0]: dict(zip(table["columns"], row)) for row in table["rows"]}
+
+
+def find_entries(word: str) -> list[dict]:
+    query = word.strip()
+    lowered = query.lower().removeprefix("to ").strip()
+    exact = [entry for entry in _dictionary()
+             if query in (entry["word"], entry["reading"]) or lowered == entry["romaji"]]
+    if exact or not lowered.isascii() or not lowered:
+        return exact
+    pattern = re.compile(rf"(^|[\s,(]){re.escape(lowered)}($|[\s,)])")
+    matches = [entry for entry in _dictionary() if pattern.search(entry["meaning"].lower())]
+    return sorted(matches, key=lambda entry: not _has_meaning(entry, lowered))
+
+
+def _has_meaning(entry: dict, meaning: str) -> bool:
+    return meaning in (part.strip().removeprefix("to ") for part in entry["meaning"].lower().split(","))
 
 
 def lookup_dictionary(word: str) -> dict:
-    if word in _DICTIONARY_DB:
-        return _DICTIONARY_DB[word]
-    return {"word": word, "reading": "unknown", "meaning": f"Entry for '{word}'", "jlpt": "unknown"}
+    entries = find_entries(word)
+    if not entries and len(word.strip()) == 1 and word.strip() in _kanji():
+        character = word.strip()
+        words = [_entry_view(entry) for entry in _dictionary() if character in entry["word"]][:5]
+        return {"word": word, "found": True, "kanji": _kanji()[character], "words_with_it": words}
+    if not entries:
+        return {"word": word, "found": False,
+                "message": f"'{word}' is not in the local dictionary; say so instead of guessing."}
+    shown = [_entry_view(entry) for entry in entries[:5]]
+    return {"word": word, "found": True, **shown[0]} if len(shown) == 1 else \
+        {"word": word, "found": True, "entries": shown}
+
+
+def _entry_view(entry: dict) -> dict:
+    view = {"word": entry["word"], "reading": f"{entry['reading']} ({entry['romaji']})",
+            "meaning": entry["meaning"], "type": entry["pos"], "jlpt": entry["jlpt"]}
+    if entry.get("note"):
+        view["note"] = entry["note"]
+    return view
 
 
 def conjugate_verb(verb: str, form: str) -> dict:
-    normalized_form = form.lower().replace("-form", "").replace("form", "").strip()
-    if verb in _CONJUGATION_DB and normalized_form in _CONJUGATION_DB[verb]:
-        return {"verb": verb, "form": normalized_form, "result": _CONJUGATION_DB[verb][normalized_form]}
-    if verb.endswith("る"):
-        stem = verb[:-1]
-        fallback_map = {"te": f"{stem}て", "ta": f"{stem}た", "nai": f"{stem}ない", "polite": f"{stem}ます"}
-        if normalized_form in fallback_map:
-            return {"verb": verb, "form": normalized_form, "result": fallback_map[normalized_form]}
-    return {"verb": verb, "form": normalized_form, "result": f"{verb} ({normalized_form})"}
+    verbs = [entry for entry in find_entries(verb) if entry["pos"] in VERB_CLASSES]
+    written = [entry for entry in verbs if entry["word"] == verb]
+    verbs = written or verbs
+    if len({entry["word"] for entry in verbs}) > 1:
+        options = ", ".join(f"{entry['word']} ({entry['meaning']}, {entry['pos']})" for entry in verbs)
+        return {"verb": verb, "error": f"'{verb}' is several verbs: {options}; pass the one meant, in kanji"}
+    if verbs:
+        entry = verbs[0]
+        word, reading, verb_class, source = entry["word"], entry["reading"], entry["pos"], "dictionary"
+    elif _is_kana(verb) and verb.endswith(tuple(japanese._ROWS)):
+        word, reading = verb, verb
+        verb_class, source = japanese.guess_class(verb, verb), "guessed from the ending"
+    else:
+        return {"verb": verb, "error": f"'{verb}' is not a verb this tool knows; write it in kana to conjugate it"}
+    try:
+        result = japanese.conjugate(word, reading, verb_class, form).as_dict()
+    except ValueError as error:
+        return {"verb": verb, "error": str(error)}
+    return {**result, "class_source": source}
+
+
+def _is_kana(text: str) -> bool:
+    return bool(text) and all("぀" <= char <= "ヿ" for char in text)
 
 
 def lookup_kanji(character: str) -> dict:
-    if character in _KANJI_DB:
-        return _KANJI_DB[character]
-    return {"kanji": character, "onyomi": "ON", "kunyomi": "kun", "meaning": "meaning", "stroke_count": 1}
+    found = [_kanji()[char] for char in character if char in _kanji()]
+    unknown = [char for char in character if "一" <= char <= "鿿" and char not in _kanji()]
+    if not found:
+        return {"kanji": character, "found": False,
+                "message": f"'{character}' is not in the local kanji table; say so instead of guessing."}
+    if len(found) == 1 and not unknown:
+        return {**found[0], "found": True}
+    return {"kanji": character, "found": True, "characters": found, "unknown": unknown}
+
+
+def own_tools() -> list[Tool]:
+    return [
+        Tool(
+            name="dictionary",
+            description=("Look up a Japanese word (kanji, kana or romaji) or an English meaning in the local "
+                         "dictionary: reading, meaning, word type, JLPT level and particle notes."),
+            parameters={"type": "object", "properties": {"word": {"type": "string"}}, "required": ["word"]},
+            func=lookup_dictionary,
+        ),
+        Tool(
+            name="conjugate",
+            description=("Conjugate a Japanese verb. Forms: " + ", ".join(japanese.FORMS) + "."),
+            parameters={"type": "object",
+                        "properties": {"verb": {"type": "string", "description": "dictionary form, e.g. 食べる"},
+                                       "form": {"type": "string", "description": "e.g. te, polite, nai"}},
+                        "required": ["verb", "form"]},
+            func=conjugate_verb,
+        ),
+        Tool(
+            name="kanji",
+            description="Get the readings (on'yomi, kun'yomi), meaning, stroke count and JLPT level of kanji.",
+            parameters={"type": "object", "properties": {"character": {"type": "string"}},
+                        "required": ["character"]},
+            func=lookup_kanji,
+        ),
+    ]
 
 
 registry = ToolRegistry()
-
-registry.register(Tool(
-    name="dictionary",
-    description="Look up a Japanese word to get its meaning and reading.",
-    parameters={"type": "object", "properties": {"word": {"type": "string"}}, "required": ["word"]},
-    func=lookup_dictionary,
-))
-
-registry.register(Tool(
-    name="conjugate",
-    description="Conjugate a Japanese verb into a specific form.",
-    parameters={"type": "object", "properties": {"verb": {"type": "string"}, "form": {"type": "string"}}, "required": ["verb", "form"]},
-    func=conjugate_verb,
-))
-
-registry.register(Tool(
-    name="kanji",
-    description="Get information about a specific Kanji character including readings and stroke count.",
-    parameters={"type": "object", "properties": {"character": {"type": "string"}}, "required": ["character"]},
-    func=lookup_kanji,
-))
+for _tool in own_tools():
+    registry.register(_tool)
 
 
-def get_tools_for_model(client, model: str) -> dict:
-    """Détermine la voie d'exécution en fonction des capacités du modèle."""
+def get_tools_for_model(client, model: str, tool_registry: ToolRegistry | None = None) -> dict:
+    chosen = registry if tool_registry is None else tool_registry
     capabilities = client.capabilities(model)
     if "tools" in capabilities:
-        return {"type": "native", "tools": registry.get_native_tools()}
-    return {"type": "prompted", "instructions": registry.get_prompt_instructions()}
+        return {"type": "native", "tools": chosen.get_native_tools()}
+    return {"type": "prompted", "instructions": chosen.get_prompt_instructions()}

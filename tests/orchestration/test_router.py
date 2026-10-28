@@ -17,7 +17,8 @@ from tests.fakes import FakeClient, ScriptedClient, make_config
 
 ROUTES = load_routes(resolve("routing.toml"))
 CHECKED = json.dumps({"sentence": "私は学校に行きます", "is_correct": True, "correction": "私は学校に行きます",
-                      "error_type": "none", "rule": "", "handoff": None}, ensure_ascii=False)
+                      "error_type": "none", "rule": "", "handoff": {"to": "sensei", "reason": "confirm it"}},
+                     ensure_ascii=False)
 
 
 def routed_config(**router):
@@ -92,8 +93,8 @@ def test_bad_routing_files_are_rejected(tmp_path, text, problem):
 
 
 async def test_a_japanese_sentence_starts_with_the_checker():
-    session = Session(routed_config(), client=ScriptedClient(CHECKED))
-    assert await agents_run(session, "私は学校に行きます") == ["checker"]
+    session = Session(routed_config(), client=ScriptedClient(CHECKED, "Perfect!"))
+    assert await agents_run(session, "私は学校に行きます") == ["checker", "sensei"]
 
 
 async def test_a_question_starts_with_the_sensei():

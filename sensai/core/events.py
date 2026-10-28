@@ -70,6 +70,16 @@ class ToolResult(_Base):
 
 
 @dataclass(frozen=True, kw_only=True)
+class Retrieved(_Base):
+    run_id: str
+    query: str
+    level: str | None
+    mode: str
+    kept: list[dict]
+    dropped: list[dict]
+
+
+@dataclass(frozen=True, kw_only=True)
 class RouteDecided(_Base):
     agent: str
     tier: str
@@ -106,4 +116,4 @@ class TurnFinished(_Base):
 
 
 Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | StructuredOutput
-         | ToolCall | ToolResult | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished)
+         | ToolCall | ToolResult | Retrieved | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished)

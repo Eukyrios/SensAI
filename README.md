@@ -36,6 +36,8 @@ Stage 4 can loop back to stage 2 ("another hop"), and stage 5 is read back on th
 - Python 3.10+
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
 - Node.js 18+ (only for the web UI, layer 7)
+- [uv](https://docs.astral.sh/uv/) for the pre-existing MCP time server (`uvx mcp-server-time`); without it the
+  chat starts and reports the server as unavailable
 
 ## Installation
 
@@ -268,15 +270,15 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
 | M1 | Session persistence & profile | ★ | 2 | ✅ |
 | T5 | Structured output (JSON schema, one repair) | ★ | 3 | 🚧 validation and repair built; handoffs use it in layer 4 |
-| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 ledger and its agent tools built, not used by an agent yet; SRS scheduling in layer 6 |
-| T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | 🚧 registry and native/prompted paths built; the three tools return placeholder data and no agent calls them yet; MCP in layer 5 |
+| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; not read back yet, `facts` unused |
+| T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ✅ sensei calls them (native or prompted); MCP stdio client, own MCP server, pre-existing time server configured |
 | EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | 🚧 JSONL event log, `/metrics` and `/trace` built |
 | A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ⏳ |
-| A1 | ReAct (corrector) | ★★★ | 4 | ⏳ |
+| A1 | ReAct (corrector) | ★★★ | 4 | ✅ checker → corrector → sensei |
 | M2 | Token budgeting & compression | ★★ | 4–5 | ⏳ |
-| R1 | Basic RAG (citations, JLPT metadata) | ★★ | 5 | ⏳ |
+| R1 | Basic RAG (citations, JLPT metadata) | ★★ | 5 | ✅ bge-m3 embeddings, cosine, JLPT filter, citations |
 | EV1 | Judge: claim-by-claim verification | ★★★ | 5 | ⏳ |
-| R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ⏳ |
+| R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ✅ model reranker, threshold drop, scores in `/trace` |
 | EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
@@ -316,10 +318,11 @@ sensai/
   llm/            Ollama HTTP transport, the only code that calls the model    (C)
   orchestration/  turn loop, executor, orchestrator, router                     (A)
   memory/         SQLite storage, sessions, ledger                              (B)
-  knowledge/      tools, MCP client, RAG pipeline                               (C)
+  knowledge/      tools, conjugator, MCP client and server, RAG, ReAct          (C)
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
   surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
-agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the sensei),
+agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the corrector or the sensei),
+                  corrector (A1, ReAct), curriculum (SRS),
                   classifier (router tier 3),
                   demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
@@ -327,6 +330,7 @@ tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
 routing.toml      routes: which agent starts a turn, with the router's rules and examples
+corpus/           grammar notes for RAG, one "# Title [N5]" header per section
 personas/         one TOML per persona: teacher (default), strict, casual
 ```
 
@@ -361,11 +365,16 @@ Built modules, then planned ones with the layer that adds them.
 | | `repository.py` | `SessionRepository` and its async facade, sessions, profile |
 | | `ledger.py` | `errors`, `srs_cards`, `facts` with per-agent write ownership |
 | | `prompts.py` | `PromptStore`: prompts by content hash, pins, run metrics per prompt |
-| | *`compression.py`* | sliding-window summarisation (layer 5) |
+| | `summary.py` (orchestration) | sliding-window summarisation (M2) |
 | | `srs.py` | SM-2 spaced-repetition scheduling of the `srs_cards` |
-| `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools |
-| | *`mcp/`* | MCP client, JSON-RPC 2.0 over stdio (layer 5) |
-| | *`rag/`* | ingest, JLPT-tagged chunks, retrieval, reranking (layers 5–6) |
+| `knowledge/` | `tools.py` | tool registry, native or prompted tool calling, own tools on `data/*.json` |
+| | `japanese.py` | rule-based verb conjugator and kana → romaji |
+| | `mcp.py` | MCP client, JSON-RPC 2.0 over stdio |
+| | `mcp_server.py` | our own MCP server, serving the own tools |
+| | `rag.py`, `advanced_rag.py` | JLPT-tagged chunks, word-overlap and bge-m3 indexes, reranking |
+| | `retrieval.py` | the turn's retrieval: candidates, model reranker, fallbacks |
+| | `react.py` | the corrector's ReAct loop |
+| | `toolbox.py` | a session's tools (own + MCP) and retriever |
 | `trust/` | `logging.py` | JSON-lines event log |
 | | `metrics.py` | tokens, speed, TTFT and cost per turn (`/metrics`) |
 | | `tracing.py` | per-turn trace of the agent runs (`/trace`) |
@@ -492,6 +501,51 @@ friendly conversation partner using plain forms). Adding a file adds a persona, 
   the session stay as they are, so the conversation carries on in the new tone.
 - **Versioned like any prompt.** The persona is part of the prompt, so each persona gets its own
   prompt hash (A4) and their runs can be compared with `session.prompts.metrics("sensei")`.
+
+### Tools and MCP (T1)
+
+An agent lists its tools in its spec: `tools = ["dictionary", "conjugate", "kanji", "mcp:time"]`
+(`mcp:<server>` stands for every tool of that server). The executor offers them natively when `/api/show`
+says the model supports tools, otherwise it writes them into the system prompt and holds back a reply that
+starts like a JSON `{"tool": ..., "args": ...}` block until it knows whether it is a call. Each call is a
+`ToolCall` and a `ToolResult` event, shown in the chat and in `/trace`; at most `[tools] max_rounds` rounds.
+
+- **Own tools** read local data (`sensai/knowledge/data/`): a dictionary of common N5 words with particle
+  notes, the N5 kanji with readings and stroke counts, and a rule-based conjugator (ichidan, godan, する,
+  来る, the 行く and ある exceptions) for 16 forms. An unknown word comes back as `found: false`, never a guess.
+- **MCP** (`knowledge/mcp.py`): JSON-RPC 2.0 over stdio (initialize handshake, `tools/list` with pagination,
+  `tools/call`, pings). Servers come from `[[mcp.servers]]` in `config.toml` and start when the chat starts;
+  the banner lists their tools, and one that cannot start is reported and skipped. A name already taken gets
+  the server's name as prefix.
+- **Our own MCP server**: `python -m sensai.knowledge.mcp_server` serves the own tools to any MCP client.
+- **Pre-existing server**: the reference time server (`uvx mcp-server-time`, needs `uv`; first start downloads
+  it) gives the sensei the time in Japan.
+
+### Corrections (A1)
+
+A sentence routed to the checker comes back as data. With a mistake it goes to the corrector
+(`agents/corrector.toml`, `strategy = "react"`): on a 1024-token context it writes a Thought, calls a tool,
+compares the Observation with its idea (`Revised: yes/no`), then gives the rule and the correction. A final
+answer before any tool is sent back, and an Observation the model invents is cut. The steps stream as dim
+reasoning lines. Its data (`correction`, `rule`, `verified`, `verified_with`) is handed to the sensei, which
+explains it; a verified correction is written to the `errors` table.
+
+### Retrieval (R1, R2)
+
+An agent with `rag = true` (the sensei) gets corpus passages for each question:
+
+1. **Candidates (R1).** `corpus/*.md` is split at each `# Title [N5]` header; every chunk and its title are
+   embedded with `bge-m3` (cached in `[rag].index_path`, keyed by content hash), and the closest
+   `candidate_k` chunks at or below the learner's JLPT level (read from the profile, e.g. "Level: N5") above
+   `min_similarity` are kept.
+2. **Rerank (R2).** The chat model reads the question with the candidates and scores each 0–1; those under
+   `relevance_threshold` are dropped and `top_k` reach the prompt. Embeddings alone score "how do I say cat?"
+   almost as high as a grammar question, so they only pick candidates. If the model fails, a hybrid score
+   (chunk + title similarity + word overlap) is used; without `bge-m3`, word overlap.
+3. **Citations.** The passages come with `[file § section]`; an answer that cites none gets a `Sources:` line.
+   `/trace` shows each candidate's score, kept or dropped.
+
+Reranking costs one short model call (~2–3 s) per sensei turn; `model_rerank = false` uses the hybrid score.
 
 ### Prompt versioning (A4)
 
