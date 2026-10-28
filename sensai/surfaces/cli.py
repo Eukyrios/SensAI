@@ -18,7 +18,7 @@ from ..core.persona import persona_for, persona_names
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
 from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, HandoffEvent,
-                           StructuredOutput, Thinking, Token, TurnFinished)
+                           StructuredOutput, Thinking, Token, ToolCall, ToolResult, TurnFinished)
 from ..core.handoff import Handoff
 from ..llm.ollama import OllamaError
 from ..memory.repository import SessionNotFound, open_repository
@@ -50,8 +50,12 @@ def main(argv: list[str] | None = None) -> None:
             list_sessions(config)
             return
         session = _open_session(config, args)
-    _print_banner(session, args)
-    _chat(session, JsonlLogger(resolve(config["logging"]["path"])))
+    try:
+        _print_banner(session, args)
+        _start_knowledge(session)
+        _chat(session, JsonlLogger(resolve(config["logging"]["path"])))
+    finally:
+        session.knowledge.close()
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -86,6 +90,17 @@ def _print_banner(session: Session, args: argparse.Namespace) -> None:
     print(f"Sensai ({session.spec.model}) — type /help for commands")
     if args.session:
         print(f"Resumed session {session.id} ({len(session.history)} messages)")
+
+
+def _start_knowledge(session: Session) -> None:
+    servers = [settings["name"] for settings in session.knowledge.enabled_servers()]
+    if servers:
+        print(dim(f"[mcp] starting {', '.join(servers)}…"), flush=True)
+    session.knowledge.start()
+    for name, tools in session.knowledge.server_tools.items():
+        print(dim(f"[mcp] {name}: {', '.join(tools)}"))
+    for name, reason in session.knowledge.unavailable.items():
+        print(f"[mcp] {name} unavailable, continuing without it: {reason}", file=sys.stderr)
 
 
 def _chat(session: Session, logger: JsonlLogger) -> None:
@@ -322,6 +337,11 @@ class CLIRenderer:
                 self._show_structured_output(data, attempts)
             case HandoffEvent(handoff=handoff):
                 self._show_handoff(handoff)
+            case ToolCall(name=name, args=args):
+                self.out.end_line()
+                print(dim(f"[tool] {name} {json.dumps(args, ensure_ascii=False)}"))
+            case ToolResult(name=name, ok=False, result=result):
+                print(dim(f"[tool] {name} failed: {result[:200]}"))
             case TurnFinished() as finished:
                 self._finish_turn(finished)
 
