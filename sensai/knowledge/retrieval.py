@@ -81,14 +81,15 @@ class Retriever:
                 self._index.ingest_directory(corpus)
         return self._index
 
-    def retrieve(self, question: str, profile_text: str | None = None, model: str | None = None) -> Retrieval:
+    def retrieve(self, question: str, profile_text: str | None = None, model: str | None = None,
+                 num_ctx: int = RERANK_NUM_CTX) -> Retrieval:
         level = profile_level(profile_text, self.settings.get("default_level", ""))
         try:
-            return self._semantic(question, level, model)
+            return self._semantic(question, level, model, num_ctx)
         except OllamaError:
             return self._lexical(question, level)
 
-    def _semantic(self, question: str, level: str | None, model: str | None) -> Retrieval:
+    def _semantic(self, question: str, level: str | None, model: str | None, num_ctx: int) -> Retrieval:
         index = self.index
         if not index.chunks:
             return Retrieval(question, level, "empty")
@@ -103,20 +104,21 @@ class Retriever:
         if not candidates:
             return Retrieval(question, level, "embeddings")
         use_model = model and self.settings.get("model_rerank", True)
-        scores = self._model_scores(question, candidates, model) if use_model else None
+        scores = self._model_scores(question, candidates, model, num_ctx) if use_model else None
         if scores is None:
             return self._reranked(question, level, "embeddings+hybrid", candidates, hybrid,
                                   self.settings["hybrid_threshold"])
         return self._reranked(question, level, "embeddings+model", candidates,
                               lambda query, chunk: scores[chunk.id], self.settings["relevance_threshold"])
 
-    def _model_scores(self, question: str, candidates: list[DocumentChunk], model: str) -> dict[str, float] | None:
+    def _model_scores(self, question: str, candidates: list[DocumentChunk], model: str,
+                      num_ctx: int) -> dict[str, float] | None:
         passages = "\n\n".join(f"[{number}] {chunk.section}\n{chunk.content[:RERANK_SNIPPET]}"
                                 for number, chunk in enumerate(candidates, 1))
         messages = [{"role": "system", "content": RERANK_PROMPT},
                     {"role": "user", "content": f"Learner's message: {question}\n\nPassages:\n{passages}"}]
         try:
-            stream = self.client.chat_stream(model, messages, num_ctx=RERANK_NUM_CTX, temperature=0.0,
+            stream = self.client.chat_stream(model, messages, num_ctx=num_ctx, temperature=0.0,
                                              format="json")
             data = json.loads("".join(piece for piece in stream if isinstance(piece, str)))
             by_number = _scores_by_number(data["scores"] if isinstance(data, dict) else data)

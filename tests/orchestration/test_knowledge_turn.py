@@ -49,7 +49,7 @@ class FixedRetriever:
         self.error = error
         self.asked = []
 
-    def retrieve(self, question, profile_text=None, model=None):
+    def retrieve(self, question, profile_text=None, model=None, num_ctx=4096):
         self.asked.append((question, profile_text, model))
         if self.error:
             raise self.error
@@ -106,7 +106,7 @@ async def test_a_failing_retrieval_does_not_stop_the_turn():
 
 async def test_rag_off_retrieves_nothing():
     session = Session(make_config(tools={"enabled": True, "max_rounds": 3}), client=Client(["Hi."]))
-    assert session.knowledge.retriever is None and session.knowledge.retrieve("q", None, "m") is None
+    assert session.knowledge.retriever is None and session.knowledge.retrieve("q", None, "m", 8192) is None
     await collect(session, "hello")
 
 
@@ -221,7 +221,7 @@ async def test_retrieval_runs_once_per_turn_even_with_a_fallback():
 
 async def test_a_hybrid_retrieval_adds_no_sources_line():
     hybrid = FixedRetriever([CHUNK])
-    hybrid.retrieve = lambda question, profile=None, model=None: Retrieval(question, "N5", "embeddings+hybrid", [CHUNK])
+    hybrid.retrieve = lambda question, profile=None, model=None, num_ctx=4096: Retrieval(question, "N5", "embeddings+hybrid", [CHUNK])
     session = knowledge_session(Client(["Use に."]), hybrid)
     await collect(session, "how?")
     assert session.history[-1]["content"] == "Use に."

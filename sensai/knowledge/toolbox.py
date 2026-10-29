@@ -62,10 +62,10 @@ class Knowledge:
         chosen = self.registry.subset([name for name in names if name not in disabled])
         return chosen if len(chosen) else None
 
-    def retrieve(self, question: str, profile_text: str | None, model: str) -> Retrieval | None:
+    def retrieve(self, question: str, profile_text: str | None, model: str, num_ctx: int) -> Retrieval | None:
         if self.retriever is None:
             return None
-        return self.retriever.retrieve(question, profile_text, model)
+        return self.retriever.retrieve(question, profile_text, model, num_ctx)
 
     def close(self) -> None:
         for server in self.servers:

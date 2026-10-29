@@ -102,6 +102,14 @@ def test_the_model_reranks_and_drops_near_misses(tmp_path):
     assert retrieval.citations[0] in retrieval.context_note()
 
 
+def test_the_reranker_uses_the_answering_agent_context_size(tmp_path):
+    client = EmbeddingClient(scores=[{"id": 1, "relevance": 0.9}, {"id": 2, "relevance": 0.9}])
+    retriever = Retriever(settings(tmp_path, min_similarity=0.0, candidate_k=2), client)
+    retriever.retrieve("topic or subject?", None, "qwen3.5:9b", 8192)
+    retriever.retrieve("topic or subject?", None, "qwen3.5:9b")
+    assert [options["num_ctx"] for _, _, options in client.chats] == [8192, 4096]
+
+
 def test_an_off_topic_question_gets_no_passage_and_no_citation(tmp_path):
     client = EmbeddingClient(scores=[{"id": 1, "relevance": 0}, {"id": 2, "relevance": 0}])
     retrieval = Retriever(settings(tmp_path, min_similarity=0.0, candidate_k=2), client).retrieve(
