@@ -95,3 +95,41 @@ def test_main_serves_the_app_on_the_given_port(monkeypatch):
     app, options = serve.calls[0]
     assert app.title == "Sensai"
     assert options == {"host": "127.0.0.1", "port": 9000}
+
+
+def test_new_session_describes_its_settings():
+    session = make_client().post("/api/sessions").json()
+    assert session["agent"] == "sensei"
+    assert session["routing"] is False
+    assert session["persona"] == "teacher"
+    assert session["history"] == []
+
+
+def test_sessions_lists_the_stored_ones():
+    client = make_client()
+    session_id = client.post("/api/sessions").json()["id"]
+    assert client.get("/api/sessions").json() == []
+    client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
+    (stored,) = client.get("/api/sessions").json()
+    assert stored["id"] == session_id
+
+
+def test_show_session_returns_its_history():
+    client = make_client()
+    session_id = client.post("/api/sessions").json()["id"]
+    client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
+    assert client.get(f"/api/sessions/{session_id}").json()["history"] == [
+        {"role": "user", "content": "hello"}, {"role": "assistant", "content": "Konnichiwa"}]
+
+
+def test_show_session_resumes_a_stored_session():
+    client = make_client()
+    pool = client.app.state.sessions
+    session_id = client.post("/api/sessions").json()["id"]
+    client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
+    pool.open.clear()
+    assert len(client.get(f"/api/sessions/{session_id}").json()["history"]) == 2
+
+
+def test_show_an_unknown_session_is_404():
+    assert make_client().get("/api/sessions/nope").status_code == 404
