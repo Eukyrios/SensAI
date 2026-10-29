@@ -91,7 +91,7 @@ the correction, the rule), **so that** my mistakes can be stored and reviewed la
 - [x] The checker's output (the corrector's, from layer 4) is validated against its JSON schema.
 - [x] An invalid output gets exactly one repair attempt with the validation error.
 - [x] If the repair also fails, an `Error(kind="invalid_output")` event appears in the trace with the invalid reply.
-- [ ] …and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
+- [x] …and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
 
 **Verified by:** `tests/orchestration/test_structured.py` (valid, repairable and broken outputs); demo: `python -m sensai --agent checker`, then "私は学校を行きます".
 
@@ -122,9 +122,9 @@ back until I've mastered them.
 **As a** learner, **I want** new words to come back on a spaced-repetition schedule,
 **so that** I review each word just before I would forget it.
 
-- [ ] Words I learn become `srs_cards` with a next review date.
+- [x] Words I learn become `srs_cards` with a next review date.
 - [ ] Cards due today are proposed at the start of a session.
-- [ ] Answering a card correctly pushes its next review further away; a wrong answer brings it closer.
+- [x] Answering a card correctly pushes its next review further away; a wrong answer brings it closer.
 
 **Verified by:** SRS scheduling tests with fixed dates.
 
@@ -166,9 +166,9 @@ reported); demo: the banner lists `[mcp] time: get_current_time, convert_time`, 
 **As a** developer, **I want** every interaction logged — prompt, response, tools called, latency,
 tokens — **so that** I can find out why an answer was wrong.
 
-- [ ] Each event is written as one JSON line in `logs/sensai.jsonl`.
-- [ ] All lines of a turn share its `turn_id`, and runs are linked by `parent_run_id`.
-- [ ] The per-turn trace shows every agent run, tool call and handoff of that turn.
+- [x] Each event is written as one JSON line in `logs/sensai.jsonl`.
+- [x] All lines of a turn share its `turn_id`, and runs are linked by `parent_run_id`.
+- [x] The per-turn trace shows every agent run, tool call and handoff of that turn.
 
 **Verified by:** logger tests; demo: `/trace` after a multi-agent turn.
 
@@ -191,9 +191,9 @@ tokens — **so that** I can find out why an answer was wrong.
 while the sensei keeps teaching me, **so that** I get a precise correction without losing the flow
 of the lesson.
 
-- [ ] Sending a sentence with a mistake produces two agent runs in the trace: `sensei` and `corrector`, the corrector's `parent_run_id` pointing to the sensei's run.
-- [ ] The handoff between them is a JSON payload (the sentence and the suspected error) shown in the trace, never free text.
-- [ ] The reply shows the corrected sentence with its romaji and an explanation in English.
+- [x] Sending a sentence with a mistake produces three agent runs in the trace: `checker`, `corrector` and `sensei`, each one's `parent_run_id` pointing to the run that handed off to it.
+- [x] The handoff between them is a JSON payload (the sentence and the suspected error) shown in the trace, never free text.
+- [x] The reply shows the corrected sentence with its romaji and an explanation in English.
 
 **Verified by:** orchestrator tests with fake agents; demo: "私は学校を行きます".
 
@@ -201,9 +201,9 @@ of the lesson.
 **As a** learner, **I want** the tutor to keep answering even when one of its agents fails or loops,
 **so that** a bug in one specialist never leaves me without a reply.
 
-- [ ] An agent spec that hands work back and forth forever is stopped after the maximum number of hops, within the turn budget, and the trace shows which guard stopped it.
-- [ ] When an agent times out or raises an error, the sensei answers instead and I see a normal reply.
-- [ ] Both cases are covered by automated tests that run without a real model.
+- [x] An agent spec that hands work back and forth forever is stopped after the maximum number of hops, within the turn budget, and the trace shows which guard stopped it.
+- [x] When an agent times out or raises an error, the sensei answers instead and I see a normal reply.
+- [x] Both cases are covered by automated tests that run without a real model.
 
 **Verified by:** guard tests with a looping and a failing agent; demo: the deliberate loop.
 
