@@ -264,6 +264,7 @@ in `config.toml` (`:memory:` for tests).
 ## Features
 
 Who uses these features and how, step by step: [`doc/scenarios.md`](doc/scenarios.md).
+How they are checked (tests, benchmark, scenario runs, live metrics): [`doc/evaluation.md`](doc/evaluation.md).
 
 Committed: six of the seven ★★★ features (T2 is declined on purpose — a Japanese tutor has no honest use for running generated code).
 
