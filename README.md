@@ -69,6 +69,7 @@ Other entry points:
 
 ```bash
 python -m sensai.surfaces.demo            # renders and logs a scripted turn, no model needed
+python -m sensai.surfaces.web             # web backend on http://127.0.0.1:8000 (see Web UI below)
 python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
 ```
 
@@ -282,7 +283,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
-| X1 | Web UI (FastAPI + SSE) | ★ | 7 | ⏳ |
+| X1 | Web UI (FastAPI + SSE) | ★ | 7 | backend ✅, frontend ⏳ |
 | EV4 | Adversarial suite | ★★ | 7 | ⏳ |
 | A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
 
@@ -382,7 +383,10 @@ Built modules, then planned ones with the layer that adds them.
 | | *`judge.py`* | claim-by-claim verification against retrieved chunks (layer 5) |
 | `surfaces/` | `cli.py` | command-line chat and its renderer |
 | | `demo.py` | scripted turn through the logger and the renderer |
-| | *`web/`* | FastAPI + SSE backend and frontend (layer 7) |
+| | `web/app.py` | FastAPI app: sessions and turns streamed as server-sent events |
+| | `web/settings.py` | switch a session's model, agent or persona |
+| | `web/sessions.py` | the open sessions, resumed from storage on demand |
+| | `web/sse.py` | one SSE message per event |
 | `sensai/` | `__main__.py` | entry point for `python -m sensai` |
 
 ### Rules that keep it stable
@@ -563,6 +567,43 @@ digits of its SHA-256, so editing a prompt gives it a new hash and nothing has t
 - **Rolled back by hash.** `prompt_version = "<hash>"` in `agents/<name>.toml` pins the agent to
   that stored prompt: it runs with it instead of the one in the file. An unknown hash fails the turn
   with a `SpecError`.
+
+### Web UI backend (X1)
+
+`python -m sensai.surfaces.web` serves the same sessions as the CLI over HTTP (`--host`, `--port`, or
+the `[web]` section of `config.toml`). It only subscribes to the event stream: a turn runs through
+`run_turn()` exactly as in the CLI, and each event goes to the browser as one server-sent event, named
+after its class, with its fields as JSON.
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/api/health` | `{"status": "ok"}` |
+| GET | `/api/sessions` | stored sessions: id, date, model, title |
+| POST | `/api/sessions` | a new session, with its settings |
+| GET | `/api/sessions/{id}` | a session's settings and history; a stored one is resumed |
+| POST | `/api/sessions/{id}/turns` | `{"text": "..."}` → the turn's events as `text/event-stream` |
+| PUT | `/api/sessions/{id}/model` | `{"model": "qwen3.5:4b"}`; 400 when it isn't installed |
+| PUT | `/api/sessions/{id}/agent` | `{"agent": "checker"}` pins an agent (routing off, like `--agent`); `{}` routes again |
+| PUT | `/api/sessions/{id}/persona` | `{"persona": "strict"}` |
+| GET | `/api/models` | installed Ollama models; 503 when Ollama is down |
+| GET | `/api/personas` | persona names and descriptions |
+
+```
+$ curl -N -X POST localhost:8000/api/sessions/<id>/turns -H 'content-type: application/json' -d '{"text": "how do I say cat?"}'
+event: TurnStarted
+data: {"turn_id": "…", "ts": 1793…, "session_id": "…", "user_input": "how do I say cat?"}
+
+event: RouteDecided
+…
+event: Token
+data: {"turn_id": "…", "ts": 1793…, "run_id": "…", "text": "猫"}
+…
+event: TurnFinished
+```
+
+A session runs one turn at a time (a second one gets 409). Closing the connection mid-reply cancels
+the turn as Escape does in the CLI. Every change keeps the history. `allow_origins` lists the browser
+origins the frontend may call from (CORS).
 
 ## Organisation
 
