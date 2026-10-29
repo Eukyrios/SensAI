@@ -128,7 +128,8 @@ class Orchestrator:
             seconds = min(RETRIEVAL_TIMEOUT_S, self.guards.seconds_left(deadline))
             try:
                 self.retrieval = await asyncio.wait_for(asyncio.to_thread(
-                    self.session.knowledge.retrieve, self.question, profile, run.spec.model), seconds)
+                    self.session.knowledge.retrieve, self.question, profile, run.spec.model,
+                    run.spec.num_ctx), seconds)
             except (asyncio.TimeoutError, Exception):
                 return None
         if self.retrieval is not None:

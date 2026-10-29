@@ -84,9 +84,9 @@ async def test_no_handoff_ends_the_turn_with_the_first_agent(tmp_path):
 
 
 async def test_stats_and_model_cover_every_run():
-    stats = ChatStats(prompt_eval_count=10, eval_count=4, total_duration_ns=100)
+    stats = ChatStats(prompt_eval_count=10, eval_count=4, eval_duration_ns=100)
     finished = (await collect(checker_session(ScriptedClient(WRONG, EXPLANATION, stats=stats))))[-1]
-    assert (finished.prompt_eval_count, finished.eval_count, finished.total_duration_ns) == (20, 8, 200)
+    assert (finished.prompt_eval_count, finished.eval_count, finished.eval_duration_ns) == (20, 8, 200)
     assert finished.model == "qwen3.5:9b"
 
 

@@ -2,9 +2,10 @@
 # most expensive. Tier 1 matches each route's regex rules from routing.toml; tier 2 compares the message
 # with each route's examples by embedding similarity; tier 3 asks the classifier agent to pick a route.
 # When no tier decides, the default agent answers. A message starting with @<agent> overrides every
-# tier, and a decision below the confidence floor falls back to the sensei. Every decision says which
+# tier (internal agents only in debug mode), and a decision below the confidence floor falls back to the sensei. Every decision says which
 # tier made it, how sure it is and why.
 
+import fnmatch
 import math
 import re
 from dataclasses import dataclass
@@ -182,7 +183,8 @@ def load_router(config: dict, client: OllamaClient) -> Router | None:
     if settings["classifier"]:
         tiers.append(ClassifierTier(routes, client, spec_for(settings["classifier"], config)))
     agents = config["agents"]
-    return Router(tiers, agents["default"], agents["fallback"], settings["confidence_floor"], _agent_names(config))
+    return Router(tiers, agents["default"], agents["fallback"], settings["confidence_floor"],
+                  _reachable_agents(config))
 
 
 def load_routes(path: str | Path) -> list[Route]:
@@ -229,6 +231,17 @@ def _route_list(routes: list[Route]) -> str:
 def _agent_names(config: dict) -> frozenset[str]:
     agents_dir = resolve(config["agents"]["dir"])
     return frozenset(path.relative_to(agents_dir).with_suffix("").as_posix() for path in agents_dir.rglob("*.toml"))
+
+
+def _reachable_agents(config: dict) -> frozenset[str]:
+    settings = config["router"]
+    if settings["debug"]:
+        return _agent_names(config)
+    return frozenset(name for name in _agent_names(config) if not _is_internal(name, settings["internal_agents"]))
+
+
+def _is_internal(name: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
 
 
 def _check_agents_exist(routes: list[Route], config: dict) -> None:
