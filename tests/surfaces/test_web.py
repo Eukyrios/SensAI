@@ -5,6 +5,7 @@ import json
 from fastapi.testclient import TestClient
 
 from sensai.core.events import Token, TurnStarted
+from sensai.surfaces.web import __main__ as web_main
 from sensai.surfaces.web.app import create_app
 from sensai.surfaces.web.sse import event_message, sse_stream
 from tests.fakes import FakeClient, events_stream, make_config
@@ -76,3 +77,21 @@ def test_a_finished_turn_frees_the_session():
     session_id = client.post("/api/sessions").json()["id"]
     client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
     assert session_id not in client.app.state.sessions.busy
+
+
+class ServeRecorder:
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, app, **options):
+        self.calls.append((app, options))
+
+
+def test_main_serves_the_app_on_the_given_port(monkeypatch):
+    serve = ServeRecorder()
+    monkeypatch.setattr(web_main.uvicorn, "run", serve)
+    web_main.main(["--port", "9000"])
+    app, options = serve.calls[0]
+    assert app.title == "Sensai"
+    assert options == {"host": "127.0.0.1", "port": 9000}
