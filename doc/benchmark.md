@@ -75,7 +75,7 @@ few exchanges, long before `max_history_turns = 20`.
 Measured on 2026-10-29 on the same laptop, one model loaded at a time with the settings Sensai uses
 (`num_ctx = 8192` for the chat models, `bge-m3` forced on the CPU). Loaded size and GPU share come
 from Ollama (`/api/ps`); VRAM is the rise in `nvidia-smi` memory over the idle desktop; RAM is the
-resident memory of the Ollama runner processes; speed is the median of 3 replies to the same short
+resident memory of the Ollama runner processes (both in GiB); speed is the median of 3 replies to the same short
 question.
 
 | Model | Role | Loaded size | On the GPU | VRAM used | RAM used | Speed |
