@@ -263,6 +263,8 @@ in `config.toml` (`:memory:` for tests).
 
 ## Features
 
+Who uses these features and how, step by step: [`doc/scenarios.md`](doc/scenarios.md).
+
 Committed: six of the seven ★★★ features (T2 is declined on purpose — a Japanese tutor has no honest use for running generated code).
 
 | Code | Feature | Rating | Layer | Status |
@@ -306,7 +308,8 @@ Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
   of the same sentence was right. The `rule` the checker writes is often vague or off.
 - **Romaji is the weakest part.** The benchmark's remaining errors are mostly wrong romaji with the
   right Japanese, and the sensei sometimes answers in romaji only ("Sushi ga suki desu") despite its
-  `characters (romaji) — translation` format.
+  `characters (romaji) — translation` format. Explanations can contain grammar mistakes too: one reply
+gave the stem of 飲む as "飲ん (non)" instead of 飲み.
 - **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers
   are not (`06 12 34 56 78` goes through). A prompt injection is replaced by a `[BLOCKED]` notice that
   the model then answers, rather than refused before the call. The output filter exists but no turn
