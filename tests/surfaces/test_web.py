@@ -5,14 +5,19 @@ import json
 from fastapi.testclient import TestClient
 
 from sensai.core.events import Token, TurnStarted
+from sensai.llm.ollama import OllamaError
 from sensai.surfaces.web import __main__ as web_main
 from sensai.surfaces.web.app import create_app
 from sensai.surfaces.web.sse import event_message, sse_stream
 from tests.fakes import FakeClient, events_stream, make_config
 
 
-def make_client(**config_sections):
-    return TestClient(create_app(make_config(**config_sections), FakeClient()))
+def make_client(ollama=None, **config_sections):
+    return TestClient(create_app(make_config(**config_sections), ollama or FakeClient()))
+
+
+def new_session_id(client):
+    return client.post("/api/sessions").json()["id"]
 
 
 def test_health():
@@ -133,3 +138,79 @@ def test_show_session_resumes_a_stored_session():
 
 def test_show_an_unknown_session_is_404():
     assert make_client().get("/api/sessions/nope").status_code == 404
+
+
+def test_models_lists_the_installed_ones():
+    assert make_client().get("/api/models").json() == {"installed": ["qwen3.5:4b", "qwen3.5:9b"]}
+
+
+class OllamaDown:
+
+    def __call__(self, *args, **kwargs):
+        raise OllamaError("connection", "Ollama is not running")
+
+
+def test_models_is_503_when_ollama_is_down():
+    ollama = FakeClient()
+    ollama.list_models = OllamaDown()
+    assert make_client(ollama).get("/api/models").status_code == 503
+
+
+def test_personas_lists_name_and_description():
+    personas = make_client().get("/api/personas").json()
+    assert {"teacher", "strict", "casual"} <= {persona["name"] for persona in personas}
+    assert all(persona["description"] for persona in personas)
+
+
+def test_switch_model_keeps_the_history():
+    client = make_client()
+    session_id = new_session_id(client)
+    client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
+    session = client.put(f"/api/sessions/{session_id}/model", json={"model": "qwen3.5:4b"}).json()
+    assert session["model"] == "qwen3.5:4b"
+    assert len(session["history"]) == 2
+
+
+def test_switch_to_a_missing_model_is_400():
+    client = make_client()
+    response = client.put(f"/api/sessions/{new_session_id(client)}/model", json={"model": "nope"})
+    assert response.status_code == 400
+    assert "ollama pull nope" in response.json()["detail"]
+
+
+def test_switch_model_is_503_when_ollama_is_down():
+    client = make_client(FakeClient(startup_error=OllamaError("connection", "Ollama is not running")))
+    response = client.put(f"/api/sessions/{new_session_id(client)}/model", json={"model": "qwen3.5:4b"})
+    assert response.status_code == 503
+
+
+def test_pinning_an_agent_turns_routing_off():
+    client = make_client(router={"enabled": True, "embed_model": "", "classifier": ""})
+    session_id = new_session_id(client)
+    assert client.get(f"/api/sessions/{session_id}").json()["routing"] is True
+    session = client.put(f"/api/sessions/{session_id}/agent", json={"agent": "checker"}).json()
+    assert (session["agent"], session["routing"]) == ("checker", False)
+
+
+def test_no_agent_goes_back_to_routing_from_the_default_agent():
+    client = make_client(router={"enabled": True, "embed_model": "", "classifier": ""})
+    session_id = new_session_id(client)
+    client.put(f"/api/sessions/{session_id}/agent", json={"agent": "checker"})
+    session = client.put(f"/api/sessions/{session_id}/agent", json={}).json()
+    assert (session["agent"], session["routing"]) == ("sensei", True)
+
+
+def test_switch_to_an_unknown_agent_is_404():
+    client = make_client()
+    assert client.put(f"/api/sessions/{new_session_id(client)}/agent", json={"agent": "nope"}).status_code == 404
+
+
+def test_switch_persona():
+    client = make_client()
+    session = client.put(f"/api/sessions/{new_session_id(client)}/persona", json={"persona": "strict"}).json()
+    assert session["persona"] == "strict"
+
+
+def test_switch_to_an_unknown_persona_is_404():
+    client = make_client()
+    assert client.put(f"/api/sessions/{new_session_id(client)}/persona", json={"persona": "nope"}).status_code == 404

@@ -8,10 +8,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ...llm.ollama import OllamaClient
-from ...memory.repository import SessionNotFound
 from ...orchestration.session import Session
 from ...orchestration.turn import run_turn
-from .sessions import SessionPool
+from .sessions import SessionPool, open_session, session_view
+from .settings import add_settings_routes
 from .sse import sse_stream
 
 
@@ -28,6 +28,7 @@ def create_app(config: dict, client: OllamaClient | None = None) -> FastAPI:
     app.add_api_route("/api/sessions", new_session, methods=["POST"], status_code=201)
     app.add_api_route("/api/sessions/{session_id}", show_session, methods=["GET"])
     app.add_api_route("/api/sessions/{session_id}/turns", start_turn, methods=["POST"])
+    add_settings_routes(app)
     return app
 
 
@@ -49,12 +50,6 @@ def show_session(session_id: str, request: Request) -> dict:
     return session_view(open_session(request.app.state.sessions, session_id))
 
 
-def session_view(session: Session) -> dict:
-    return {"id": session.id, "agent": session.spec.name, "model": session.spec.model,
-            "routing": session.router is not None, "persona": session.persona.name,
-            "thinking": session.spec.think, "history": session.history}
-
-
 def start_turn(session_id: str, turn: TurnRequest, request: Request) -> StreamingResponse:
     pool: SessionPool = request.app.state.sessions
     session = open_session(pool, session_id)
@@ -62,13 +57,6 @@ def start_turn(session_id: str, turn: TurnRequest, request: Request) -> Streamin
         raise HTTPException(409, "a turn is already running in this session")
     pool.busy.add(session_id)
     return StreamingResponse(sse_stream(turn_events(pool, session, turn.text)), media_type="text/event-stream")
-
-
-def open_session(pool: SessionPool, session_id: str) -> Session:
-    try:
-        return pool.get(session_id)
-    except SessionNotFound:
-        raise HTTPException(404, f"no session {session_id}") from None
 
 
 async def turn_events(pool: SessionPool, session: Session, text: str) -> AsyncIterator:
