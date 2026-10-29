@@ -58,7 +58,8 @@ class Knowledge:
         for name in spec.tools:
             names.extend(self.server_tools.get(name[len(MCP_PREFIX):], []) if name.startswith(MCP_PREFIX)
                          else [name])
-        chosen = self.registry.subset(names)
+        disabled = set(self.config["tools"]["disabled"])
+        chosen = self.registry.subset([name for name in names if name not in disabled])
         return chosen if len(chosen) else None
 
     def retrieve(self, question: str, profile_text: str | None, model: str) -> Retrieval | None:

@@ -50,6 +50,7 @@ max_steps = 8                # tool calls it may make in one pass
 [tools]
 enabled = true               # agents listing tools in their spec may call them (T1)
 max_rounds = 3               # tool-call rounds in one agent run before it must answer
+disabled = []                # tools turned off for every agent, e.g. ["conjugate", "get_current_time"]
 
 # MCP servers (T1), JSON-RPC 2.0 over stdio. Their tools join the own tools; an agent lists them in its spec
 # as "mcp:<name>" (all of a server's tools). A server that cannot start is skipped and reported at startup.

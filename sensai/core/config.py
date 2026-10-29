@@ -28,7 +28,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "memory": {"max_history_turns": 20, "profile": "default",
                "summary": {"enabled": True, "trigger": 0.7, "keep_recent": 6}},
     "curriculum": {"enabled": True, "max_steps": 8},
-    "tools": {"enabled": True, "max_rounds": 3},
+    "tools": {"enabled": True, "max_rounds": 3, "disabled": []},
     "mcp": {"enabled": True, "servers": []},
     "rag": {"enabled": True, "corpus_dir": "corpus", "embed_model": "bge-m3", "embed_on_cpu": True,
             "index_path": "data/rag_index.json", "default_level": "", "candidate_k": 5, "min_similarity": 0.4,

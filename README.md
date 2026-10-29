@@ -512,6 +512,10 @@ says the model supports tools, otherwise it writes them into the system prompt a
 starts like a JSON `{"tool": ..., "args": ...}` block until it knows whether it is a call. Each call is a
 `ToolCall` and a `ToolResult` event, shown in the chat and in `/trace`; at most `[tools] max_rounds` rounds.
 
+Switches, in `config.toml`: `[tools] enabled = false` turns every tool off; `[tools] disabled = ["conjugate"]`
+turns off the tools listed, for every agent (own tools and MCP tools by name); `[mcp] enabled = false` stops
+every MCP server, and `enabled = false` on one `[[mcp.servers]]` entry stops that server only.
+
 - **Own tools** read local data (`sensai/knowledge/data/`): a dictionary of common N5 words with particle
   notes, the N5 kanji with readings and stroke counts, and a rule-based conjugator (ichidan, godan, する,
   来る, the 行く and ある exceptions) for 16 forms. An unknown word comes back as `found: false`, never a guess.

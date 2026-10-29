@@ -148,6 +148,18 @@ def test_tools_for_gives_each_agent_its_own_tools():
     assert off.tools_for(spec_for("sensei", off.config)) is None
 
 
+def test_a_disabled_tool_is_left_out_for_every_agent():
+    knowledge = Knowledge(make_config(tools={"enabled": True, "disabled": ["conjugate"]}), FakeClient())
+    assert knowledge.tools_for(spec_for("sensei", knowledge.config)).names() == ["dictionary", "kanji"]
+    assert knowledge.tools_for(spec_for("corrector", knowledge.config)).names() == ["dictionary", "kanji"]
+
+
+def test_disabling_every_tool_of_an_agent_leaves_it_none():
+    disabled = ["dictionary", "conjugate", "kanji"]
+    knowledge = Knowledge(make_config(tools={"enabled": True, "disabled": disabled}), FakeClient())
+    assert knowledge.tools_for(spec_for("corrector", knowledge.config)) is None
+
+
 def own_server(enabled=True):
     return {"name": "sensai", "command": sys.executable, "args": ["-m", "sensai.knowledge.mcp_server"],
             "timeout_s": 10, "enabled": enabled}
