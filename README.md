@@ -581,7 +581,7 @@ after its class, with its fields as JSON.
 | GET | `/api/sessions` | stored sessions: id, date, model, title |
 | POST | `/api/sessions` | a new session, with its settings |
 | GET | `/api/sessions/{id}` | a session's settings and history; a stored one is resumed |
-| POST | `/api/sessions/{id}/turns` | `{"text": "..."}` → the turn's events as `text/event-stream` |
+| POST | `/api/sessions/{id}/turns` | `{"text": "..."}` -> the turn's events as `text/event-stream` |
 | PUT | `/api/sessions/{id}/model` | `{"model": "qwen3.5:4b"}`; 400 when it isn't installed |
 | PUT | `/api/sessions/{id}/agent` | `{"agent": "checker"}` pins an agent (routing off, like `--agent`); `{}` routes again |
 | PUT | `/api/sessions/{id}/persona` | `{"persona": "strict"}` |
@@ -591,13 +591,13 @@ after its class, with its fields as JSON.
 ```
 $ curl -N -X POST localhost:8000/api/sessions/<id>/turns -H 'content-type: application/json' -d '{"text": "how do I say cat?"}'
 event: TurnStarted
-data: {"turn_id": "…", "ts": 1793…, "session_id": "…", "user_input": "how do I say cat?"}
+data: {"turn_id": "...", "ts": 1793..., "session_id": "...", "user_input": "how do I say cat?"}
 
 event: RouteDecided
-…
+...
 event: Token
-data: {"turn_id": "…", "ts": 1793…, "run_id": "…", "text": "猫"}
-…
+data: {"turn_id": "...", "ts": 1793..., "run_id": "...", "text": "猫"}
+...
 event: TurnFinished
 ```
 
