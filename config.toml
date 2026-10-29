@@ -24,6 +24,8 @@ embedding_threshold = 0.55   # tier 2 decides only above this similarity...
 embedding_margin = 0.05      # ...and this far ahead of the next route
 classifier = "classifier"    # tier 3 agent (agents/classifier.toml); empty = no classifier tier
 confidence_floor = 0.5       # a decision less sure than this goes to the fallback agent (sensei)
+internal_agents = ["curriculum", "classifier", "demo/*"]  # agents a learner can't reach with @<agent>...
+debug = false                # ...unless this is true
 
 [personas]
 dir = "personas"             # one TOML per persona: name, description, tone, scope

@@ -463,7 +463,9 @@ in JSON, with `agent` limited to the route names (~2 s). An invalid reply or an 
 nothing. When no tier decides, the default agent (`[agents] default`) answers.
 
 Starting a message with `@<agent>` (e.g. `@checker kinou eiga wo mimashita`) overrides every tier; the
-prefix is removed before the message is stored. A tier decision below `confidence_floor` (0.5) goes to
+prefix is removed before the message is stored. Internal agents (`[router] internal_agents`: the
+curriculum, the classifier, `demo/*`) can't be reached this way unless `[router] debug = true`;
+`@curriculum hello` is routed like any other message. A tier decision below `confidence_floor` (0.5) goes to
 the fallback agent (the sensei). Each decision is a `RouteDecided` event (agent, tier, confidence,
 reason): it is written to the event log and `/trace` shows it, e.g.
 `Routed to 'checker' by embeddings (0.57): closest example 'sumimasen, eki wa doko desu ka'`.
