@@ -309,7 +309,8 @@ Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
 - **Romaji is the weakest part.** The benchmark's remaining errors are mostly wrong romaji with the
   right Japanese, and the sensei sometimes answers in romaji only ("Sushi ga suki desu") despite its
   `characters (romaji) — translation` format. Explanations can contain grammar mistakes too: one reply
-gave the stem of 飲む as "飲ん (non)" instead of 飲み.
+gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also marks a correct sentence typed in romaji
+(`kinou eiga wo mimashita`) as an error, only because it isn't written in Japanese characters.
 - **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers
   are not (`06 12 34 56 78` goes through). A prompt injection is replaced by a `[BLOCKED]` notice that
   the model then answers, rather than refused before the call. The output filter exists but no turn
