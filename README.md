@@ -288,6 +288,40 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 
 ✅ done · 🚧 in progress · ⏳ to do — **Never cut:** T1, R2, A1, A2, EV1, EV2.
 
+## Limits
+
+What fails or falls short today, seen in tests and rehearsals on the reference laptop (RTX 4060
+Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
+
+- **Retrieval makes the first token slow.** With `[rag] model_rerank = true` (the default) the chat
+  model grades each of the 5 candidate passages before the answer starts. On a warm model, "how do I
+  say dog?" gave its first token after 25.3 s, and 1.3 s with `SENSAI_RAG__MODEL_RERANK=false`. The
+  first turn after Ollama loads the model adds about 10 s more.
+- **The model does not fit in VRAM.** About 28% of `qwen3.5:9b` runs on the CPU, which caps it near
+  20 tokens/s (see [`doc/benchmark.md`](doc/benchmark.md)). `qwen3.5:4b` is about 3× faster but scored
+  75–80% against 90% on the benchmark.
+- **Corrections can be wrong.** The checker, corrector and sensei are the same 9B model. In one
+  rehearsal `私は駅を行きます` was flagged as a vocabulary error ("行 is used for walk"), and the
+  corrector, whose tools check words and not reasoning, revised it to an unrelated te-form; the next run
+  of the same sentence was right. The `rule` the checker writes is often vague or off.
+- **Romaji is the weakest part.** The benchmark's remaining errors are mostly wrong romaji with the
+  right Japanese, and the sensei sometimes answers in romaji only ("Sushi ga suki desu") despite its
+  `characters (romaji) — translation` format.
+- **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers
+  are not (`06 12 34 56 78` goes through). A prompt injection is replaced by a `[BLOCKED]` notice that
+  the model then answers, rather than refused before the call. The output filter exists but no turn
+  runs it.
+- **The judge does not run on replies (EV1).** `trust/eval.py` verifies claims against sources and is
+  tested, but no answer goes through it, so an invented fact is not flagged live.
+- **The learner ledger is half used (M3).** Verified corrections are written to `errors` and the
+  curriculum agent keeps the `srs_cards`, but no agent brings past errors up again, and `facts` is
+  never written.
+- **The time MCP server needs `uv`.** Without `uvx` on the PATH, Sensai says the server is unavailable
+  and goes on without it.
+- **One learner, one machine.** SQLite, one learner profile (`default`), no accounts; the knowledge
+  base is 5 Markdown files and a dictionary of common N5 words. A word outside it comes back as
+  `found: false`, and the model answers from its own knowledge.
+
 ## Layered plan
 
 | Layer | Content |
