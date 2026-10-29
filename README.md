@@ -296,10 +296,11 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 What fails or falls short today, seen in tests and rehearsals on the reference laptop (RTX 4060
 Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
 
-- **Retrieval makes the first token slow.** With `[rag] model_rerank = true` (the default) the chat
-  model grades each of the 5 candidate passages before the answer starts. On a warm model, "how do I
-  say dog?" gave its first token after 25.3 s, and 1.3 s with `SENSAI_RAG__MODEL_RERANK=false`. The
-  first turn after Ollama loads the model adds about 10 s more.
+- **Retrieval delays the first token.** With `[rag] model_rerank = true` (the default) the chat
+  model grades the candidate passages before the answer starts: the first token comes after about
+  5 s on a warm model (median of 6 turns), against about 1–2 s with `model_rerank = false`, which
+  keeps the right passage less often (9/12 against 12/12, see
+  [`doc/benchmark.md`](doc/benchmark.md)). The first turn after Ollama loads the model adds about 10 s.
 - **The model does not fit in VRAM.** About 28% of `qwen3.5:9b` runs on the CPU, which caps it near
   20 tokens/s (see [`doc/benchmark.md`](doc/benchmark.md)). `qwen3.5:4b` is about 3× faster but scored
   75–80% against 90% on the benchmark.

@@ -92,6 +92,42 @@ question.
 - With both loaded, Sensai needs about 6 GB of free VRAM and 4–5 GB of free RAM on top of the
   desktop; the laptop's 16 GB of RAM leave room for both.
 
+## Measured improvement: one context size for the reranker
+
+**Problem.** On a warm model, the first token of an answer took 20–25 s. `ollama ps` during a chat
+showed the 9B switching between `num_ctx` 4096 and 8192 on every turn: the RAG reranker
+(`retrieval.py`) asked for 4096 while the sensei asks for 8192, and Ollama reloads a model whenever its
+context size changes, so each turn loaded the 9B twice.
+
+**Change.** The reranker now uses the context size of the agent it retrieves for (8192 for the
+sensei), so the model stays loaded between the reranking call and the answer.
+
+**Measure.** The same 6 questions in one chat session, the model already warm, before and after the
+change (2026-10-29, same laptop):
+
+| | First token (median) | First token (range) | Whole turn (median) |
+|---|---|---|---|
+| Before | 21.6 s | 20.8–25.8 s | 32.4 s |
+| After | 5.6 s | 4.3–8.1 s | 16.1 s |
+
+The reranker's prompt and model are unchanged, so what it keeps is unchanged; the gain is the two
+reloads per turn, about 16 s.
+
+### Model reranker or hybrid score
+
+Retrieval alone, on 12 grammar questions whose right corpus section is known (e.g. "When do I use
+the particle に?" → *Particle に (ni): destination, time and existence*), with `[rag] model_rerank` on
+and off:
+
+| Reranker | Right section kept | Other sections kept | Time per question (median) |
+|---|---|---|---|
+| Model (`model_rerank = true`) | 12 / 12 | 3 | 3.7 s |
+| Hybrid score (`false`) | 9 / 12 | 8 | 0.2 s |
+
+The hybrid score missed *Wanting to do: たい* for "I want to eat sushi", *Plain past* for "past tense
+of taberu" and *Giving reasons* for "how do I say because", and kept twice as many unrelated
+sections. The model reranker stays the default: 3.5 s more per turn for the right passage every time.
+
 ## Decision
 
 - **`qwen3.5:9b` stays the sensei's model.** Over the two runs it's right on 24 questions against
