@@ -36,7 +36,7 @@ def remove_database(db_path: Path) -> None:
 
 
 def add_session(repo: SessionRepository, session: dict) -> str:
-    session_id = repo.create_session(MODEL, session["title"])
+    session_id = repo.create_session(MODEL, session["title"], session_id=session.get("id"))
     parent_id = None
     for message in session["messages"]:
         parent_id = repo.add_message(session_id, message["role"], message["content"], parent_id)

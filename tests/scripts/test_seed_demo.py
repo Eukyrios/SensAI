@@ -11,6 +11,7 @@ SEED = '''
 profile = "Alex, a beginner."
 
 [[sessions]]
+id = "demo-greetings"
 title = "Greetings"
 messages = [
     { role = "user", content = "How do I say hello?" },
@@ -53,7 +54,7 @@ def test_seed_stores_each_session_as_a_resumable_chain(tmp_path):
     seed_demo.seed(tmp_path / "demo.db", write_seed(tmp_path)).conn.close()
     repo = open_seeded(tmp_path / "demo.db")
     (session,) = repo.list_sessions()
-    assert session["title"] == "Greetings"
+    assert (session["id"], session["title"]) == ("demo-greetings", "Greetings")
     assert repo.load_history(session["id"]) == [
         {"role": "user", "content": "How do I say hello?"},
         {"role": "assistant", "content": "こんにちは (konnichiwa) — hello."},

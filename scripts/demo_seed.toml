@@ -4,7 +4,9 @@ profile = """The learner is Alex, an English-speaking beginner (JLPT N5).
 Alex reads hiragana, is learning katakana and about 40 kanji.
 Goal: order food and ask for directions on a trip to Tokyo in March."""
 
+# Fixed ids, so the demo script can resume them: python -m sensai --session demo-food
 [[sessions]]
+id = "demo-food"
 title = "Ordering food"
 messages = [
     { role = "user", content = "How do I ask for the menu in a restaurant?" },
@@ -14,6 +16,7 @@ messages = [
 ]
 
 [[sessions]]
+id = "demo-particles"
 title = "Particles"
 messages = [
     { role = "user", content = "Is it 'watashi wa eiga ni mimasu'?" },
