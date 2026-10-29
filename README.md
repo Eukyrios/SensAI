@@ -269,17 +269,17 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 |------|---------|--------|-------|--------|
 | B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
 | M1 | Session persistence & profile | ★ | 2 | ✅ |
-| T5 | Structured output (JSON schema, one repair) | ★ | 3 | 🚧 validation and repair built; handoffs use it in layer 4 |
+| T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ checker, corrector, classifier and handoffs |
 | M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; not read back yet, `facts` unused |
 | T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ✅ sensei calls them (native or prompted); MCP stdio client, own MCP server, pre-existing time server configured |
-| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | 🚧 JSONL event log, `/metrics` and `/trace` built |
-| A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ⏳ |
+| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | ✅ JSONL event log, `/metrics`, `/trace` |
+| A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ✅ handoffs, guards, fallback, three-tier router |
 | A1 | ReAct (corrector) | ★★★ | 4 | ✅ checker → corrector → sensei |
-| M2 | Token budgeting & compression | ★★ | 4–5 | ⏳ |
+| M2 | Token budgeting & compression | ★★ | 4–5 | ✅ per-agent context budget, running summary |
 | R1 | Basic RAG (citations, JLPT metadata) | ★★ | 5 | ✅ bge-m3 embeddings, cosine, JLPT filter, citations |
-| EV1 | Judge: claim-by-claim verification | ★★★ | 5 | ⏳ |
+| EV1 | Judge: claim-by-claim verification | ★★★ | 5 | 🚧 judge built and tested, not run on replies yet |
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ✅ model reranker, threshold drop, scores in `/trace` |
-| EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
+| EV2 | Input / output guardrails | ★★★ | 6 | 🚧 input filter runs on every turn; output filter built, not wired |
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ⏳ |
@@ -378,8 +378,8 @@ Built modules, then planned ones with the layer that adds them.
 | `trust/` | `logging.py` | JSON-lines event log |
 | | `metrics.py` | tokens, speed, TTFT and cost per turn (`/metrics`) |
 | | `tracing.py` | per-turn trace of the agent runs (`/trace`) |
-| | `guardrails.py` | input and output filters (stub until layer 6) |
-| | *`judge.py`* | claim-by-claim verification against retrieved chunks (layer 5) |
+| | `guardrails.py` | input filter (prompt injection, PII) and output filter |
+| | `eval.py` | LLM judge: claim-by-claim verification against retrieved chunks |
 | `surfaces/` | `cli.py` | command-line chat and its renderer |
 | | `demo.py` | scripted turn through the logger and the renderer |
 | | *`web/`* | FastAPI + SSE backend and frontend (layer 7) |

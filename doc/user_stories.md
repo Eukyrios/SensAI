@@ -10,17 +10,17 @@ Stories are written when a feature is specced, not at the end: they decide what 
 |------|---------|--------|-------|-------|--------|
 | [B1](#b1--functional-cli-chatbot) | Functional CLI chatbot | 👍 | 1–2 | A · D | ✅ built |
 | [M1](#m1--session-persistence--profile) | Session persistence & profile | ★ | 1–2 | B | ✅ built |
-| [T5](#t5--structured-output) | Structured output | ★ | 3 | A | 🚧 validation built, handoffs in layer 4 |
-| [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | 🚧 ledger built, not used by an agent yet |
-| [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | 🚧 registry built, tools return placeholder data, MCP in layer 5 |
-| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | 🚧 event log, `/metrics` and `/trace` built |
+| [T5](#t5--structured-output) | Structured output | ★ | 3 | A | ✅ built |
+| [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | 🚧 SRS cards and errors written by agents, `facts` unused |
+| [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | ✅ built |
+| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | ✅ built |
 | [A2](#a2--multi-agent-orchestration) | Multi-agent orchestration | ★★★ | 4–5 | A | ✅ handoffs, guards, fallback, three-tier router |
-| [A1](#a1--reasoning-loop-react) | Reasoning loop (ReAct) | ★★★ | 4 | C | ⏳ |
-| [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4–5 | B | ⏳ |
-| [R1](#r1--basic-rag) | Basic RAG | ★★ | 5 | C | ⏳ |
-| [EV1](#ev1--automated-eval--hallucination-detection) | Eval & hallucination detection | ★★★ | 5 | D | ⏳ |
-| [R2](#r2--advanced-rag) | Advanced RAG | ★★★ | 6 | C | ⏳ |
-| [EV2](#ev2--content--privacy-guardrails) | Content & privacy guardrails | ★★★ | 6 | D | ⏳ |
+| [A1](#a1--reasoning-loop-react) | Reasoning loop (ReAct) | ★★★ | 4 | C | ✅ built |
+| [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4–5 | B | ✅ built |
+| [R1](#r1--basic-rag) | Basic RAG | ★★ | 5 | C | ✅ built |
+| [EV1](#ev1--automated-eval--hallucination-detection) | Eval & hallucination detection | ★★★ | 5 | D | 🚧 judge built, not run on replies |
+| [R2](#r2--advanced-rag) | Advanced RAG | ★★★ | 6 | C | ✅ built |
+| [EV2](#ev2--content--privacy-guardrails) | Content & privacy guardrails | ★★★ | 6 | D | 🚧 input filter wired, output filter not |
 | [A5](#a5--persona) | Persona | ★ | 6 | A | ✅ built |
 | [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ✅ built |
 | [X1](#x1--web-ui) | Web UI | ★ | 7 | A · D | ⏳ |
