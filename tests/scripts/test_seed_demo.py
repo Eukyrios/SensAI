@@ -1,4 +1,4 @@
-# Tests for the demo database: a fresh database holding the seeded profile and sessions.
+# Tests for the demo database: a fresh database holding the seeded profile, sessions and ledger.
 
 from datetime import date
 
