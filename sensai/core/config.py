@@ -35,6 +35,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             "lexical_threshold": 0.4, "top_k": 2},
     "guardrails": {"enabled": True},
     "logging": {"level": "INFO", "path": "logs/sensai.jsonl"},
+    "web": {"host": "127.0.0.1", "port": 8000, "allow_origins": ["http://localhost:5173"]},
 }
 
 

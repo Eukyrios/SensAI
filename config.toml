@@ -91,3 +91,8 @@ enabled = true
 [logging]
 level = "INFO"
 path = "logs/sensai.jsonl"
+
+[web]
+host = "127.0.0.1"           # python -m sensai.surfaces.web listens here
+port = 8000
+allow_origins = ["http://localhost:5173"]  # browser origins the frontend is served from (CORS)
