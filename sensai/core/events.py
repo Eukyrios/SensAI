@@ -111,6 +111,7 @@ class TurnFinished(_Base):
     model: str
     prompt_eval_count: int = 0
     eval_count: int = 0
+    eval_duration_ns: int = 0
     total_duration_ns: int = 0
     ttft_ms: float | None = None
 

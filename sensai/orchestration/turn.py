@@ -104,14 +104,12 @@ class _Turn:
         return GuardrailTriggered(turn_id=self.turn_id, side="input", rule="filter_input", action="redact")
 
     def finished_event(self) -> TurnFinished:
-        stats = self._total_stats()
+        stats = self._total_stats() or ChatStats()
         model = self.crew.runs[-1].spec.model if self.crew.runs else self.session.spec.model
-        if stats is None:
-            return TurnFinished(turn_id=self.turn_id, model=model, ttft_ms=self._first_output_ms(),
-                                total_duration_ns=time.perf_counter_ns() - self.started_ns)
         return TurnFinished(turn_id=self.turn_id, model=model, ttft_ms=self._first_output_ms(),
                             prompt_eval_count=stats.prompt_eval_count, eval_count=stats.eval_count,
-                            total_duration_ns=stats.total_duration_ns)
+                            eval_duration_ns=stats.eval_duration_ns,
+                            total_duration_ns=time.perf_counter_ns() - self.started_ns)
 
     def _total_stats(self) -> ChatStats | None:
         stats = None

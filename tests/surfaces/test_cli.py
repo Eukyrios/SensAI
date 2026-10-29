@@ -194,7 +194,7 @@ def test_usage_line_after_reply(monkeypatch, capsys):
     run_cli_test(monkeypatch, ["hello"], client=FakeClient(stats=STATS))
     out = capsys.readouterr().out
     assert "Konnichiwa" in out
-    assert "102 prompt + 11 reply tokens" in out and "1.2s" in out
+    assert "102 prompt + 11 reply tokens" in out and "first token" in out
 
 
 def test_no_usage_line_without_stats(monkeypatch, capsys):
