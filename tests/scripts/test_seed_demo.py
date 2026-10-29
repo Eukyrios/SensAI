@@ -15,7 +15,7 @@ id = "demo-greetings"
 title = "Greetings"
 messages = [
     { role = "user", content = "How do I say hello?" },
-    { role = "assistant", content = "こんにちは (konnichiwa) — hello." },
+    { role = "assistant", content = "こんにちは (konnichiwa) - hello." },
 ]
 
 [[cards]]
@@ -57,7 +57,7 @@ def test_seed_stores_each_session_as_a_resumable_chain(tmp_path):
     assert (session["id"], session["title"]) == ("demo-greetings", "Greetings")
     assert repo.load_history(session["id"]) == [
         {"role": "user", "content": "How do I say hello?"},
-        {"role": "assistant", "content": "こんにちは (konnichiwa) — hello."},
+        {"role": "assistant", "content": "こんにちは (konnichiwa) - hello."},
     ]
 
 

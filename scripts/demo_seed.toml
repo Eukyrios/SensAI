@@ -10,9 +10,9 @@ id = "demo-food"
 title = "Ordering food"
 messages = [
     { role = "user", content = "How do I ask for the menu in a restaurant?" },
-    { role = "assistant", content = "メニューをください (menyuu o kudasai) — the menu, please." },
+    { role = "assistant", content = "メニューをください (menyuu o kudasai) - the menu, please." },
     { role = "user", content = "And how do I say I want ramen?" },
-    { role = "assistant", content = "ラーメンをください (raamen o kudasai) — ramen, please." },
+    { role = "assistant", content = "ラーメンをください (raamen o kudasai) - ramen, please." },
 ]
 
 [[sessions]]
@@ -20,7 +20,7 @@ id = "demo-particles"
 title = "Particles"
 messages = [
     { role = "user", content = "Is it 'watashi wa eiga ni mimasu'?" },
-    { role = "assistant", content = "Almost: 見る takes を for what you watch. 私は映画を見ます (watashi wa eiga o mimasu) — I watch movies." },
+    { role = "assistant", content = "Almost: 見る takes を for what you watch. 私は映画を見ます (watashi wa eiga o mimasu) - I watch movies." },
 ]
 
 # Flashcards for the curriculum agent; due_in_days 0 means due on the day of the demo.
