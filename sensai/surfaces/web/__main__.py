@@ -10,15 +10,15 @@ from .app import create_app
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
-    config = load_config(args.config)
-    uvicorn.run(create_app(config), host=args.host, port=args.port)
+    config = load_config(args.config, cli={"web": {"host": args.host, "port": args.port}})
+    uvicorn.run(create_app(config), host=config["web"]["host"], port=config["web"]["port"])
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="sensai-web", description="Sensai web backend")
     parser.add_argument("--config", help="path to a config.toml")
-    parser.add_argument("--host", default="127.0.0.1", help="address to listen on (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8000, help="port to listen on (default: 8000)")
+    parser.add_argument("--host", help="address to listen on (default: [web] host in config.toml)")
+    parser.add_argument("--port", type=int, help="port to listen on (default: [web] port in config.toml)")
     return parser.parse_args(argv)
 
 

@@ -102,6 +102,21 @@ def test_main_serves_the_app_on_the_given_port(monkeypatch):
     assert options == {"host": "127.0.0.1", "port": 9000}
 
 
+def test_main_defaults_to_the_web_config(monkeypatch):
+    serve = ServeRecorder()
+    monkeypatch.setattr(web_main.uvicorn, "run", serve)
+    monkeypatch.setenv("SENSAI_WEB__PORT", "8123")
+    web_main.main([])
+    assert serve.calls[0][1]["port"] == 8123
+
+
+def test_cors_allows_the_frontend_origin():
+    client = make_client(web={"allow_origins": ["http://localhost:5173"]})
+    response = client.options("/api/sessions", headers={"Origin": "http://localhost:5173",
+                                                        "Access-Control-Request-Method": "POST"})
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
 def test_new_session_describes_its_settings():
     session = make_client().post("/api/sessions").json()
     assert session["agent"] == "sensei"

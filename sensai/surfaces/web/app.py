@@ -4,6 +4,7 @@
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -21,6 +22,8 @@ class TurnRequest(BaseModel):
 
 def create_app(config: dict, client: OllamaClient | None = None) -> FastAPI:
     app = FastAPI(title="Sensai")
+    app.add_middleware(CORSMiddleware, allow_origins=config["web"]["allow_origins"], allow_methods=["*"],
+                       allow_headers=["*"])
     client = client or OllamaClient(config["ollama"]["url"], config["ollama"]["timeout_s"])
     app.state.sessions = SessionPool(config, client)
     app.add_api_route("/api/health", health, methods=["GET"])
