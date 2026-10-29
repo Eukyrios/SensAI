@@ -20,16 +20,16 @@ and comes back to the same conversation each time.
 - Step 1 prints `Resumed session demo-food (4 messages)`.
 - Step 2 lists メニューをください and ラーメンをください and calls the learner Alex: history from the
   session, name from the learner profile.
-- Step 3 gives the Japanese, its romaji and the translation: `水をください (mizu o kudasai) — I would
+- Step 3 gives the Japanese, its romaji and the translation: `水をください (mizu o kudasai) - I would
   like water, please.`
 - Step 4 goes to the checker (the message is only Japanese), which flags a particle error and hands
   off to the corrector; the corrector checks with the `dictionary` tool, and the sensei explains を:
-  `私は水を飲みます (watashi wa mizu o nomimasu) — I drink water.` `/trace` shows the three runs and
+  `私は水を飲みます (watashi wa mizu o nomimasu) - I drink water.` `/trace` shows the three runs and
   the tool call.
 
 **Features:** M1 sessions and profile, A2 router and handoffs, T5 structured output, A1 ReAct
 corrector, T1 tools, EV3 trace.
-**Works today:** yes. Step 4 takes 40–70 s. In a rehearsal the corrector looked up the conjugated
+**Works today:** yes. Step 4 takes 40-70 s. In a rehearsal the corrector looked up the conjugated
 `飲みます`, which the dictionary doesn't hold, so it passed the correction on as unverified; the
 sensei's explanation was still right.
 
@@ -47,7 +47,7 @@ than encouragement.
 
 **Expected result:**
 - Step 1 prints `Persona: strict (history kept)`.
-- Step 2 is corrected to 私は映画を見ます in a curt tone ("Incorrect… Repeat the correct form.");
+- Step 2 is corrected to 私は映画を見ます in a curt tone ("Incorrect... Repeat the correct form.");
   the conversation and the format of the Japanese are unchanged.
 - Step 3 brings the encouraging tone back in the same session.
 
@@ -65,7 +65,7 @@ than encouragement.
 
 **Expected result:** the email reaches the model as `[REDACTED_EMAIL]`, the chat shows
 `[guardrail] input redact: filter_input`, and the reply is a self-introduction
-(`私はアレックスです (watashi wa Arekusu desu) — I am Alex.`) with a reminder to keep personal details
+(`私はアレックスです (watashi wa Arekusu desu) - I am Alex.`) with a reminder to keep personal details
 private.
 
 **Features:** EV2 guardrails, EV3 event log (the `GuardrailTriggered` event).

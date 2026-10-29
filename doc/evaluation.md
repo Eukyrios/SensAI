@@ -47,7 +47,7 @@ seeded demo database (`python -m scripts.seed_demo`, then `SENSAI_STORAGE__DB_PA
 
 **Pass criteria:** each step shows its "Expected result": the right agents in `/trace`, the handoffs,
 the tool calls, the guardrail event, a correct Japanese answer in the
-`characters (romaji) — translation` format. Since the model is not deterministic, a scenario is run
+`characters (romaji) - translation` format. Since the model is not deterministic, a scenario is run
 twice; a step that fails once is written down in the README's Limits section.
 
 **Run:** by hand, or piped: `printf '%s\n' "私は映画に見ます" "/trace" "/quit" | python -m sensai`.

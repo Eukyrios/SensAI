@@ -275,10 +275,10 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ checker, corrector, classifier and handoffs |
 | M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; not read back yet, `facts` unused |
 | T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ✅ sensei calls them (native or prompted); MCP stdio client, own MCP server, pre-existing time server configured |
-| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | ✅ JSONL event log, `/metrics`, `/trace` |
-| A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ✅ handoffs, guards, fallback, three-tier router |
+| EV3 | Logging, metrics, per-turn trace | ★★ | 3-4 | ✅ JSONL event log, `/metrics`, `/trace` |
+| A2 | Multi-agent orchestration + router | ★★★ | 4-5 | ✅ handoffs, guards, fallback, three-tier router |
 | A1 | ReAct (corrector) | ★★★ | 4 | ✅ checker → corrector → sensei |
-| M2 | Token budgeting & compression | ★★ | 4–5 | ✅ per-agent context budget, running summary |
+| M2 | Token budgeting & compression | ★★ | 4-5 | ✅ per-agent context budget, running summary |
 | R1 | Basic RAG (citations, JLPT metadata) | ★★ | 5 | ✅ bge-m3 embeddings, cosine, JLPT filter, citations |
 | EV1 | Judge: claim-by-claim verification | ★★★ | 5 | 🚧 judge built and tested, not run on replies yet |
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ✅ model reranker, threshold drop, scores in `/trace` |
@@ -302,15 +302,15 @@ Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
   but the hybrid score keeps the right passage less often (9/12 against 12/12, see
   [`doc/benchmark.md`](doc/benchmark.md)). The first turn after Ollama loads the model adds about 10 s.
 - **The model does not fit in VRAM.** About 28% of `qwen3.5:9b` runs on the CPU, which caps it near
-  20 tokens/s (see [`doc/benchmark.md`](doc/benchmark.md)). `qwen3.5:4b` is about 3× faster but scored
-  75–80% against 90% on the benchmark.
+  20 tokens/s (see [`doc/benchmark.md`](doc/benchmark.md)). `qwen3.5:4b` is about 3x faster but scored
+  75-80% against 90% on the benchmark.
 - **Corrections can be wrong.** The checker, corrector and sensei are the same 9B model. In one
   rehearsal `私は駅を行きます` was flagged as a vocabulary error ("行 is used for walk"), and the
   corrector, whose tools check words and not reasoning, revised it to an unrelated te-form; the next run
   of the same sentence was right. The `rule` the checker writes is often vague or off.
 - **Romaji is the weakest part.** The benchmark's remaining errors are mostly wrong romaji with the
   right Japanese, and the sensei sometimes answers in romaji only ("Sushi ga suki desu") despite its
-  `characters (romaji) — translation` format. Explanations can contain grammar mistakes too: one reply
+  `characters (romaji) - translation` format. Explanations can contain grammar mistakes too: one reply
 gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also marks a correct sentence typed in romaji
 (`kinou eiga wo mimashita`) as an error, only because it isn't written in Japanese characters.
 - **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers

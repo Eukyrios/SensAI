@@ -13,10 +13,10 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [T5](#t5--structured-output) | Structured output | ★ | 3 | A | ✅ built |
 | [M3](#m3--external-structured-memory) | External structured memory | ★★ | 3, 6 | B | 🚧 SRS cards and errors written by agents, `facts` unused |
 | [T1](#t1--tools-and-mcp) | Tools and MCP | ★★★ | 3, 5 | C | ✅ built |
-| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3–4 | D | ✅ built |
+| [EV3](#ev3--logging-and-monitoring) | Logging & monitoring | ★★ | 3-4 | D | ✅ built |
 | [A2](#a2--multi-agent-orchestration) | Multi-agent orchestration | ★★★ | 4–5 | A | ✅ handoffs, guards, fallback, three-tier router |
 | [A1](#a1--reasoning-loop-react) | Reasoning loop (ReAct) | ★★★ | 4 | C | ✅ built |
-| [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4–5 | B | ✅ built |
+| [M2](#m2--token-budgeting--compression) | Token budgeting & compression | ★★ | 4-5 | B | ✅ built |
 | [R1](#r1--basic-rag) | Basic RAG | ★★ | 5 | C | ✅ built |
 | [EV1](#ev1--automated-eval--hallucination-detection) | Eval & hallucination detection | ★★★ | 5 | D | 🚧 judge built, not run on replies |
 | [R2](#r2--advanced-rag) | Advanced RAG | ★★★ | 6 | C | ✅ built |
@@ -50,7 +50,7 @@ myself or waiting for the whole answer.
 
 > how do I say cat?
 
-猫 (neko) — cat. This is a very common word you will hear often!
+猫 (neko) - cat. This is a very common word you will hear often!
 
 > what did I just ask you?
 
@@ -96,8 +96,8 @@ Resumed session demo-food (4 messages)
 ```
 > What did I learn to order last time?
 
-You learned to ask for the menu and to order ramen! メニューをください (menyuu o kudasai) — the menu,
-please. ラーメンをください (raamen o kudasai) — ramen, please. You are doing great, Alex!
+You learned to ask for the menu and to order ramen! メニューをください (menyuu o kudasai) - the menu,
+please. ラーメンをください (raamen o kudasai) - ramen, please. You are doing great, Alex!
 
 ### M1-2 · A tutor that knows my level
 **As a** learner preparing the JLPT N5, **I want** Sensai to remember my level and goals,
@@ -114,7 +114,7 @@ With the profile "Alex, JLPT N5 beginner, trip to Tokyo in March" stored once:
 
 > How do I say I would like water?
 
-水をください (mizu o kudasai) — I would like water, please. In the same session the corrections end
+水をください (mizu o kudasai) - I would like water, please. In the same session the corrections end
 with "You are learning well, Alex": the name comes from the stored profile, never typed in the chat.
 
 ---
@@ -128,7 +128,7 @@ the correction, the rule), **so that** my mistakes can be stored and reviewed la
 - [x] The checker's output (the corrector's, from layer 4) is validated against its JSON schema.
 - [x] An invalid output gets exactly one repair attempt with the validation error.
 - [x] If the repair also fails, an `Error(kind="invalid_output")` event appears in the trace with the invalid reply.
-- [x] …and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
+- [x] ...and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
 
 **Verified by:** `tests/orchestration/test_structured.py` (valid, repairable and broken outputs); demo: `python -m sensai --agent checker`, then "私は学校を行きます".
 
@@ -157,7 +157,7 @@ The checker's `handoff` field may only name `corrector` or `sensei`, and the rec
 the checker's validated JSON, never free text:
 
 ```
-[handoff] checker → corrector: The sentence contains a particle error that needs verification.
+[handoff] checker -> corrector: The sentence contains a particle error that needs verification.
 ```
 
 ---
@@ -220,7 +220,7 @@ review from 1 day to 6 days.
 ```
 [tool] conjugate {"verb": "食べる", "form": "ta"}
 ```
-The word 食べる (taberu) means "to eat". Its past form is 食べた (tabeta) — ate.
+The word 食べる (taberu) means "to eat". Its past form is 食べた (tabeta) - ate.
 (native and prompted paths), `tests/orchestration/test_knowledge_turn.py` (sensei calls a tool in a turn);
 demo: "what does 食べる mean, and its て-form?" then `/trace`.
 
@@ -241,7 +241,7 @@ demo: "what does 食べる mean, and its て-form?" then `/trace`.
 Not run on the reference laptop (`uv` isn't installed), where the chat says:
 
 ```
-[mcp] starting time…
+[mcp] starting time...
 [mcp] time unavailable, continuing without it: cannot start uvx: [Errno 2] No such file or directory: 'uvx'
 ```
 With `uv` installed, the banner lists the server's tools and the sensei can call `get_current_time`
@@ -271,7 +271,7 @@ tokens — **so that** I can find out why an answer was wrong.
 Routed to 'checker' by override (1.00): the learner asked for @checker
 1. Agent 'checker' [OK]
 2. Agent 'corrector' [OK] | 499 reasoning chars
-     tool dictionary(word='映画') → ok: {"word": "映画", "found": true, "reading": "えいが (eiga)", ...}
+     tool dictionary(word='映画') -> ok: {"word": "映画", "found": true, "reading": "えいが (eiga)", ...}
 3. Agent 'sensei' [OK] | 70 tokens
 ```
 
@@ -313,8 +313,8 @@ of the lesson.
 > 私は映画に見ます
 
 ```
-[handoff] checker → corrector: The sentence contains a particle error that needs verification.
-[handoff] corrector → sensei: explain the verified correction to the learner
+[handoff] checker -> corrector: The sentence contains a particle error that needs verification.
+[handoff] corrector -> sensei: explain the verified correction to the learner
 ```
 私は映画を見ます (watashi wa eiga o mimasu): the corrector kept the checker's correction, with the
 rule "The transitive verb 'miru' (to see/watch) requires the particle 'o' to mark its direct object,
@@ -335,9 +335,9 @@ not 'ni'."
 ```
 $ python -m sensai --agent demo/ping
 > hello
-[handoff] demo/ping → demo/pong: ping passes to pong
-[handoff] demo/pong → demo/ping: pong passes to ping
-[error] Stopped a handoff loop: demo/ping already ran in this turn (demo/ping → demo/pong)
+[handoff] demo/ping -> demo/pong: ping passes to pong
+[handoff] demo/pong -> demo/ping: pong passes to ping
+[error] Stopped a handoff loop: demo/ping already ran in this turn (demo/ping -> demo/pong)
 ```
 The sensei then answers the greeting normally.
 
@@ -407,7 +407,7 @@ says `sensei by floor`.
 Thought: The first check suggests the error is the particle 'ni' instead of 'o' for the direct object.
 [tool] dictionary {"word": "飲みます"}
 Verification: '飲みます' is not in the local dictionary, so I cannot verify the particle usage directly.
-[handoff] corrector → sensei: the correction could not be verified; explain it with care
+[handoff] corrector -> sensei: the correction could not be verified; explain it with care
 ```
 corrector as an agent: steps streamed, invented Observation cut, final answer before any tool sent back);
 `tests/orchestration/test_knowledge_turn.py` (checker → corrector → sensei; only a verified correction is
@@ -484,7 +484,7 @@ trust them and read further.
 
 > When do I use the particle に?
 
-1. To mark a destination: 学校に行きます (gakkou ni ikimasu) — I go to school.
+1. To mark a destination: 学校に行きます (gakkou ni ikimasu) - I go to school.
    [particles.md § Particle に (ni): destination, time and existence]
 `tests/orchestration/test_knowledge_turn.py` (passages in the sensei's prompt, a `Sources:` line when it cites
 nothing); demo: "when do I use は vs が?" then "how do I say cat?" (no source).
@@ -566,7 +566,7 @@ qwen3.5:9b    0.89           0.86
 ```
 rag (embeddings+model): 1 kept, 4 dropped
   kept particles.md § Particle に (ni): destination, time and existence [N5] 1.00
-  dropped particles.md § Particle で (de): place of action and means 0.68 → 0.00
+  dropped particles.md § Particle で (de): place of action and means 0.68 -> 0.00
 ```
 hybrid and lexical fallbacks); demo: `/trace` shows each candidate's cosine score → rerank score.
 
@@ -606,8 +606,8 @@ the model sees it, **so that** practising with real sentences never leaks my dat
 ```
 [guardrail] input redact: filter_input
 ```
-The model receives `My email is [REDACTED_EMAIL], …` and answers 私はアレックスです (watashi wa
-Arekusu desu) — I am Alex.
+The model receives `My email is [REDACTED_EMAIL], ...` and answers 私はアレックスです (watashi wa
+Arekusu desu) - I am Alex.
 
 ### EV2-2 · A tutor that stays a tutor
 **As** the school, **we want** the tutor to refuse unsafe or out-of-scope requests,
@@ -649,7 +649,7 @@ Persona: strict (history kept)
 
 > 私は駅を行きます
 
-You made the same mistake again. … 私は駅に行きます (watashi wa eki ni ikimasu) — I go to the
+You made the same mistake again. ... 私は駅に行きます (watashi wa eki ni ikimasu) - I go to the
 station. Please try again.
 
 ### A5-2 · New personas without code
@@ -690,7 +690,7 @@ scope = "Everyday conversation practice."
 The JSONL log has the prompt hash on every run:
 
 ```json
-{"turn_id": "0c251f32…", "run_id": "3a5b2e57…", "agent": "sensei", "parent_run_id": "15fc8a52…", "prompt_hash": "09d882eac5b8", "event_type": "AgentRunStarted"}
+{"turn_id": "0c251f32...", "run_id": "3a5b2e57...", "agent": "sensei", "parent_run_id": "15fc8a52...", "prompt_hash": "09d882eac5b8", "event_type": "AgentRunStarted"}
 ```
 
 ### A4-2 · Compare and roll back prompts
@@ -734,8 +734,8 @@ $ curl -N -X POST localhost:8000/api/sessions/<id>/turns -d '{"text": "how do I 
 event: TurnStarted
 event: RouteDecided
 event: Token
-data: {"run_id": "…", "text": "猫"}
-…
+data: {"run_id": "...", "text": "猫"}
+...
 event: TurnFinished
 ```
 
@@ -808,8 +808,8 @@ model on things it has already explained.
 *Not built yet; the target behaviour:*
 > how to greet someone?
 
-`[cache] hit (similar to "how do I say hello?", 0.93) · 12 ms`, then the cached answer
-こんにちは (konnichiwa) — hello.
+`[cache] hit (similar to "how do I say hello?", 0.93) - 12 ms`, then the cached answer
+こんにちは (konnichiwa) - hello.
 
 ### A6-2 · Never the wrong cached answer
 **As a** learner, **I want** the cache to answer only when the question really is the same,
@@ -826,4 +826,4 @@ model on things it has already explained.
 > how do I say goodbye?
 
 `[cache] miss (closest "how do I say hello?", 0.71 < 0.90)`, and the model answers さようなら
-(sayounara) — goodbye.
+(sayounara) - goodbye.
