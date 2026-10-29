@@ -31,3 +31,48 @@ async def test_sse_stream_encodes_every_event():
                            Token(turn_id="t1", run_id="r1", text="Kon"))
     messages = [message async for message in sse_stream(events)]
     assert [message.split("\n")[0] for message in messages] == ["event: TurnStarted", "event: Token"]
+
+
+def sse_names(response):
+    return [line.removeprefix("event: ") for line in response.text.split("\n") if line.startswith("event: ")]
+
+
+def sse_data(response, name):
+    lines = response.text.split("\n")
+    return [json.loads(lines[index + 1].removeprefix("data: "))
+            for index, line in enumerate(lines) if line == f"event: {name}"]
+
+
+def test_new_session_returns_its_id():
+    response = make_client().post("/api/sessions")
+    assert response.status_code == 201
+    assert response.json()["id"]
+
+
+def test_turn_streams_the_events_as_sse():
+    client = make_client()
+    session_id = client.post("/api/sessions").json()["id"]
+    response = client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert sse_names(response)[0] == "TurnStarted"
+    assert sse_names(response)[-1] == "TurnFinished"
+    assert "".join(token["text"] for token in sse_data(response, "Token")) == "Konnichiwa"
+
+
+def test_turn_in_an_unknown_session_is_404():
+    response = make_client().post("/api/sessions/nope/turns", json={"text": "hello"})
+    assert response.status_code == 404
+
+
+def test_turn_while_another_runs_is_409():
+    client = make_client()
+    session_id = client.post("/api/sessions").json()["id"]
+    client.app.state.sessions.busy.add(session_id)
+    assert client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"}).status_code == 409
+
+
+def test_a_finished_turn_frees_the_session():
+    client = make_client()
+    session_id = client.post("/api/sessions").json()["id"]
+    client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
+    assert session_id not in client.app.state.sessions.busy
