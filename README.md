@@ -71,6 +71,7 @@ Other entry points:
 python -m sensai.surfaces.demo            # renders and logs a scripted turn, no model needed
 python -m sensai.surfaces.web             # web backend on http://127.0.0.1:8000 (see Web UI below)
 python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
+python -m scripts.seed_demo               # build data/demo.db for the keynote (see doc/demo.md)
 ```
 
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
