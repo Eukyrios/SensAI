@@ -1,0 +1,14 @@
+# Pre-filled data for the keynote demo, loaded by `python -m scripts.seed_demo`.
+
+profile = """The learner is Alex, an English-speaking beginner (JLPT N5).
+Alex reads hiragana, is learning katakana and about 40 kanji.
+Goal: order food and ask for directions on a trip to Tokyo in March."""
+
+[[sessions]]
+title = "Ordering food"
+messages = [
+    { role = "user", content = "How do I ask for the menu in a restaurant?" },
+    { role = "assistant", content = "メニューをください (menyuu o kudasai) — the menu, please." },
+    { role = "user", content = "And how do I say I want ramen?" },
+    { role = "assistant", content = "ラーメンをください (raamen o kudasai) — ramen, please." },
+]
