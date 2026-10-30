@@ -49,7 +49,7 @@ class FixedRetriever:
         self.error = error
         self.asked = []
 
-    def retrieve(self, question, profile_text=None, model=None):
+    def retrieve(self, question, profile_text=None, model=None, num_ctx=4096):
         self.asked.append((question, profile_text, model))
         if self.error:
             raise self.error
@@ -106,7 +106,7 @@ async def test_a_failing_retrieval_does_not_stop_the_turn():
 
 async def test_rag_off_retrieves_nothing():
     session = Session(make_config(tools={"enabled": True, "max_rounds": 3}), client=Client(["Hi."]))
-    assert session.knowledge.retriever is None and session.knowledge.retrieve("q", None, "m") is None
+    assert session.knowledge.retriever is None and session.knowledge.retrieve("q", None, "m", 8192) is None
     await collect(session, "hello")
 
 
@@ -146,6 +146,18 @@ def test_tools_for_gives_each_agent_its_own_tools():
     assert knowledge.tools_for(spec_for("checker", knowledge.config)) is None
     off = Knowledge(make_config(), FakeClient())
     assert off.tools_for(spec_for("sensei", off.config)) is None
+
+
+def test_a_disabled_tool_is_left_out_for_every_agent():
+    knowledge = Knowledge(make_config(tools={"enabled": True, "disabled": ["conjugate"]}), FakeClient())
+    assert knowledge.tools_for(spec_for("sensei", knowledge.config)).names() == ["dictionary", "kanji"]
+    assert knowledge.tools_for(spec_for("corrector", knowledge.config)).names() == ["dictionary", "kanji"]
+
+
+def test_disabling_every_tool_of_an_agent_leaves_it_none():
+    disabled = ["dictionary", "conjugate", "kanji"]
+    knowledge = Knowledge(make_config(tools={"enabled": True, "disabled": disabled}), FakeClient())
+    assert knowledge.tools_for(spec_for("corrector", knowledge.config)) is None
 
 
 def own_server(enabled=True):
@@ -209,7 +221,7 @@ async def test_retrieval_runs_once_per_turn_even_with_a_fallback():
 
 async def test_a_hybrid_retrieval_adds_no_sources_line():
     hybrid = FixedRetriever([CHUNK])
-    hybrid.retrieve = lambda question, profile=None, model=None: Retrieval(question, "N5", "embeddings+hybrid", [CHUNK])
+    hybrid.retrieve = lambda question, profile=None, model=None, num_ctx=4096: Retrieval(question, "N5", "embeddings+hybrid", [CHUNK])
     session = knowledge_session(Client(["Use に."]), hybrid)
     await collect(session, "how?")
     assert session.history[-1]["content"] == "Use に."
@@ -235,3 +247,12 @@ async def test_the_corrector_never_triggers_the_history_summary():
     await collect(session, "私は学校を行きます")
     assert not any(call and call[2].get("num_ctx") == 1024 and "compress" in call[1][0]["content"]
                    for call in session.client.calls)
+
+
+async def test_the_sensei_searches_with_the_correction_it_was_handed():
+    retriever = FixedRetriever([])
+    session = knowledge_session(Client(CHECKED, *REACT, ["Use に."]), retriever, agents={"default": "checker"})
+    await collect(session, "私は学校を行きます")
+    question = retriever.asked[0][0]
+    assert question.startswith("私は学校を行きます") and "Correction: 私は学校に行きます" in question
+    assert "Rule: 行く takes に." in question

@@ -156,14 +156,21 @@ async def test_cancellation_before_any_token_drops_the_question(session):
 
 
 async def test_turn_finished_carries_ollama_stats():
-    stats = ChatStats(prompt_eval_count=35, eval_count=12, total_duration_ns=500_000_000)
+    stats = ChatStats(prompt_eval_count=35, eval_count=12, eval_duration_ns=400_000_000,
+                      total_duration_ns=500_000_000)
     session = Session(make_config(), client=FakeClient(stats=stats))
     events = await collect(session, "hello")
     finished = events[-1]
     assert (finished.prompt_eval_count, finished.eval_count) == (35, 12)
-    assert finished.total_duration_ns == 500_000_000
+    assert finished.eval_duration_ns == 400_000_000
     assert not any(isinstance(e, ev.Token) and not isinstance(e.text, str) for e in events)
     assert session.history[-1]["content"] == "Konnichiwa"
+
+
+async def test_first_token_and_total_share_the_turn_clock():
+    stats = ChatStats(eval_count=12, total_duration_ns=1)
+    finished = (await collect(Session(make_config(), client=FakeClient(stats=stats)), "hello"))[-1]
+    assert 0 < finished.ttft_ms <= finished.total_duration_ns / 1e6
 
 
 async def test_turn_finished_without_stats_measures_duration(session):
@@ -297,3 +304,18 @@ async def test_abandoned_turn_drops_the_unanswered_question(session):
             break                                   # the caller stops reading mid-reply
     await turn.aclose()
     assert session.history == []
+
+
+def test_printable_input():
+    from sensai.orchestration.turn import printable
+    assert printable("hello \udcff world\x00\x1b[31m!") == "hello � world[31m!"
+    assert printable("a\ud800b") == "a?b" and printable("猫\tok\n") == "猫\tok\n"
+
+
+async def test_invalid_utf8_reaches_neither_the_log_nor_the_model(tmp_path):
+    from sensai.trust.logging import JsonlLogger
+    session = Session(make_config(), client=FakeClient())
+    logger = JsonlLogger(tmp_path / "events.jsonl")
+    events = [event async for event in logger.log_stream(run_turn(session, "hi \udcff\udcfe"))]
+    assert events[0].user_input == "hi ��"
+    assert "\\udcff" not in (tmp_path / "events.jsonl").read_text(encoding="utf-8")

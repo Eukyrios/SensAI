@@ -287,9 +287,20 @@ def test_sure_decisions_pass_the_floor():
     assert floor_router(decision).route("x") == decision
 
 
-def test_the_router_knows_every_agent_for_the_override():
+def test_the_override_reaches_the_learner_facing_agents_only():
     agents = load_router(routed_config(), FakeClient()).agents
-    assert {"sensei", "checker", "classifier", "demo/ping", "demo/pong"} <= agents
+    assert {"sensei", "checker", "corrector"} <= agents
+    assert not {"curriculum", "classifier", "demo/ping", "demo/pong"} & agents
+
+
+def test_debug_mode_reaches_every_agent():
+    agents = load_router(routed_config(debug=True), FakeClient()).agents
+    assert {"sensei", "checker", "curriculum", "classifier", "demo/ping", "demo/pong"} <= agents
+
+
+def test_an_internal_agent_is_routed_like_any_message():
+    router = load_router(routed_config(embed_model="", classifier=""), FakeClient())
+    assert router.route("@curriculum how do I say cat?").tier == "rules"
 
 
 async def test_the_turn_emits_the_decision_and_stores_the_message_without_the_override():

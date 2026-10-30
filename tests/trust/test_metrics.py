@@ -29,3 +29,9 @@ def test_compute_turn_metrics_calculates_correctly():
     assert "Tokens: 1200" in summary
     assert "100.0 t/s" in summary
     assert "$0.000800" in summary
+
+
+def test_speed_counts_only_the_generation_time():
+    event = TurnFinished(turn_id="t1", model="qwen3.5:9b", eval_count=200, eval_duration_ns=1_000_000_000,
+                         total_duration_ns=5_000_000_000)
+    assert compute_turn_metrics(event).tokens_per_sec == 200.0

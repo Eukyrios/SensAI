@@ -29,7 +29,7 @@ def no_external_processes(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_storage(monkeypatch):
-    for module in ("sensai.orchestration.session", "sensai.surfaces.cli"):
+    for module in ("sensai.orchestration.session", "sensai.surfaces.cli", "sensai.surfaces.web.sessions"):
         monkeypatch.setattr(f"{module}.open_repository", memory_repository_for)
     yield
     while _opened:

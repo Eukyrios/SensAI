@@ -144,11 +144,11 @@ async def test_second_failure_is_reported_loudly_and_rolled_back():
 
 
 async def test_stats_are_summed_over_the_repair():
-    stats = ChatStats(prompt_eval_count=100, eval_count=20, total_duration_ns=1_000)
+    stats = ChatStats(prompt_eval_count=100, eval_count=20, eval_duration_ns=1_000)
     session = structured_session(BAD, GOOD, stats=stats)
     finished = (await collect(session))[-1]
     assert (finished.prompt_eval_count, finished.eval_count) == (200, 40)
-    assert finished.total_duration_ns == 2_000
+    assert finished.eval_duration_ns == 2_000
 
 
 async def test_agents_without_schema_still_stream_text():
