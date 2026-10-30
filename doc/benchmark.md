@@ -70,6 +70,64 @@ context. A smaller context saves nothing, but it holds four times less conversat
 system prompt alone is ~370 tokens, so at 2048 Ollama starts dropping the oldest messages after a
 few exchanges, long before `max_history_turns = 20`.
 
+### Local resources per model
+
+Measured on 2026-10-29 on the same laptop, one model loaded at a time with the settings Sensai uses
+(`num_ctx = 8192` for the chat models, `bge-m3` forced on the CPU). Loaded size and GPU share come
+from Ollama (`/api/ps`); VRAM is the rise in `nvidia-smi` memory over the idle desktop; RAM is the
+resident memory of the Ollama runner processes (both in GiB); speed is the median of 3 replies to the same short
+question.
+
+| Model | Role | Loaded size | On the GPU | VRAM used | RAM used | Speed |
+|-------|------|-------------|------------|-----------|----------|-------|
+| `qwen3.5:4b` | fallback chat model | 6.1 GB | 100% | 5.3 GB | 1.3 GB | 62.7 t/s |
+| `qwen3.5:9b` | chat model (all agents) | 8.9 GB | 72% | 6.1 GB | 3.0 GB | 22.6 t/s |
+| `bge-m3` | embeddings (router, RAG) | 1.1 GB | 0% (CPU) | 0 | 1.2 GB | - |
+| `qwen3.5:9b` + `bge-m3` | what a turn uses | 10.0 GB | - | 6.1 GB | 4.2 GB | 23.2 t/s |
+
+- The 4B fits entirely in the 8 GB of VRAM and is about 2.8x faster; the 9B spills about 2.5 GB
+  onto the CPU, which is what caps its speed.
+- Keeping `bge-m3` on the CPU costs 1.2 GB of RAM and no chat speed (23.2 t/s with both loaded,
+  22.6 t/s alone), and the 9B is never unloaded to make room for it.
+- With both loaded, Sensai needs about 6 GB of free VRAM and 4-5 GB of free RAM on top of the
+  desktop; the laptop's 16 GB of RAM leave room for both.
+
+## Measured improvement: one context size for the reranker
+
+**Problem.** On a warm model, the first token of an answer took 20-25 s. `ollama ps` during a chat
+showed the 9B switching between `num_ctx` 4096 and 8192 on every turn: the RAG reranker
+(`retrieval.py`) asked for 4096 while the sensei asks for 8192, and Ollama reloads a model whenever its
+context size changes, so each turn loaded the 9B twice.
+
+**Change.** The reranker now uses the context size of the agent it retrieves for (8192 for the
+sensei), so the model stays loaded between the reranking call and the answer.
+
+**Measure.** The same 6 questions in one chat session, the model already warm, before and after the
+change (2026-10-29, same laptop):
+
+| | First token (median) | First token (range) | Whole turn (median) |
+|---|---|---|---|
+| Before | 21.6 s | 20.8-25.8 s | 32.4 s |
+| After | 5.6 s | 4.3-8.1 s | 16.1 s |
+
+The reranker's prompt and model are unchanged, so what it keeps is unchanged; the gain is the two
+reloads per turn, about 16 s.
+
+### Model reranker or hybrid score
+
+Retrieval alone, on 12 grammar questions whose right corpus section is known (e.g. "When do I use
+the particle に?" -> *Particle に (ni): destination, time and existence*), with `[rag] model_rerank` on
+and off:
+
+| Reranker | Right section kept | Other sections kept | Time per question (median) |
+|---|---|---|---|
+| Model (`model_rerank = true`) | 12 / 12 | 3 | 3.7 s |
+| Hybrid score (`false`) | 9 / 12 | 8 | 0.2 s |
+
+The hybrid score missed *Wanting to do: たい* for "I want to eat sushi", *Plain past* for "past tense
+of taberu" and *Giving reasons* for "how do I say because", and kept twice as many unrelated
+sections. The model reranker stays the default: 3.5 s more per turn for the right passage every time.
+
 ## Decision
 
 - **`qwen3.5:9b` stays the sensei's model.** Over the two runs it's right on 24 questions against

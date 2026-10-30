@@ -69,7 +69,10 @@ Other entry points:
 
 ```bash
 python -m sensai.surfaces.demo            # renders and logs a scripted turn, no model needed
+python -m sensai.surfaces.web             # web backend on http://127.0.0.1:8000 (see Web UI below)
 python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
+python -m scripts.seed_demo               # build data/demo.db for the keynote (see doc/demo.md)
+python -m scripts.adversarial --live      # attack Sensai (EV4); --report doc/adversarial.md keeps the results
 ```
 
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
@@ -263,30 +266,74 @@ in `config.toml` (`:memory:` for tests).
 
 ## Features
 
+Who uses these features and how, step by step: [`doc/scenarios.md`](doc/scenarios.md).
+How they are checked (tests, benchmark, scenario runs, live metrics): [`doc/evaluation.md`](doc/evaluation.md).
+
 Committed: six of the seven ★★★ features (T2 is declined on purpose — a Japanese tutor has no honest use for running generated code).
 
 | Code | Feature | Rating | Layer | Status |
 |------|---------|--------|-------|--------|
 | B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
 | M1 | Session persistence & profile | ★ | 2 | ✅ |
-| T5 | Structured output (JSON schema, one repair) | ★ | 3 | 🚧 validation and repair built; handoffs use it in layer 4 |
+| T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ checker, corrector, classifier and handoffs |
 | M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; not read back yet, `facts` unused |
 | T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ✅ sensei calls them (native or prompted); MCP stdio client, own MCP server, pre-existing time server configured |
-| EV3 | Logging, metrics, per-turn trace | ★★ | 3–4 | 🚧 JSONL event log, `/metrics` and `/trace` built |
-| A2 | Multi-agent orchestration + router | ★★★ | 4–5 | ⏳ |
+| EV3 | Logging, metrics, per-turn trace | ★★ | 3-4 | ✅ JSONL event log, `/metrics`, `/trace` |
+| A2 | Multi-agent orchestration + router | ★★★ | 4-5 | ✅ handoffs, guards, fallback, three-tier router |
 | A1 | ReAct (corrector) | ★★★ | 4 | ✅ checker → corrector → sensei |
-| M2 | Token budgeting & compression | ★★ | 4–5 | ⏳ |
+| M2 | Token budgeting & compression | ★★ | 4-5 | ✅ per-agent context budget, running summary |
 | R1 | Basic RAG (citations, JLPT metadata) | ★★ | 5 | ✅ bge-m3 embeddings, cosine, JLPT filter, citations |
-| EV1 | Judge: claim-by-claim verification | ★★★ | 5 | ⏳ |
+| EV1 | Judge: claim-by-claim verification | ★★★ | 5 | 🚧 judge built and tested, not run on replies yet |
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ✅ model reranker, threshold drop, scores in `/trace` |
-| EV2 | Input / output guardrails | ★★★ | 6 | ⏳ |
+| EV2 | Input / output guardrails | ★★★ | 6 | 🚧 input filter runs on every turn; output filter built, not wired |
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
-| X1 | Web UI (FastAPI + SSE) | ★ | 7 | ⏳ |
-| EV4 | Adversarial suite | ★★ | 7 | ⏳ |
+| X1 | Web UI (FastAPI + SSE) | ★ | 7 | backend ✅, frontend ⏳ |
+| EV4 | Adversarial suite | ★★ | 7 | ✅ 27 attacks, one command, report in [`doc/adversarial.md`](doc/adversarial.md) |
 | A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
 
 ✅ done · 🚧 in progress · ⏳ to do — **Never cut:** T1, R2, A1, A2, EV1, EV2.
+
+## Limits
+
+What fails or falls short today, seen in tests and rehearsals on the reference laptop (RTX 4060
+Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
+
+- **Retrieval delays the first token.** With `[rag] model_rerank = true` (the default) the chat
+  model grades the candidate passages before the answer starts: the first token comes after about
+  5 s on a warm model (median of 6 turns); with `model_rerank = false` a warm turn started in 1.3 s,
+  but the hybrid score keeps the right passage less often (9/12 against 12/12, see
+  [`doc/benchmark.md`](doc/benchmark.md)). The first turn after Ollama loads the model adds about 10 s.
+- **The model does not fit in VRAM.** About 28% of `qwen3.5:9b` runs on the CPU, which caps it near
+  20 tokens/s (see [`doc/benchmark.md`](doc/benchmark.md)). `qwen3.5:4b` is about 3x faster but scored
+  75-80% against 90% on the benchmark.
+- **Corrections can be wrong.** The checker, corrector and sensei are the same 9B model. In one
+  rehearsal `私は駅を行きます` was flagged as a vocabulary error ("行 is used for walk"), and the
+  corrector, whose tools check words and not reasoning, revised it to an unrelated te-form; the next run
+  of the same sentence was right. The `rule` the checker writes is often vague or off.
+- **Romaji is the weakest part.** The benchmark's remaining errors are mostly wrong romaji with the
+  right Japanese, and the sensei sometimes answers in romaji only ("Sushi ga suki desu") despite its
+  `characters (romaji) - translation` format. Explanations can contain grammar mistakes too: one reply
+gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also marks a correct sentence typed in romaji
+(`kinou eiga wo mimashita`) as an error, only because it isn't written in Japanese characters.
+- **The adversarial suite (EV4) finds 3 breaks out of 27 attacks** ([`doc/adversarial.md`](doc/adversarial.md)):
+  a fake `<system>` tag makes the sensei answer only the attacker's word, and phone numbers (French and
+  international) reach the model. Poisoned corpus documents, system prompt leaks, out-of-scope requests and
+  malformed input all hold; a 28,000-character message ends with a checker timeout, not a crash.
+- **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers
+  are not (`06 12 34 56 78` goes through). A prompt injection is replaced by a `[BLOCKED]` notice that
+  the model then answers, rather than refused before the call. The output filter exists but no turn
+  runs it.
+- **The judge does not run on replies (EV1).** `trust/eval.py` verifies claims against sources and is
+  tested, but no answer goes through it, so an invented fact is not flagged live.
+- **The learner ledger is half used (M3).** Verified corrections are written to `errors` and the
+  curriculum agent keeps the `srs_cards`, but no agent brings past errors up again, and `facts` is
+  never written.
+- **The time MCP server needs `uv`.** Without `uvx` on the PATH, Sensai says the server is unavailable
+  and goes on without it.
+- **One learner, one machine.** SQLite, one learner profile (`default`), no accounts; the knowledge
+  base is 5 Markdown files and a dictionary of common N5 words. A word outside it comes back as
+  `found: false`, and the model answers from its own knowledge.
 
 ## Layered plan
 
@@ -326,6 +373,7 @@ agents/           one TOML spec per agent: sensei (default), checker (T5, hands 
                   classifier (router tier 3),
                   demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
+                  adversarial.py + adversarial_cases.toml: EV4 suite, report in doc/adversarial.md (C)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration
@@ -378,11 +426,14 @@ Built modules, then planned ones with the layer that adds them.
 | `trust/` | `logging.py` | JSON-lines event log |
 | | `metrics.py` | tokens, speed, TTFT and cost per turn (`/metrics`) |
 | | `tracing.py` | per-turn trace of the agent runs (`/trace`) |
-| | `guardrails.py` | input and output filters (stub until layer 6) |
-| | *`judge.py`* | claim-by-claim verification against retrieved chunks (layer 5) |
+| | `guardrails.py` | input filter (prompt injection, PII) and output filter |
+| | `eval.py` | LLM judge: claim-by-claim verification against retrieved chunks |
 | `surfaces/` | `cli.py` | command-line chat and its renderer |
 | | `demo.py` | scripted turn through the logger and the renderer |
-| | *`web/`* | FastAPI + SSE backend and frontend (layer 7) |
+| | `web/app.py` | FastAPI app: sessions and turns streamed as server-sent events |
+| | `web/settings.py` | switch a session's model, agent or persona |
+| | `web/sessions.py` | the open sessions, resumed from storage on demand |
+| | `web/sse.py` | one SSE message per event |
 | `sensai/` | `__main__.py` | entry point for `python -m sensai` |
 
 ### Rules that keep it stable
@@ -463,7 +514,9 @@ in JSON, with `agent` limited to the route names (~2 s). An invalid reply or an 
 nothing. When no tier decides, the default agent (`[agents] default`) answers.
 
 Starting a message with `@<agent>` (e.g. `@checker kinou eiga wo mimashita`) overrides every tier; the
-prefix is removed before the message is stored. A tier decision below `confidence_floor` (0.5) goes to
+prefix is removed before the message is stored. Internal agents (`[router] internal_agents`: the
+curriculum, the classifier, `demo/*`) can't be reached this way unless `[router] debug = true`;
+`@curriculum hello` is routed like any other message. A tier decision below `confidence_floor` (0.5) goes to
 the fallback agent (the sensei). Each decision is a `RouteDecided` event (agent, tier, confidence,
 reason): it is written to the event log and `/trace` shows it, e.g.
 `Routed to 'checker' by embeddings (0.57): closest example 'sumimasen, eki wa doko desu ka'`.
@@ -509,6 +562,10 @@ An agent lists its tools in its spec: `tools = ["dictionary", "conjugate", "kanj
 says the model supports tools, otherwise it writes them into the system prompt and holds back a reply that
 starts like a JSON `{"tool": ..., "args": ...}` block until it knows whether it is a call. Each call is a
 `ToolCall` and a `ToolResult` event, shown in the chat and in `/trace`; at most `[tools] max_rounds` rounds.
+
+Switches, in `config.toml`: `[tools] enabled = false` turns every tool off; `[tools] disabled = ["conjugate"]`
+turns off the tools listed, for every agent (own tools and MCP tools by name); `[mcp] enabled = false` stops
+every MCP server, and `enabled = false` on one `[[mcp.servers]]` entry stops that server only.
 
 - **Own tools** read local data (`sensai/knowledge/data/`): a dictionary of common N5 words with particle
   notes, the N5 kanji with readings and stroke counts, and a rule-based conjugator (ichidan, godan, する,
@@ -563,6 +620,43 @@ digits of its SHA-256, so editing a prompt gives it a new hash and nothing has t
 - **Rolled back by hash.** `prompt_version = "<hash>"` in `agents/<name>.toml` pins the agent to
   that stored prompt: it runs with it instead of the one in the file. An unknown hash fails the turn
   with a `SpecError`.
+
+### Web UI backend (X1)
+
+`python -m sensai.surfaces.web` serves the same sessions as the CLI over HTTP (`--host`, `--port`, or
+the `[web]` section of `config.toml`). It only subscribes to the event stream: a turn runs through
+`run_turn()` exactly as in the CLI, and each event goes to the browser as one server-sent event, named
+after its class, with its fields as JSON.
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/api/health` | `{"status": "ok"}` |
+| GET | `/api/sessions` | stored sessions: id, date, model, title |
+| POST | `/api/sessions` | a new session, with its settings |
+| GET | `/api/sessions/{id}` | a session's settings and history; a stored one is resumed |
+| POST | `/api/sessions/{id}/turns` | `{"text": "..."}` -> the turn's events as `text/event-stream` |
+| PUT | `/api/sessions/{id}/model` | `{"model": "qwen3.5:4b"}`; 400 when it isn't installed |
+| PUT | `/api/sessions/{id}/agent` | `{"agent": "checker"}` pins an agent (routing off, like `--agent`); `{}` routes again |
+| PUT | `/api/sessions/{id}/persona` | `{"persona": "strict"}` |
+| GET | `/api/models` | installed Ollama models; 503 when Ollama is down |
+| GET | `/api/personas` | persona names and descriptions |
+
+```
+$ curl -N -X POST localhost:8000/api/sessions/<id>/turns -H 'content-type: application/json' -d '{"text": "how do I say cat?"}'
+event: TurnStarted
+data: {"turn_id": "...", "ts": 1793..., "session_id": "...", "user_input": "how do I say cat?"}
+
+event: RouteDecided
+...
+event: Token
+data: {"turn_id": "...", "ts": 1793..., "run_id": "...", "text": "猫"}
+...
+event: TurnFinished
+```
+
+A session runs one turn at a time (a second one gets 409). Closing the connection mid-reply cancels
+the turn as Escape does in the CLI. Every change keeps the history. `allow_origins` lists the browser
+origins the frontend may call from (CORS).
 
 ## Organisation
 

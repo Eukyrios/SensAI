@@ -19,6 +19,7 @@ from .session import Session
 
 
 async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
+    text = printable(text)
     turn = _Turn(session)
     yield TurnStarted(turn_id=turn.turn_id, session_id=session.id, user_input=text)
     learner_text = text.strip()
@@ -104,14 +105,12 @@ class _Turn:
         return GuardrailTriggered(turn_id=self.turn_id, side="input", rule="filter_input", action="redact")
 
     def finished_event(self) -> TurnFinished:
-        stats = self._total_stats()
+        stats = self._total_stats() or ChatStats()
         model = self.crew.runs[-1].spec.model if self.crew.runs else self.session.spec.model
-        if stats is None:
-            return TurnFinished(turn_id=self.turn_id, model=model, ttft_ms=self._first_output_ms(),
-                                total_duration_ns=time.perf_counter_ns() - self.started_ns)
         return TurnFinished(turn_id=self.turn_id, model=model, ttft_ms=self._first_output_ms(),
                             prompt_eval_count=stats.prompt_eval_count, eval_count=stats.eval_count,
-                            total_duration_ns=stats.total_duration_ns)
+                            eval_duration_ns=stats.eval_duration_ns,
+                            total_duration_ns=time.perf_counter_ns() - self.started_ns)
 
     def _total_stats(self) -> ChatStats | None:
         stats = None
@@ -137,3 +136,12 @@ def _duration_ms(stats: ChatStats | None) -> int | None:
 def _tokens(stats: ChatStats | None) -> int | None:
     return stats.prompt_eval_count + stats.eval_count if stats else None
 
+
+def printable(text: str) -> str:
+    """The message as valid UTF-8 without control characters: bytes that are not UTF-8 (read as surrogates
+    from a pipe) become U+FFFD and NUL or escape characters are dropped, so no log or request breaks on them."""
+    try:
+        text = text.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+    except UnicodeEncodeError:
+        text = text.encode("utf-8", "replace").decode("utf-8")
+    return "".join(char for char in text if char in "\n\t" or ord(char) >= 32 and ord(char) != 127)

@@ -1,0 +1,53 @@
+# Pre-filled data for the keynote demo, loaded by `python -m scripts.seed_demo`.
+
+profile = """The learner is Alex, an English-speaking beginner (JLPT N5).
+Alex reads hiragana, is learning katakana and about 40 kanji.
+Goal: order food and ask for directions on a trip to Tokyo in March."""
+
+# Fixed ids, so the demo script can resume them: python -m sensai --session demo-food
+[[sessions]]
+id = "demo-food"
+title = "Ordering food"
+messages = [
+    { role = "user", content = "How do I ask for the menu in a restaurant?" },
+    { role = "assistant", content = "メニューをください (menyuu o kudasai) - the menu, please." },
+    { role = "user", content = "And how do I say I want ramen?" },
+    { role = "assistant", content = "ラーメンをください (raamen o kudasai) - ramen, please." },
+]
+
+[[sessions]]
+id = "demo-particles"
+title = "Particles"
+messages = [
+    { role = "user", content = "Is it 'watashi wa eiga ni mimasu'?" },
+    { role = "assistant", content = "Almost: 見る takes を for what you watch. 私は映画を見ます (watashi wa eiga o mimasu) - I watch movies." },
+]
+
+# Flashcards for the curriculum agent; due_in_days 0 means due on the day of the demo.
+[[cards]]
+front = "メニュー"
+back = "menu (menyuu)"
+due_in_days = 0
+
+[[cards]]
+front = "ください"
+back = "please give me (kudasai)"
+due_in_days = 0
+
+[[cards]]
+front = "ラーメン"
+back = "ramen (raamen)"
+due_in_days = 3
+
+[[errors]]
+sentence = "watashi wa eiga ni mimasu"
+correction = "私は映画を見ます (watashi wa eiga o mimasu)"
+error_type = "particle"
+
+[[facts]]
+key = "trip"
+value = "Tokyo in March"
+
+[[facts]]
+key = "favourite food"
+value = "ramen"

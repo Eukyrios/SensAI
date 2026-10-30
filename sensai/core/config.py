@@ -21,13 +21,14 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "orchestration": {"max_hops": 3, "turn_budget_s": 180},
     "router": {"enabled": True, "routes": "routing.toml", "embed_model": "bge-m3", "embed_on_cpu": True,
                "embedding_threshold": 0.55, "embedding_margin": 0.05, "classifier": "classifier",
-               "confidence_floor": 0.5},
+               "confidence_floor": 0.5, "internal_agents": ["curriculum", "classifier", "demo/*"],
+               "debug": False},
     "personas": {"dir": "personas", "default": "teacher"},
     "storage": {"db_path": "data/sensai.db"},
     "memory": {"max_history_turns": 20, "profile": "default",
                "summary": {"enabled": True, "trigger": 0.7, "keep_recent": 6}},
     "curriculum": {"enabled": True, "max_steps": 8},
-    "tools": {"enabled": True, "max_rounds": 3},
+    "tools": {"enabled": True, "max_rounds": 3, "disabled": []},
     "mcp": {"enabled": True, "servers": []},
     "rag": {"enabled": True, "corpus_dir": "corpus", "embed_model": "bge-m3", "embed_on_cpu": True,
             "index_path": "data/rag_index.json", "default_level": "", "candidate_k": 5, "min_similarity": 0.4,
@@ -35,6 +36,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             "lexical_threshold": 0.4, "top_k": 2},
     "guardrails": {"enabled": True},
     "logging": {"level": "INFO", "path": "logs/sensai.jsonl"},
+    "web": {"host": "127.0.0.1", "port": 8000, "allow_origins": ["http://localhost:5173"]},
 }
 
 
