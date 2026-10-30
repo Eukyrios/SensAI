@@ -129,8 +129,7 @@ class Orchestrator:
             try:
                 self.retrieval = await asyncio.wait_for(asyncio.to_thread(
                     self.session.knowledge.retrieve, _retrieval_query(self.question, run.handoff), profile,
-                    run.spec.model,
-                    run.spec.num_ctx), seconds)
+                    run.spec.model, run.spec.num_ctx), seconds)
             except (asyncio.TimeoutError, Exception):
                 return None
         if self.retrieval is not None:
