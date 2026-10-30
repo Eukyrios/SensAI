@@ -128,8 +128,8 @@ class Orchestrator:
             seconds = min(RETRIEVAL_TIMEOUT_S, self.guards.seconds_left(deadline))
             try:
                 self.retrieval = await asyncio.wait_for(asyncio.to_thread(
-                    self.session.knowledge.retrieve, self.question, profile, run.spec.model,
-                    run.spec.num_ctx), seconds)
+                    self.session.knowledge.retrieve, _retrieval_query(self.question, run.handoff), profile,
+                    run.spec.model, run.spec.num_ctx), seconds)
             except (asyncio.TimeoutError, Exception):
                 return None
         if self.retrieval is not None:
@@ -194,6 +194,15 @@ class Orchestrator:
     def _receiving_run(self, handoff: Handoff) -> AgentRun:
         spec = spec_for(handoff.to_agent, self.session.config)
         return AgentRun(self.session.client, spec, self.turn_id, parent_run_id=handoff.run_id)
+
+
+def _retrieval_query(question: str, handoff: Handoff | None) -> str:
+    """The learner's message, plus the correction and rule an earlier agent found: a bare Japanese sentence
+    says nothing about which grammar point it breaks, the rule does."""
+    payload = handoff.payload if handoff is not None else {}
+    details = [f"{label}: {payload[key]}" for key, label in (("correction", "Correction"), ("rule", "Rule"))
+               if isinstance(payload.get(key), str) and payload[key]]
+    return "\n".join([question, *details])
 
 
 def _missing_citations(answer: str, retrieval: Retrieval) -> str:

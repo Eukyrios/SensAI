@@ -25,6 +25,7 @@ class ScoredChunkTrace:
     initial_score: float
     rerank_score: float
     dropped: bool
+    reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

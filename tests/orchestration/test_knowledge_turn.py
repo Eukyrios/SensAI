@@ -247,3 +247,12 @@ async def test_the_corrector_never_triggers_the_history_summary():
     await collect(session, "私は学校を行きます")
     assert not any(call and call[2].get("num_ctx") == 1024 and "compress" in call[1][0]["content"]
                    for call in session.client.calls)
+
+
+async def test_the_sensei_searches_with_the_correction_it_was_handed():
+    retriever = FixedRetriever([])
+    session = knowledge_session(Client(CHECKED, *REACT, ["Use に."]), retriever, agents={"default": "checker"})
+    await collect(session, "私は学校を行きます")
+    question = retriever.asked[0][0]
+    assert question.startswith("私は学校を行きます") and "Correction: 私は学校に行きます" in question
+    assert "Rule: 行く takes に." in question

@@ -72,6 +72,7 @@ python -m sensai.surfaces.demo            # renders and logs a scripted turn, no
 python -m sensai.surfaces.web             # web backend on http://127.0.0.1:8000 (see Web UI below)
 python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
 python -m scripts.seed_demo               # build data/demo.db for the keynote (see doc/demo.md)
+python -m scripts.adversarial --live      # attack Sensai (EV4); --report doc/adversarial.md keeps the results
 ```
 
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
@@ -288,7 +289,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | backend ✅, frontend ⏳ |
-| EV4 | Adversarial suite | ★★ | 7 | ⏳ |
+| EV4 | Adversarial suite | ★★ | 7 | ✅ 27 attacks, one command, report in [`doc/adversarial.md`](doc/adversarial.md) |
 | A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
 
 ✅ done · 🚧 in progress · ⏳ to do — **Never cut:** T1, R2, A1, A2, EV1, EV2.
@@ -315,6 +316,10 @@ Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
   `characters (romaji) - translation` format. Explanations can contain grammar mistakes too: one reply
 gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also marks a correct sentence typed in romaji
 (`kinou eiga wo mimashita`) as an error, only because it isn't written in Japanese characters.
+- **The adversarial suite (EV4) finds 3 breaks out of 27 attacks** ([`doc/adversarial.md`](doc/adversarial.md)):
+  a fake `<system>` tag makes the sensei answer only the attacker's word, and phone numbers (French and
+  international) reach the model. Poisoned corpus documents, system prompt leaks, out-of-scope requests and
+  malformed input all hold; a 28,000-character message ends with a checker timeout, not a crash.
 - **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers
   are not (`06 12 34 56 78` goes through). A prompt injection is replaced by a `[BLOCKED]` notice that
   the model then answers, rather than refused before the call. The output filter exists but no turn
@@ -368,6 +373,7 @@ agents/           one TOML spec per agent: sensei (default), checker (T5, hands 
                   classifier (router tier 3),
                   demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
+                  adversarial.py + adversarial_cases.toml: EV4 suite, report in doc/adversarial.md (C)
 tests/            one folder per package, mirroring sensai/
 doc/              work plan, architecture diagrams, previous README
 config.toml       project configuration

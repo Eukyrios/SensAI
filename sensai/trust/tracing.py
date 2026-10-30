@@ -123,7 +123,8 @@ def _format_retrieval(retrieved: Retrieved) -> list[str]:
     lines += [f"  kept {chunk['source']} § {chunk['section']} [{chunk['jlpt']}] {chunk['score']:.2f}"
               for chunk in retrieved.kept]
     lines += [f"  dropped {chunk['source']} § {chunk['section']} {chunk['initial_score']:.2f} → "
-              f"{chunk['rerank_score']:.2f}" for chunk in retrieved.dropped]
+              f"{chunk['rerank_score']:.2f}" + (f" ({chunk['reason']})" if chunk.get("reason") else "")
+              for chunk in retrieved.dropped]
     return lines
 
 

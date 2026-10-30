@@ -304,3 +304,18 @@ async def test_abandoned_turn_drops_the_unanswered_question(session):
             break                                   # the caller stops reading mid-reply
     await turn.aclose()
     assert session.history == []
+
+
+def test_printable_input():
+    from sensai.orchestration.turn import printable
+    assert printable("hello \udcff world\x00\x1b[31m!") == "hello � world[31m!"
+    assert printable("a\ud800b") == "a?b" and printable("猫\tok\n") == "猫\tok\n"
+
+
+async def test_invalid_utf8_reaches_neither_the_log_nor_the_model(tmp_path):
+    from sensai.trust.logging import JsonlLogger
+    session = Session(make_config(), client=FakeClient())
+    logger = JsonlLogger(tmp_path / "events.jsonl")
+    events = [event async for event in logger.log_stream(run_turn(session, "hi \udcff\udcfe"))]
+    assert events[0].user_input == "hi ��"
+    assert "\\udcff" not in (tmp_path / "events.jsonl").read_text(encoding="utf-8")
