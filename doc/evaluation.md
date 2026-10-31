@@ -67,8 +67,8 @@ in SQLite with their prompt hash.
 
 ## Not covered yet
 
-- **Faithfulness of answers (EV1):** the claim-by-claim judge in `trust/eval.py` is built and
-  tested, but no turn runs it, so there is no faithfulness score per answer yet.
-- **Attacks (EV4):** there is no adversarial suite yet; guardrails are covered by unit tests only.
+- **Faithfulness across models (EV1):** `python -m scripts.evaluate` scores each reply (faithfulness and
+  relevance) with the judge, but it has only run on one model and one question here, and no results table is
+  published yet. A reply with no source to check against is not scored.
 - **Correction accuracy:** the benchmark grades the sensei; no fixed set of wrong sentences yet
   measures how often the checker and corrector find the right correction.
