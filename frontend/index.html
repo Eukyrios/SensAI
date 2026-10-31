@@ -366,14 +366,23 @@
         const decoder = new TextDecoder();
         let buffer = '', answer = '';
 
+        bubble.replaceChildren();
+        const textEl = bubble.appendChild(el('div'));
+        const notes = bubble.appendChild(el('div', 'space-y-2'));
+        textEl.appendChild(el('span', 'animate-pulse text-slate-500', 'Génération...'));
+
+        const note = (className, text) => notes.appendChild(el('div', `font-mono mt-2 text-xs p-2.5 rounded-xl border ${className}`, text));
+
         const handle = ({ name, data }) => {
           if (name === 'Token') {
             answer += data.text;
-            bubble.textContent = answer;
+            textEl.textContent = answer;
           } else if (name === 'Error') {
-            bubble.appendChild(el('div', 'text-red-400 font-mono mt-2 text-xs bg-red-500/10 p-2.5 rounded-xl border border-red-500/20', `[${data.kind}] ${data.message}`));
+            note('text-red-400 bg-red-500/10 border-red-500/20', `[${data.kind}] ${data.message}`);
           } else if (name === 'GuardrailTriggered') {
-            bubble.appendChild(el('div', 'text-amber-400 font-mono mt-2 text-xs bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20', `[Guardrail: ${data.rule}] ${data.action} (${data.side})`));
+            note('text-amber-400 bg-amber-500/10 border-amber-500/20', `[Garde-fou : ${data.rule}] ${data.action} (${data.side})`);
+          } else if (name === 'FaithfulnessChecked') {
+            showFaithfulness(data, notes);
           } else if (name === 'TurnFinished') {
             if (data.metrics) {
               totalTokens += data.metrics.total_tokens || 0;
@@ -398,7 +407,25 @@
           }
           scrollDown();
         }
+        if (!answer) textEl.textContent = '';
         return answer;
+      }
+
+      // EV1: the judge's verdict, with the claims the sources do not support
+      function showFaithfulness(check, notes) {
+        if (check.error) {
+          notes.appendChild(el('div', 'font-mono mt-2 text-[11px] text-slate-500', `Vérification impossible : ${check.error}`));
+          return;
+        }
+        const ok = check.contradicted === 0 && check.unverified === 0;
+        const box = el('div', `mt-2 text-xs p-2.5 rounded-xl border ${ok ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`);
+        const relevance = check.relevance === null || check.relevance === undefined ? '' : ` · pertinence ${check.relevance.toFixed(2)}`;
+        box.appendChild(el('div', 'font-mono', `Fidélité aux sources : ${check.faithfulness.toFixed(2)}${relevance} (${check.supported} confirmée(s), ${check.contradicted} contredite(s), ${check.unverified} non vérifiée(s))`));
+        for (const claim of check.flagged) {
+          box.appendChild(el('div', 'mt-1', `[${claim.status.toLowerCase()}] ${claim.claim}${claim.reasoning ? ' — ' + claim.reasoning : ''}`));
+        }
+        notes.appendChild(box);
+        lastTrace += `\n\nFidélité aux sources : ${check.faithfulness} (juge ${check.judge_model})`;
       }
 
       form.onsubmit = async (e) => {
@@ -413,11 +440,9 @@
 
         userBubble(text);
         const bubble = botBubble('');
-        bubble.appendChild(el('span', 'animate-pulse text-slate-500', 'Génération...'));
         scrollDown();
 
         try {
-          bubble.textContent = '';
           await streamTurn(text, bubble);
         } catch (error) {
           bubble.remove();
