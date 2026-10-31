@@ -72,6 +72,7 @@ python -m sensai.surfaces.web             # web UI + backend on http://127.0.0.1
 python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
 python -m scripts.seed_demo               # build data/demo.db for the keynote (see doc/demo.md)
 python -m scripts.adversarial --live      # attack Sensai (EV4); --report doc/adversarial.md keeps the results
+python -m scripts.evaluate --models qwen3.5:4b qwen3.5:9b   # faithfulness and relevance of each model's replies (EV1)
 ```
 
 An unknown session id prints `[error] session not found` and exits with a non-zero code.
@@ -282,9 +283,9 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | A1 | ReAct (corrector) | ★★★ | 4 | ✅ checker → corrector → sensei |
 | M2 | Token budgeting & compression | ★★ | 4-5 | ✅ per-agent context budget, running summary |
 | R1 | Basic RAG (citations, JLPT metadata) | ★★ | 5 | ✅ bge-m3 embeddings, cosine, JLPT filter, citations |
-| EV1 | Judge: claim-by-claim verification | ★★★ | 5 | 🚧 judge built and tested, not run on replies yet |
+| EV1 | Judge: claim-by-claim verification | ★★★ | 5 | ✅ judge runs after each reply that used passages or tools; `scripts/evaluate` compares models |
 | R2 | Advanced RAG (reranking, scoring) | ★★★ | 6 | ✅ model reranker, threshold drop, scores in `/trace` |
-| EV2 | Input / output guardrails | ★★★ | 6 | 🚧 input filter runs on every turn; output filter built, not wired |
+| EV2 | Input / output guardrails | ★★★ | 6 | ✅ injection and off-topic refusal, PII masked on input and output, rules in `config.toml` |
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ✅ backend and single-page frontend (`frontend/index.html`, no build step) |
@@ -315,16 +316,27 @@ Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
   `characters (romaji) - translation` format. Explanations can contain grammar mistakes too: one reply
 gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also marks a correct sentence typed in romaji
 (`kinou eiga wo mimashita`) as an error, only because it isn't written in Japanese characters.
-- **The adversarial suite (EV4) finds 3 breaks out of 27 attacks** ([`doc/adversarial.md`](doc/adversarial.md)):
-  a fake `<system>` tag makes the sensei answer only the attacker's word, and phone numbers (French and
-  international) reach the model. Poisoned corpus documents, system prompt leaks, out-of-scope requests and
-  malformed input all hold; a 28,000-character message ends with a checker timeout, not a crash.
-- **Guardrails are partial (EV2).** Email addresses are masked before the model call; phone numbers
-  are not (`06 12 34 56 78` goes through). A prompt injection is replaced by a `[BLOCKED]` notice that
-  the model then answers, rather than refused before the call. The output filter exists but no turn
-  runs it.
-- **The judge does not run on replies (EV1).** `trust/eval.py` verifies claims against sources and is
-  tested, but no answer goes through it, so an invented fact is not flagged live.
+- **The adversarial suite (EV4) found 3 breaks out of 27 attacks** ([`doc/adversarial.md`](doc/adversarial.md),
+  live run before the guardrail fix): a fake `<system>` tag made the sensei answer only the attacker's word,
+  and phone numbers reached the model. Both are now stopped by the guardrails; poisoned corpus documents,
+  system prompt leaks, out-of-scope requests and malformed input held; a 28,000-character message ends with
+  a checker timeout, not a crash.
+- **Guardrails are pattern-based (EV2).** Emails, French/Japanese/international phone numbers, cards and
+  prefixed API keys (`sk-`, `ghp_`, `AKIA`) are masked before the model call and again in the reply, while it
+  streams (the last word and any digit run are held back until they are complete). An injection (English,
+  French, Japanese, or a fake `<system>` tag) is refused before the call: nothing is sent to the model or
+  stored; the learner gets a plain refusal, not an error. A request that is not about Japanese (code, maths
+  homework, "forget Japanese") is refused the same way, by patterns only: anything that mentions Japanese is
+  let through, and the embedding tier planned in the user stories is not built. Rules are set in
+  `[guardrails]` of `config.toml`. Patterns are easy to get around (a reworded or leetspeak injection, a number
+  spelled out in words). The offline adversarial run shows 0 breaks; the live report in `doc/adversarial.md`
+  predates this change and must be run again with `--live`.
+- **The judge only checks what has a source (EV1).** After a reply, `trust/eval.py` checks each claim against the
+  passages the agent kept and the tool results of the turn, and flags what they do not support
+  (`[unverified]`, `[contradicted]`). A reply built on no passage and no tool (the model answering from memory)
+  has nothing to be checked against and is not judged. The judge is the same local model, so it can be wrong,
+  and it adds a model call after each sourced reply (about 40 s on a laptop CPU/GPU mix); turn it off with
+  `[eval] enabled = false`. Structured replies (checker, corrector) are not judged.
 - **The learner ledger is half used (M3).** Verified corrections are written to `errors` and the
   curriculum agent keeps the `srs_cards`, but no agent brings past errors up again, and `facts` is
   never written.
@@ -365,7 +377,7 @@ sensai/
   orchestration/  turn loop, executor, orchestrator, router                     (A)
   memory/         SQLite storage, sessions, ledger                              (B)
   knowledge/      tools, conjugator, MCP client and server, RAG, ReAct          (C)
-  trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
+  trust/          event log, metrics, tracing, guardrails, judge                (D)
   surfaces/       CLI and its renderer, demo script, web backend                (D)
 frontend/         index.html: the web chat page                                 (D)
 agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the corrector or the sensei),
