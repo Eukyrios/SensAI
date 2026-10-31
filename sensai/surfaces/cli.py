@@ -17,7 +17,7 @@ from ..core.agent_spec import SpecError
 from ..core.persona import persona_for, persona_names
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
-from ..core.events import (AgentRunStarted, Error, Event, GuardrailTriggered, HandoffEvent,
+from ..core.events import (AgentRunStarted, Error, Event, FaithfulnessChecked, GuardrailTriggered, HandoffEvent,
                            StructuredOutput, Thinking, Token, ToolCall, ToolResult, TurnFinished)
 from ..core.handoff import Handoff
 from ..llm.ollama import OllamaError
@@ -344,6 +344,19 @@ class CLIRenderer:
                 print(dim(f"[tool] {name} failed: {result[:200]}"))
             case TurnFinished() as finished:
                 self._finish_turn(finished)
+            case FaithfulnessChecked() as check:
+                self._show_faithfulness(check)
+
+    def _show_faithfulness(self, check: FaithfulnessChecked) -> None:
+        self.out.end_line()
+        if check.error:
+            print(dim(f"[faithfulness] not checked: {check.error}"), file=sys.stderr)
+            return
+        relevance = f" · relevance {check.relevance:.2f}" if check.relevance is not None else ""
+        print(dim(f"[faithfulness] {check.faithfulness:.2f}{relevance} · {check.supported} supported, "
+                  f"{check.contradicted} contradicted, {check.unverified} unverified (judge {check.judge_model})"))
+        for claim in check.flagged:
+            print(f"  [{claim['status'].lower()}] {claim['claim']}" + (f" — {claim['reasoning']}" if claim["reasoning"] else ""))
 
     def _show_reasoning(self, text: str) -> None:
         if not self.showing_reasoning:
