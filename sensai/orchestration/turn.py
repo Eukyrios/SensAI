@@ -4,14 +4,17 @@
 # srs_cards.
 
 import asyncio
+import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 
-from ..core.events import Error, Event, GuardrailTriggered, TurnFinished, TurnStarted
+from ..core.events import (Error, Event, FaithfulnessChecked, GuardrailTriggered, Token, TurnFinished,
+                           TurnStarted)
 from ..core.ids import new_id
 from ..llm.ollama import ChatStats
 from ..trust import guardrails
+from ..trust.eval import LLMJudge, SourceCollector, faithfulness_event
 from .curriculum import run_curriculum
 from .executor import AgentRun, sum_stats
 from .orchestrator import Orchestrator
@@ -27,16 +30,101 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
         yield Error(turn_id=turn.turn_id, kind="empty_input", message="Empty message")
         yield turn.finished_event()
         return
-    clean_text = guardrails.filter_input(learner_text, session.config)
-    if clean_text != learner_text:
-        yield turn.guardrail_redacted_event()
+    verdict = guardrails.check_input(learner_text, session.config)
+    if verdict.action != "allow":
+        yield turn.guardrail_event(verdict)
+    if verdict.action == "block":
+        yield Token(turn_id=turn.turn_id, run_id=turn.turn_id, text=guardrails.refusal_for(verdict.rule_triggered))
+        yield turn.finished_event()
+        return
+    clean_text = verdict.filtered_text
     turn.save_question(session.router.strip_override(clean_text) if session.router else clean_text)
     async with aclosing(turn.answer(clean_text)) as events:
-        async for event in events:
+        async for event in redact_tokens(events, turn):
+            turn.sources.observe(event)
             yield event
     yield turn.finished_event()
     if turn.crew.ok:
+        verdict_event = await turn.check_faithfulness(learner_text)
+        if verdict_event is not None:
+            yield verdict_event
         await run_curriculum(session, turn.turn_id)
+
+
+# What may still grow into PII is kept back: the last word (an email) and the digit groups before it
+# (a phone number or a card). Everything before that is released.
+WORD_LIMIT_CHARS = 40
+RISKY_TAIL = re.compile(r"(?:[\d+()\-.]+\s+)*\S{0,40}$")
+
+
+async def redact_tokens(events: AsyncIterator[Event], turn: "_Turn") -> AsyncIterator[Event]:
+    """Masks PII in the reply before it reaches a surface. Other events pass through in order, and tokens
+    are passed on untouched unless something was masked in them."""
+    config = turn.session.config
+    rules = guardrails.rules_from(config)
+    if not rules["enabled"] or not rules["redact_pii_output"]:
+        async for event in events:
+            yield event
+        return
+    pending: list[Token] = []
+    redacted = False
+
+    def release(count: int) -> list[Token]:
+        nonlocal redacted
+        group, rest = pending[:count], pending[count:]
+        pending[:] = rest
+        text = "".join(token.text for token in group)
+        verdict = guardrails.check_output(text, config)
+        if verdict.action != "redact":
+            return group
+        redacted = True
+        return [Token(turn_id=group[0].turn_id, run_id=group[0].run_id, text=verdict.filtered_text, ts=group[0].ts)]
+
+    async for event in events:
+        if not isinstance(event, Token):
+            if pending:
+                for token in release(len(pending)):
+                    yield token
+            yield event
+            continue
+        if pending and pending[-1].run_id != event.run_id:
+            for token in release(len(pending)):
+                yield token
+        pending.append(event)
+        count = _tokens_to_release(pending)
+        if count:
+            for token in release(count):
+                yield token
+    if pending:
+        for token in release(len(pending)):
+            yield token
+    if redacted:
+        yield turn.output_guardrail_event()
+
+
+def _tokens_to_release(pending: list[Token]) -> int:
+    """How many of the oldest pending tokens end before the risky tail of the text."""
+    text = "".join(token.text for token in pending)
+    cut = RISKY_TAIL.search(text).start()
+    ends, length = [], 0
+    for token in pending:
+        length += len(token.text)
+        if length > cut:
+            break
+        ends.append(length)
+    while ends and _inside_a_word(text, ends[-1]):
+        ends.pop()
+    return len(ends)
+
+
+def _inside_a_word(text: str, position: int) -> bool:
+    """True when cutting at `position` would split a word short enough to be an email or a key."""
+    if position >= len(text) or text[position - 1].isspace() or text[position].isspace():
+        return False
+    left = max(text.rfind(" ", 0, position), text.rfind("\\n", 0, position)) + 1
+    spaces = [i for i in (text.find(" ", position), text.find("\\n", position)) if i != -1]
+    right = min(spaces) if spaces else len(text)
+    return right - left <= WORD_LIMIT_CHARS
 
 
 class _Turn:
@@ -46,6 +134,7 @@ class _Turn:
         self.turn_id = new_id()
         self.started_ns = time.perf_counter_ns()
         self.crew = Orchestrator(session, self.turn_id)
+        self.sources = SourceCollector()
         self.question_id: str | None = None
         self.question_parent_id: str | None = None
 
@@ -66,6 +155,22 @@ class _Turn:
         else:
             self.drop_question()
 
+    async def check_faithfulness(self, question: str) -> FaithfulnessChecked | None:
+        """EV1: the judge checks the reply against the passages and tool results it was built on. It runs
+        once the reply is out, in a thread, and never fails the turn."""
+        settings = self.session.config["eval"]
+        run = self.crew.runs[-1]
+        reply = self.session.history[-1]["content"]
+        if not settings["enabled"] or not self.sources or not reply.strip() or run.spec.output_schema is not None:
+            return None
+        model = settings["judge_model"] or run.spec.model
+        judge = LLMJudge(self.session.client, model, settings["max_context_chars"])
+        try:
+            report = await asyncio.to_thread(judge.verify_response, reply, self.sources.context, question)
+        except Exception as error:  # the judge is optional: whatever goes wrong is reported, not raised
+            return FaithfulnessChecked(turn_id=self.turn_id, faithfulness=None, judge_model=model, error=str(error))
+        return faithfulness_event(self.turn_id, report, model)
+
     def save_question(self, text: str) -> None:
         self.session.history.append({"role": "user", "content": text})
         self.question_parent_id = self.session.leaf
@@ -76,6 +181,7 @@ class _Turn:
         self.session.discard(self.question_id, self.question_parent_id)
 
     def save_answer(self, text: str) -> str:
+        text = guardrails.check_output(text, self.session.config).filtered_text
         self.session.history.append({"role": "assistant", "content": text})
         return self.session.record("assistant", text)
 
@@ -101,8 +207,12 @@ class _Turn:
         else:
             self.drop_question()
 
-    def guardrail_redacted_event(self) -> GuardrailTriggered:
-        return GuardrailTriggered(turn_id=self.turn_id, side="input", rule="filter_input", action="redact")
+    def guardrail_event(self, verdict: guardrails.GuardrailResult) -> GuardrailTriggered:
+        return GuardrailTriggered(turn_id=self.turn_id, side="input", rule=verdict.rule_triggered or "guardrail",
+                                  action=verdict.action)
+
+    def output_guardrail_event(self) -> GuardrailTriggered:
+        return GuardrailTriggered(turn_id=self.turn_id, side="output", rule="pii_leakage", action="redact")
 
     def finished_event(self) -> TurnFinished:
         stats = self._total_stats() or ChatStats()

@@ -116,5 +116,20 @@ class TurnFinished(_Base):
     ttft_ms: float | None = None
 
 
+@dataclass(frozen=True, kw_only=True)
+class FaithfulnessChecked(_Base):
+    """The judge's verdict on a reply, checked against the passages and tool results the agent had (EV1).
+    `flagged` lists the claims the sources do not support: {"claim", "status", "reasoning"}."""
+    faithfulness: float | None
+    relevance: float | None = None
+    supported: int = 0
+    contradicted: int = 0
+    unverified: int = 0
+    flagged: list[dict] = field(default_factory=list)
+    judge_model: str = ""
+    error: str | None = None
+
+
 Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | StructuredOutput
-         | ToolCall | ToolResult | Retrieved | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished)
+         | ToolCall | ToolResult | Retrieved | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished
+         | FaithfulnessChecked)

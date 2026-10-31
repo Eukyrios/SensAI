@@ -78,3 +78,14 @@ def test_trace_shows_the_retrieval_and_the_tool_calls_of_each_run():
     assert "rag (embeddings+model, up to N5): 1 kept, 1 dropped" in trace
     assert "kept a.md § に [N5] 0.90" in trace and "dropped b.md § で 0.50 → 0.10" in trace
     assert "tool dictionary(word='猫')" in trace and "→ FAILED: " + "x" * 120 + "…" in trace
+
+
+def test_trace_shows_the_faithfulness_verdict():
+    from sensai.core.events import FaithfulnessChecked
+    tracer = TurnTracer()
+    tracer.process_event(TurnStarted(turn_id="t", session_id="s", user_input="q"))
+    tracer.process_event(FaithfulnessChecked(turn_id="t", faithfulness=0.5, relevance=0.9, supported=1,
+                                             flagged=[{"claim": "c", "status": "UNVERIFIED", "reasoning": ""}]))
+    assert "Faithfulness: 0.50, relevance 0.90 (1 supported); flagged: 1" in tracer.format_trace()
+    tracer.process_event(FaithfulnessChecked(turn_id="t", faithfulness=None, error="down"))
+    assert "Faithfulness: not checked (down)" in tracer.format_trace()

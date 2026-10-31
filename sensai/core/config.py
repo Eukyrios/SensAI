@@ -34,7 +34,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             "index_path": "data/rag_index.json", "default_level": "", "candidate_k": 5, "min_similarity": 0.4,
             "rerank": True, "model_rerank": True, "relevance_threshold": 0.6, "hybrid_threshold": 0.5,
             "lexical_threshold": 0.4, "top_k": 2},
-    "guardrails": {"enabled": True},
+    "guardrails": {"enabled": True, "block_prompt_injection": True, "block_out_of_scope": True,
+                   "redact_pii_input": True, "redact_pii_output": True},
+    "eval": {"enabled": True, "judge_model": "", "max_context_chars": 6000},
     "logging": {"level": "INFO", "path": "logs/sensai.jsonl"},
     "web": {"host": "127.0.0.1", "port": 8000, "allow_origins": ["http://localhost:5173"]},
 }

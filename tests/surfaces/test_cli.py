@@ -589,3 +589,14 @@ async def test_the_renderer_shows_tool_calls_and_failures(capsys):
         ToolResult(turn_id="t", run_id="r", name="kanji", result="boom", ok=False)))
     out = capsys.readouterr().out
     assert '[tool] kanji {"character": "猫"}' in out and "[tool] kanji failed: boom" in out
+
+
+async def test_renderer_shows_the_faithfulness_verdict(capsys):
+    check = ev.FaithfulnessChecked(turn_id="t", faithfulness=0.5, relevance=0.9, supported=1, unverified=1,
+                                   judge_model="m", flagged=[{"claim": "invented", "status": "UNVERIFIED", "reasoning": "no source"}])
+    failed = ev.FaithfulnessChecked(turn_id="t", faithfulness=None, error="down")
+    await cli.CLIRenderer().render_stream(events_stream(check, failed))
+    captured = capsys.readouterr()
+    assert "[faithfulness] 0.50 · relevance 0.90 · 1 supported, 0 contradicted, 1 unverified (judge m)" in captured.out
+    assert "[unverified] invented — no source" in captured.out
+    assert "[faithfulness] not checked: down" in captured.err

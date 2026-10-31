@@ -5,6 +5,7 @@ from ..core.events import (
     AgentRunFinished,
     AgentRunStarted,
     Event,
+    FaithfulnessChecked,
     GuardrailTriggered,
     Retrieved,
     RouteDecided,
@@ -36,6 +37,7 @@ class TurnTracer:
         self._current_agent: AgentTrace | None = None
         self.guardrails_triggered: list[str] = []
         self.route: RouteDecided | None = None
+        self.faithfulness: FaithfulnessChecked | None = None
         self._retrievals: dict[str, Retrieved] = {}
 
     def process_event(self, event: Event) -> None:
@@ -58,6 +60,8 @@ class TurnTracer:
                 self._add_step(f"  → {'ok' if ok else 'FAILED'}: {_shorten(result)}")
             case RouteDecided() as route:
                 self.route = route
+            case FaithfulnessChecked() as check:
+                self.faithfulness = check
             case GuardrailTriggered(rule=rule):
                 self.guardrails_triggered.append(rule)
 
@@ -70,6 +74,8 @@ class TurnTracer:
         if not self.agent_traces:
             lines.append("  (no agent execution captured)")
         lines.extend(_format_agent_run(number, trace) for number, trace in enumerate(self.agent_traces, 1))
+        if self.faithfulness is not None:
+            lines.append(_format_faithfulness(self.faithfulness))
         if self.guardrails_triggered:
             lines.append(f"  Guardrails triggered: {', '.join(self.guardrails_triggered)}")
         return "\n".join(lines)
@@ -79,6 +85,7 @@ class TurnTracer:
         self.agent_traces.clear()
         self.guardrails_triggered.clear()
         self.route = None
+        self.faithfulness = None
         self._retrievals.clear()
 
     def _start_agent_run(self, run_id: str, agent: str) -> None:
@@ -104,6 +111,14 @@ class TurnTracer:
         if self._current_agent:
             self._current_agent.ok = ok
         self._current_agent = None
+
+
+def _format_faithfulness(check: FaithfulnessChecked) -> str:
+    if check.error:
+        return f"  Faithfulness: not checked ({check.error})"
+    relevance = f", relevance {check.relevance:.2f}" if check.relevance is not None else ""
+    flagged = f"; flagged: {len(check.flagged)}" if check.flagged else ""
+    return f"  Faithfulness: {check.faithfulness:.2f}{relevance} ({check.supported} supported){flagged}"
 
 
 def _format_route(route: RouteDecided) -> str:

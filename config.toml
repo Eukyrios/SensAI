@@ -89,7 +89,16 @@ lexical_threshold = 0.4      # same, for the word-overlap fallback
 top_k = 2                    # passages kept in the context
 
 [guardrails]
-enabled = true
+enabled = true                  # false = no input or output filtering at all
+block_prompt_injection = true   # refuse a message that tries to change the instructions, before the model call
+block_out_of_scope = true       # refuse requests that are not about learning Japanese (code, maths homework...)
+redact_pii_input = true         # mask emails, phone numbers, cards and API keys in the learner's message
+redact_pii_output = true        # same masking on the reply, sentence by sentence while it streams
+
+[eval]
+enabled = true               # EV1: after a reply that used passages or tool results, a judge checks each claim against them
+judge_model = ""             # empty = the model that wrote the reply
+max_context_chars = 6000     # sources given to the judge, cut beyond this
 
 [logging]
 level = "INFO"
