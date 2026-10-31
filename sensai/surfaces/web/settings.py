@@ -25,12 +25,17 @@ class PersonaChoice(BaseModel):
     persona: str
 
 
+class ThinkingChoice(BaseModel):
+    think: bool
+
+
 def add_settings_routes(app: FastAPI) -> None:
     app.add_api_route("/api/models", list_models, methods=["GET"])
     app.add_api_route("/api/personas", list_personas, methods=["GET"])
     app.add_api_route("/api/sessions/{session_id}/model", switch_model, methods=["PUT"])
     app.add_api_route("/api/sessions/{session_id}/agent", switch_agent, methods=["PUT"])
     app.add_api_route("/api/sessions/{session_id}/persona", switch_persona, methods=["PUT"])
+    app.add_api_route("/api/sessions/{session_id}/thinking", switch_thinking, methods=["PUT"])
 
 
 def list_models(request: Request) -> dict:
@@ -75,6 +80,17 @@ def pin_agent(session: Session, agent: str) -> None:
 def route_again(session: Session, pool: SessionPool) -> None:
     session.spec = spec_for(session.config["agents"]["default"], session.config)
     session.router = load_router(session.config, pool.client)
+
+
+def switch_thinking(session_id: str, choice: ThinkingChoice, request: Request) -> dict:
+    session = open_session(request.app.state.sessions, session_id)
+    try:
+        session.set_thinking(choice.think)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from None
+    except OllamaError as error:
+        raise HTTPException(503, str(error)) from None
+    return session_view(session)
 
 
 def switch_persona(session_id: str, choice: PersonaChoice, request: Request) -> dict:

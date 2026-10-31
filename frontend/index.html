@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-[#07090e] text-slate-100 antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SensAI — Assistant Local</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #07090e; }
+    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+    .chat-scroll { scroll-behavior: smooth; }
+    .glass-panel { background: rgba(13, 18, 30, 0.85); backdrop-filter: blur(16px); }
+    .glass-dropdown { background: rgba(15, 22, 36, 0.95); backdrop-filter: blur(20px); }
+    .animate-in { animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  </style>
+</head>
+
+<body class="h-full flex flex-col justify-between overflow-hidden">
+
+  <!-- TOP BAR -->
+  <header class="h-16 border-b border-white/[0.06] glass-panel px-6 sm:px-10 flex items-center justify-between shrink-0 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/30 flex items-center justify-center font-black text-red-400 text-sm shadow-sm">S</div>
+      <div>
+        <span class="font-bold text-sm tracking-tight text-slate-100">SensAI</span>
+        <span class="text-[10px] text-slate-500 block -mt-1 font-mono">v1.0 • Local Agent</span>
+      </div>
+    </div>
+
+    <!-- SÉLECTEUR DE MODÈLE -->
+    <button id="open-modal-btn" class="flex items-center gap-2.5 bg-slate-900/90 hover:bg-slate-800/80 border border-white/[0.1] hover:border-red-500/40 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-200 transition-all shadow-sm">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span id="current-agent-label" class="font-semibold">Chargement...</span>
+      <svg class="w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7"/></svg>
+    </button>
+  </header>
+
+  <!-- ZONE DE CONVERSATION -->
+  <main id="chat-box" class="chat-scroll flex-1 overflow-y-auto w-full max-w-3xl mx-auto px-4 py-8 space-y-6">
+    <div class="text-center py-16 space-y-4 animate-in">
+      <div class="inline-flex w-16 h-16 rounded-3xl bg-gradient-to-br from-red-500/20 to-red-900/10 border border-red-500/30 items-center justify-center font-black text-red-400 text-2xl shadow-inner">S</div>
+      <h2 class="text-2xl font-bold text-slate-100 tracking-tight">Que souhaitez-vous explorer ?</h2>
+      <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">Assistant local SensAI avec suivi des métriques, garde-fous de confidentialité et observabilité en temps réel.</p>
+    </div>
+  </main>
+
+  <!-- BARRE DE SAISIE & OPTIONS -->
+  <footer class="w-full max-w-3xl mx-auto px-4 pb-6 pt-2 shrink-0 z-20">
+    <form id="chat-form" class="relative bg-slate-900/90 border border-white/[0.1] focus-within:border-red-500/50 rounded-2xl p-2.5 shadow-2xl transition-all">
+      <textarea id="user-input" rows="1" placeholder="Envoyer un message à SensAI..."
+        class="w-full bg-transparent px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none resize-none max-h-32"></textarea>
+
+      <div class="flex items-center justify-between pt-2.5 border-t border-white/[0.04] px-2">
+        
+        <!-- MENU D'OPTIONS FLOTTANT -->
+        <div class="relative">
+          <button type="button" id="menu-btn" class="p-2 text-slate-400 hover:text-slate-100 hover:bg-white/[0.06] rounded-xl transition-all flex items-center gap-2 text-xs font-medium">
+            <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="hidden sm:inline">Options</span>
+          </button>
+
+          <!-- DROPDOWN DESIGN -->
+          <div id="dropdown-menu" class="hidden absolute bottom-12 left-0 w-72 glass-dropdown border border-white/[0.12] rounded-2xl shadow-2xl p-2 text-xs space-y-1 z-50 animate-in">
+            <div class="px-3 py-2 text-[10px] font-mono text-slate-500 uppercase tracking-wider border-b border-white/[0.05]">Paramètres de session</div>
+            
+            <!-- TOGGLE THINK -->
+            <label class="flex items-center justify-between px-3 py-2.5 hover:bg-white/[0.05] rounded-xl cursor-pointer transition-colors">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <div>
+                  <div class="text-slate-200 font-medium">Raisonnement (/think)</div>
+                  <div class="text-[10px] text-slate-500">Activer les étapes de pensée</div>
+                </div>
+              </div>
+              <input type="checkbox" id="think-toggle" class="accent-red-500 rounded w-4 h-4 cursor-pointer">
+            </label>
+
+            <!-- TRACE MODAL BTN -->
+            <button type="button" id="open-trace-btn" class="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] text-slate-200 font-medium rounded-xl transition-colors flex items-center gap-2.5">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <span>Inspecter la trace (/trace)</span>
+            </button>
+
+            <!-- RESET SESSION -->
+            <button type="button" id="reset-session-btn" class="w-full text-left px-3 py-2.5 hover:bg-white/[0.05] text-slate-200 font-medium rounded-xl transition-colors flex items-center gap-2.5">
+              <svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M5.5 15a7 7 0 0011.9 1.5L20 13M18.5 9A7 7 0 006.6 7.5L4 11"/></svg>
+              <span>Nouvelle conversation (/reset)</span>
+            </button>
+
+            <!-- RESET METRICS -->
+            <button type="button" id="reset-metrics-btn" class="w-full text-left px-3 py-2 hover:bg-white/[0.04] text-slate-400 hover:text-slate-200 text-[11px] rounded-xl transition-colors border-t border-white/[0.05] mt-1 pt-2 flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              <span>Réinitialiser les métriques</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- RÉCAPITULATIF MÉTRIQUES -->
+        <div class="flex items-center gap-4">
+          <span class="text-[11px] mono text-slate-500 hidden sm:inline-flex items-center gap-2 bg-slate-950/60 px-3 py-1 rounded-xl border border-white/[0.05]">
+            <span><strong id="session-tokens" class="text-slate-200 font-medium">0</strong> tokens</span>
+            <span class="text-slate-700">•</span>
+            <span><strong id="session-speed" class="text-emerald-400 font-medium">0.0 t/s</strong></span>
+            <span class="text-slate-700">•</span>
+            <span><strong id="session-cost" class="text-blue-400 font-medium">$0.0000</strong></span>
+          </span>
+
+          <button type="submit" id="send-button" class="bg-red-600 hover:bg-red-500 text-white p-2.5 rounded-xl transition-all shadow-lg shadow-red-600/20">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12 14-7-5 14-2-6-7-1z"/></svg>
+          </button>
+        </div>
+
+      </div>
+    </form>
+  </footer>
+
+  <!-- MODAL SELECTION MODÈLE -->
+  <div id="agent-modal" class="fixed inset-0 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4 z-50 animate-in">
+    <div class="bg-[#0c101a] border border-white/[0.12] rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl">
+      <div class="flex justify-between items-start border-b border-white/[0.08] pb-4">
+        <div>
+          <h3 class="font-bold text-slate-100 text-lg flex items-center gap-2">
+            <span>Changer de Modèle</span>
+            <span class="text-[10px] mono bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20">/model</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Sélectionnez le modèle local Ollama pour piloter la conversation.</p>
+        </div>
+        <button id="close-modal-btn" class="text-slate-400 hover:text-white text-xl p-1 rounded-lg hover:bg-white/[0.05] transition-colors">&times;</button>
+      </div>
+
+      <div id="agent-cards-container" class="space-y-3 max-h-[55vh] overflow-y-auto pr-1"></div>
+    </div>
+  </div>
+
+  <!-- MODAL TRACE DE L'AGENT (/trace) -->
+  <div id="trace-modal" class="fixed inset-0 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4 z-50 animate-in">
+    <div class="bg-[#0c101a] border border-white/[0.12] rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-4 shadow-2xl">
+      <div class="flex justify-between items-start border-b border-white/[0.08] pb-4">
+        <div>
+          <h3 class="font-bold text-slate-100 text-lg flex items-center gap-2">
+            <span>Trace d'Exécution & Observabilité</span>
+            <span class="text-[10px] mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">/trace</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Détail des étapes, routage et appels de tools du dernier tour.</p>
+        </div>
+        <button id="close-trace-btn" class="text-slate-400 hover:text-white text-xl p-1 rounded-lg hover:bg-white/[0.05] transition-colors">&times;</button>
+      </div>
+
+      <div class="bg-[#05070d] border border-white/[0.08] rounded-2xl p-4 overflow-x-auto max-h-[60vh]">
+        <pre id="trace-modal-box" class="mono text-xs text-emerald-400/90 whitespace-pre-wrap leading-relaxed">Aucune trace enregistrée pour le moment.</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const form = $('chat-form');
+      const input = $('user-input');
+      const box = $('chat-box');
+      const sendButton = $('send-button');
+      const menuBtn = $('menu-btn');
+      const dropdownMenu = $('dropdown-menu');
+      const thinkToggle = $('think-toggle');
+      const modelModal = $('agent-modal');
+      const traceModal = $('trace-modal');
+      const modelLabel = $('current-agent-label');
+      const NO_TRACE = 'Aucune trace enregistrée pour le moment.';
+      const STORAGE_KEY = 'sensai.session';
+      const welcomeHTML = box.innerHTML; // static markup from this page, no dynamic data
+
+      let sessionId = null;
+      let currentModel = '';
+      let lastTrace = NO_TRACE;
+      let totalTokens = 0, totalCost = 0, lastSpeed = 0;
+      let streaming = false;
+
+      // ---------- helpers: every dynamic value goes through textContent ----------
+      function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(typeof body.detail === 'string' ? body.detail : `Erreur HTTP ${res.status}`);
+        }
+        return res.json();
+      }
+
+      function show(modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+      function hide(modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+
+      function scrollDown() { box.scrollTop = box.scrollHeight; }
+
+      function userBubble(text) {
+        const row = el('div', 'flex justify-end animate-in');
+        row.appendChild(el('div', 'bg-red-600/90 text-white text-xs sm:text-sm px-4 py-3 rounded-2xl rounded-tr-sm max-w-xl leading-relaxed shadow-sm whitespace-pre-wrap', text));
+        box.appendChild(row);
+      }
+
+      function botBubble(text) {
+        const row = el('div', 'flex justify-start animate-in');
+        const bubble = el('div', 'bg-slate-900/90 border border-white/[0.08] text-slate-200 text-xs sm:text-sm px-4 py-3 rounded-2xl rounded-tl-sm max-w-2xl leading-relaxed whitespace-pre-wrap', text);
+        row.appendChild(bubble);
+        box.appendChild(row);
+        return bubble;
+      }
+
+      function notice(text, isError = true) {
+        const cls = isError
+          ? 'text-red-400 font-mono text-xs bg-red-500/10 p-2.5 rounded-xl border border-red-500/20'
+          : 'text-center text-xs text-slate-500 py-6';
+        box.appendChild(el('div', cls, text));
+        scrollDown();
+      }
+
+      function updateMetrics() {
+        $('session-tokens').textContent = totalTokens;
+        $('session-cost').textContent = `$${totalCost.toFixed(4)}`;
+        $('session-speed').textContent = `${lastSpeed.toFixed(1)} t/s`;
+      }
+
+      // ---------- session ----------
+      function applySession(session) {
+        sessionId = session.id;
+        currentModel = session.model;
+        localStorage.setItem(STORAGE_KEY, sessionId);
+        modelLabel.textContent = currentModel;
+        thinkToggle.checked = !!session.thinking;
+        box.innerHTML = '';
+        if (!session.history.length) {
+          box.innerHTML = welcomeHTML;
+        }
+        for (const message of session.history) {
+          if (message.role === 'user') userBubble(message.content);
+          else if (message.role === 'assistant') botBubble(message.content);
+        }
+        scrollDown();
+      }
+
+      async function openSession() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try { return await api(`/api/sessions/${encodeURIComponent(saved)}`); } catch { /* gone: start a new one */ }
+        }
+        return api('/api/sessions', { method: 'POST' });
+      }
+
+      // ---------- menu, modals ----------
+      menuBtn.onclick = () => dropdownMenu.classList.toggle('hidden');
+      document.addEventListener('click', (e) => {
+        if (!menuBtn.contains(e.target) && !dropdownMenu.contains(e.target)) dropdownMenu.classList.add('hidden');
+      });
+
+      input.oninput = () => { input.style.height = 'auto'; input.style.height = input.scrollHeight + 'px'; };
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+      };
+
+      $('open-modal-btn').onclick = async () => { show(modelModal); await renderModels(); };
+      $('close-modal-btn').onclick = () => hide(modelModal);
+      $('open-trace-btn').onclick = () => {
+        $('trace-modal-box').textContent = lastTrace;
+        show(traceModal);
+        dropdownMenu.classList.add('hidden');
+      };
+      $('close-trace-btn').onclick = () => hide(traceModal);
+
+      $('reset-metrics-btn').onclick = () => {
+        totalTokens = 0; totalCost = 0; lastSpeed = 0;
+        updateMetrics();
+        dropdownMenu.classList.add('hidden');
+      };
+
+      $('reset-session-btn').onclick = async () => {
+        dropdownMenu.classList.add('hidden');
+        if (streaming) return;
+        try {
+          applySession(await api('/api/sessions', { method: 'POST' }));
+          lastTrace = NO_TRACE;
+        } catch (error) { notice(error.message); }
+      };
+
+      thinkToggle.onchange = async () => {
+        const wanted = thinkToggle.checked;
+        try {
+          const session = await api(`/api/sessions/${sessionId}/thinking`, { method: 'PUT', body: JSON.stringify({ think: wanted }) });
+          thinkToggle.checked = !!session.thinking;
+        } catch (error) {
+          thinkToggle.checked = !wanted;
+          notice(error.message);
+        }
+      };
+
+      async function renderModels() {
+        const container = $('agent-cards-container');
+        container.replaceChildren();
+        let installed = [];
+        try {
+          installed = (await api('/api/models')).installed;
+        } catch (error) {
+          container.appendChild(el('div', 'text-red-400 text-xs font-mono', error.message));
+          return;
+        }
+        for (const name of installed) {
+          const isCurrent = name === currentModel;
+          const card = el('div', `p-4 rounded-2xl border transition-all cursor-pointer flex justify-between items-center ${isCurrent ? 'bg-gradient-to-r from-red-500/15 to-red-900/10 border-red-500/40 shadow-lg' : 'bg-slate-900/60 border-white/[0.08] hover:border-white/[0.2] hover:bg-slate-800/60'}`);
+          const left = el('div', 'flex items-center gap-3');
+          left.appendChild(el('div', `w-9 h-9 rounded-xl ${isCurrent ? 'bg-red-500/20 border border-red-500/30' : 'bg-slate-800'} flex items-center justify-center font-mono text-xs text-slate-300`, '⚡'));
+          const labels = el('div');
+          labels.appendChild(el('div', `font-semibold text-sm ${isCurrent ? 'text-slate-100' : 'text-slate-300'}`, name));
+          labels.appendChild(el('div', 'text-[11px] text-slate-500', 'Modèle Ollama installé'));
+          left.appendChild(labels);
+          card.appendChild(left);
+          card.appendChild(el('span', isCurrent
+            ? 'bg-red-500/20 text-red-400 text-xs px-3 py-1 rounded-full font-medium border border-red-500/30'
+            : 'text-xs text-slate-400 font-medium hover:text-slate-200', isCurrent ? 'Actif' : 'Sélectionner'));
+          card.onclick = async () => {
+            if (isCurrent || streaming) return;
+            try {
+              const session = await api(`/api/sessions/${sessionId}/model`, { method: 'PUT', body: JSON.stringify({ model: name }) });
+              currentModel = session.model;
+              thinkToggle.checked = !!session.thinking;
+              modelLabel.textContent = currentModel;
+              hide(modelModal);
+            } catch (error) {
+              container.prepend(el('div', 'text-red-400 text-xs font-mono mb-2', error.message));
+            }
+          };
+          container.appendChild(card);
+        }
+      }
+
+      // ---------- streaming of a turn ----------
+      function parseSse(chunk) {
+        let name = 'message', data = '';
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('event:')) name = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        return data ? { name, data: JSON.parse(data) } : null;
+      }
+
+      async function streamTurn(text, bubble) {
+        const res = await fetch(`/api/sessions/${sessionId}/turns`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(typeof body.detail === 'string' ? body.detail : `Erreur HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '', answer = '';
+
+        const handle = ({ name, data }) => {
+          if (name === 'Token') {
+            answer += data.text;
+            bubble.textContent = answer;
+          } else if (name === 'Error') {
+            bubble.appendChild(el('div', 'text-red-400 font-mono mt-2 text-xs bg-red-500/10 p-2.5 rounded-xl border border-red-500/20', `[${data.kind}] ${data.message}`));
+          } else if (name === 'GuardrailTriggered') {
+            bubble.appendChild(el('div', 'text-amber-400 font-mono mt-2 text-xs bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20', `[Guardrail: ${data.rule}] ${data.action} (${data.side})`));
+          } else if (name === 'TurnFinished') {
+            if (data.metrics) {
+              totalTokens += data.metrics.total_tokens || 0;
+              totalCost += data.metrics.cost_usd || 0;
+              lastSpeed = data.metrics.tokens_per_sec || 0;
+              updateMetrics();
+            }
+            if (data.trace) lastTrace = data.trace;
+            if (data.model) { currentModel = data.model; modelLabel.textContent = currentModel; }
+          }
+        };
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop();
+          for (const chunk of chunks) {
+            const message = parseSse(chunk);
+            if (message) handle(message);
+          }
+          scrollDown();
+        }
+        return answer;
+      }
+
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text || streaming || !sessionId) return;
+
+        streaming = true;
+        sendButton.disabled = true;
+        input.value = ''; input.style.height = 'auto';
+        if (box.firstElementChild && box.firstElementChild.classList.contains('py-16')) box.replaceChildren();
+
+        userBubble(text);
+        const bubble = botBubble('');
+        bubble.appendChild(el('span', 'animate-pulse text-slate-500', 'Génération...'));
+        scrollDown();
+
+        try {
+          bubble.textContent = '';
+          await streamTurn(text, bubble);
+        } catch (error) {
+          bubble.remove();
+          notice(error.message);
+        } finally {
+          streaming = false;
+          sendButton.disabled = false;
+          input.focus();
+        }
+      };
+
+      // ---------- start ----------
+      openSession().then(applySession).catch((error) => {
+        modelLabel.textContent = 'Hors ligne';
+        notice(`Impossible de joindre le serveur : ${error.message}`);
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from ...llm.ollama import OllamaClient
 from ...orchestration.session import Session
 from ...orchestration.turn import run_turn
+from .frontend import add_frontend_route
 from .sessions import SessionPool, open_session, session_view
 from .settings import add_settings_routes
 from .sse import sse_stream
@@ -32,6 +33,7 @@ def create_app(config: dict, client: OllamaClient | None = None) -> FastAPI:
     app.add_api_route("/api/sessions/{session_id}", show_session, methods=["GET"])
     app.add_api_route("/api/sessions/{session_id}/turns", start_turn, methods=["POST"])
     add_settings_routes(app)
+    add_frontend_route(app)
     return app
 
 
