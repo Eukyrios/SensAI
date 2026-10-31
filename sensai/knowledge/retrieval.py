@@ -70,7 +70,8 @@ class Retrieval:
 
 
 def _chunk_view(chunk: DocumentChunk) -> dict:
-    return {"source": chunk.source, "section": chunk.section, "jlpt": chunk.jlpt, "score": chunk.score}
+    return {"source": chunk.source, "section": chunk.section, "jlpt": chunk.jlpt, "score": chunk.score,
+            "content": chunk.content}
 
 def profile_level(profile_text: str | None, default: str = "") -> str | None:
     match = CURRENT_LEVEL.search(profile_text or "") or LEVEL_PATTERN.search(profile_text or "")
