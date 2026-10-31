@@ -35,7 +35,6 @@ Stage 4 can loop back to stage 2 ("another hop"), and stage 5 is read back on th
 
 - Python 3.10+
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
-- Node.js 18+ (only for the web UI, layer 7)
 - [uv](https://docs.astral.sh/uv/) for the pre-existing MCP time server (`uvx mcp-server-time`); without it the
   chat starts and reports the server as unavailable
 
@@ -69,7 +68,7 @@ Other entry points:
 
 ```bash
 python -m sensai.surfaces.demo            # renders and logs a scripted turn, no model needed
-python -m sensai.surfaces.web             # web backend on http://127.0.0.1:8000 (see Web UI below)
+python -m sensai.surfaces.web             # web UI + backend on http://127.0.0.1:8000 (see Web UI below)
 python -m scripts.benchmark               # compare the candidate models on 20 Japanese questions
 python -m scripts.seed_demo               # build data/demo.db for the keynote (see doc/demo.md)
 python -m scripts.adversarial --live      # attack Sensai (EV4); --report doc/adversarial.md keeps the results
@@ -288,7 +287,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | EV2 | Input / output guardrails | ★★★ | 6 | 🚧 input filter runs on every turn; output filter built, not wired |
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
-| X1 | Web UI (FastAPI + SSE) | ★ | 7 | backend ✅, frontend ⏳ |
+| X1 | Web UI (FastAPI + SSE) | ★ | 7 | ✅ backend and single-page frontend (`frontend/index.html`, no build step) |
 | EV4 | Adversarial suite | ★★ | 7 | ✅ 27 attacks, one command, report in [`doc/adversarial.md`](doc/adversarial.md) |
 | A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
 
@@ -367,7 +366,8 @@ sensai/
   memory/         SQLite storage, sessions, ledger                              (B)
   knowledge/      tools, conjugator, MCP client and server, RAG, ReAct          (C)
   trust/          event log, metrics, tracing, guardrails (stub), judge         (D)
-  surfaces/       CLI and its renderer, demo script; web UI in layer 7          (D)
+  surfaces/       CLI and its renderer, demo script, web backend                (D)
+frontend/         index.html: the web chat page                                 (D)
 agents/           one TOML spec per agent: sensei (default), checker (T5, hands off to the corrector or the sensei),
                   corrector (A1, ReAct), curriculum (SRS),
                   classifier (router tier 3),
@@ -431,9 +431,10 @@ Built modules, then planned ones with the layer that adds them.
 | `surfaces/` | `cli.py` | command-line chat and its renderer |
 | | `demo.py` | scripted turn through the logger and the renderer |
 | | `web/app.py` | FastAPI app: sessions and turns streamed as server-sent events |
-| | `web/settings.py` | switch a session's model, agent or persona |
+| | `web/settings.py` | switch a session's model, agent, persona or reasoning (`think`) |
 | | `web/sessions.py` | the open sessions, resumed from storage on demand |
-| | `web/sse.py` | one SSE message per event |
+| | `web/sse.py` | one SSE message per event; `TurnFinished` also carries the turn's metrics and trace |
+| | `web/frontend.py` | serves `frontend/index.html` at `/` |
 | `sensai/` | `__main__.py` | entry point for `python -m sensai` |
 
 ### Rules that keep it stable
@@ -621,15 +622,21 @@ digits of its SHA-256, so editing a prompt gives it a new hash and nothing has t
   that stored prompt: it runs with it instead of the one in the file. An unknown hash fails the turn
   with a `SpecError`.
 
-### Web UI backend (X1)
+### Web UI (X1)
 
 `python -m sensai.surfaces.web` serves the same sessions as the CLI over HTTP (`--host`, `--port`, or
 the `[web]` section of `config.toml`). It only subscribes to the event stream: a turn runs through
 `run_turn()` exactly as in the CLI, and each event goes to the browser as one server-sent event, named
 after its class, with its fields as JSON.
 
+Open `http://127.0.0.1:8000` for the chat page (`frontend/index.html`, served by the same app, so no
+CORS setup and no build step). It streams tokens, switches model and reasoning, shows session metrics and
+the `/trace` of the last turn, and resumes the last conversation after a reload (session id kept in
+`localStorage`). Tailwind and the fonts load from a CDN, so the page needs internet access.
+
 | Method | Path | Does |
 |---|---|---|
+| GET | `/` | the chat page |
 | GET | `/api/health` | `{"status": "ok"}` |
 | GET | `/api/sessions` | stored sessions: id, date, model, title |
 | POST | `/api/sessions` | a new session, with its settings |
@@ -638,6 +645,7 @@ after its class, with its fields as JSON.
 | PUT | `/api/sessions/{id}/model` | `{"model": "qwen3.5:4b"}`; 400 when it isn't installed |
 | PUT | `/api/sessions/{id}/agent` | `{"agent": "checker"}` pins an agent (routing off, like `--agent`); `{}` routes again |
 | PUT | `/api/sessions/{id}/persona` | `{"persona": "strict"}` |
+| PUT | `/api/sessions/{id}/thinking` | `{"think": true}`; 400 when the model can't reason |
 | GET | `/api/models` | installed Ollama models; 503 when Ollama is down |
 | GET | `/api/personas` | persona names and descriptions |
 
@@ -652,7 +660,11 @@ event: Token
 data: {"turn_id": "...", "ts": 1793..., "run_id": "...", "text": "猫"}
 ...
 event: TurnFinished
+data: {..., "metrics": {"total_tokens": 412, "tokens_per_sec": 38.2, "cost_usd": 0.000321, "duration_s": 9.4}, "trace": "[trace] Turn ID: ..."}
 ```
+
+`TurnFinished` is the one event with extra fields: `metrics` (from `trust/metrics.py`) and `trace`
+(from `trust/tracing.py`), which the page shows in its footer and in the trace window.
 
 A session runs one turn at a time (a second one gets 409). Closing the connection mid-reply cancels
 the turn as Escape does in the CLI. Every change keeps the history. `allow_origins` lists the browser
