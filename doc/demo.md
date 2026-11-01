@@ -88,18 +88,20 @@ per million tokens in / out.
 **Shows:** `[guardrail] input block: prompt_injection`, then a refusal that brings the learner back to
 the lesson.
 
-### 7. The same stream over HTTP (~ 30 s)
+### 7. The same tutor in the browser (~ 1 min)
 
-Needs the web backend (#33, PR #224). In the second terminal:
+In the second terminal:
 ```bash
 python -m sensai.surfaces.web
-curl -s -X POST localhost:8000/api/sessions
-curl -N -X POST localhost:8000/api/sessions/<id>/turns -H 'content-type: application/json' -d '{"text": "how do I say cat?"}'
 ```
+Open http://127.0.0.1:8000 and ask "When do I use the particle に?". Then open Options > the trace,
+and the model list (top right).
 
-**Shows:** the same events as server-sent events: `TurnStarted`, `RouteDecided`, `Token`... `TurnFinished`.
+**Shows:** the reply streaming into the page with its `Sources:` line and the judge's verdict, the
+tokens, speed and cost of the session, the trace of the turn, and the installed models.
 
-**Say:** every surface (CLI, log, trace, web) subscribes to one event stream.
+**Say:** every surface (CLI, log, trace, web) subscribes to one event stream; the page reads it as
+server-sent events, with no change to the turn logic.
 
 ## When it goes wrong
 
@@ -108,14 +110,5 @@ curl -N -X POST localhost:8000/api/sessions/<id>/turns -H 'content-type: applica
 | First reply takes 30 s | The model was not warm (step 3 of the preparation); talk over it. |
 | A reply is too slow | `/model qwen3.5:4b` (history kept), then repeat the question. |
 | The correction comes out garbled | It is a 9B model; say so, and show `/trace` to point at which agent got it wrong. |
-| Ollama stops answering | `python -m sensai.surfaces.demo` renders a scripted turn with no model; then the backup videos (#39). |
+| Ollama stops answering | Play the feature video (`videos/sensai_features.mp4`, built with `python -m scripts.build_video`). |
 | The demo database got messy | `/quit`, `python -m scripts.seed_demo`, start again from step 1. |
-
-## Dry runs
-
-Two full runs on the presentation machine (#184).
-
-| Date | Machine | Duration | Issues |
-|---|---|---|---|
-| | | | |
-| | | | |

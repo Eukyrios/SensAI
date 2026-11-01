@@ -69,7 +69,7 @@ than encouragement.
 private.
 
 **Features:** EV2 guardrails, EV3 event log (the `GuardrailTriggered` event).
-**Works today:** for emails. A phone number is not masked yet (see Limits).
+**Works today:** yes, for emails, phone numbers (French and international), card numbers and API keys.
 
 ## 4. Someone trying to misuse the tutor
 
@@ -103,4 +103,4 @@ failed less, with real numbers rather than impressions.
 average tokens; the pinned old hash runs again without retyping the old prompt.
 
 **Features:** A4 prompt versioning, EV3 metrics.
-**Works today:** yes, from Python; no chat command shows it yet.
+**Works today:** yes, from Python.

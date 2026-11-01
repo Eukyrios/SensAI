@@ -5,7 +5,6 @@ No data ever leaves the machine.
 
 📄 Full work plan: [`doc/work_plan.pdf`](doc/work_plan.pdf)
 🗺️ Architecture: [overview](doc/architecture_overview.png) · [detailed](doc/architecture_detailed.png)
-🗂️ Previous README: [`doc/README_old.md`](doc/README_old.md)
 📊 Model benchmark: [`doc/benchmark.md`](doc/benchmark.md)
 
 ## Architecture
@@ -211,9 +210,9 @@ in `config.toml` (`:memory:` for tests).
   logs, trace and database all share one id. `turns.assistant_message_id` is nullable so a turn
   whose reply failed is still recorded.
   Indexed on `messages.session_id`, `turns.session_id` and `agent_runs.turn_id`. `messages.parent_id`
-  and `agent_runs.parent_run_id` are self-referencing (nullable, cascade) — unused for now, but in
-  place so a later layer can branch a message (edits/retries) or nest an agent run without a
-  migration.
+  and `agent_runs.parent_run_id` are self-referencing (nullable, cascade): `parent_id` chains a
+  session's messages from its active leaf, so a rolled-back question leaves no gap, and
+  `parent_run_id` links an agent run to the run that handed the turn to it.
   The chat writes `sessions` and `messages` (plus the profile and the ledger tables). A turn whose
   answer is kept also writes its `turns` row and one `agent_runs` row per agent that ran (`kind =
   "agent"`, with `agent`, `prompt_hash` and `tokens`); a failed or stopped turn records neither.
@@ -260,8 +259,9 @@ in `config.toml` (`:memory:` for tests).
   (default: `errors` → `corrector`, `srs_cards` → `curriculum`, `facts` → `sensei`, overridable with
   `Ledger(conn, owners=...)`). Any other agent gets `WriteNotAllowed`; reads are open to everyone.
 - `ledger.tools(agent)` returns four tools (`ledger_create`, `ledger_read`, `ledger_update`,
-  `ledger_delete`) bound to that agent, so the model drives the CRUD itself and the ownership check
-  still applies. They are not registered on an agent yet, and nothing writes `facts` (reserved).
+  `ledger_delete`) bound to that agent, so the model can drive the CRUD itself and the ownership check
+  still applies. In practice the curriculum agent writes `srs_cards` with its SRS tools and the
+  orchestrator writes verified corrections to `errors`; `facts` stays in the schema without a writer.
 - **Read back at the start of a session** (`orchestration/context.py`): for a conversational agent (no
   output schema), the first message of a session gets two context blocks, each capped at 10% of the
   budget: the last 3 unresolved `errors` from earlier sessions ("Last time you wrote …") and the
@@ -284,7 +284,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
 | M1 | Session persistence & profile | ★ | 2 | ✅ |
 | T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ checker, corrector, classifier and handoffs |
-| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; past errors and due cards injected at session start; `facts` reserved, unused |
+| M3 | Structured memory (errors, SRS) | ★★ | 3, 6 | ✅ SRS cards by the curriculum agent; verified corrections written to `errors`; past errors and due cards injected at session start |
 | T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ✅ sensei calls them (native or prompted); MCP stdio client, own MCP server, pre-existing time server configured |
 | EV3 | Logging, metrics, per-turn trace | ★★ | 3-4 | ✅ JSONL event log, `/metrics`, `/trace` |
 | A2 | Multi-agent orchestration + router | ★★★ | 4-5 | ✅ handoffs, guards, fallback, three-tier router |
@@ -300,7 +300,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | EV4 | Adversarial suite | ★★ | 7 | ✅ 27 attacks, one command, report in [`doc/adversarial.md`](doc/adversarial.md) |
 | A6 | Semantic cache (optional) | ★★ | 7 | out of the scope |
 
-✅ done · 🚧 in progress · ⏳ to do — **Never cut:** T1, R2, A1, A2, EV1, EV2.
+✅ done. **Never cut:** T1, R2, A1, A2, EV1, EV2.
 
 ## Limits
 
@@ -324,21 +324,20 @@ Laptop, 8 GB VRAM, 16 GB RAM, `qwen3.5:9b`). Each item says how it shows up.
   `characters (romaji) - translation` format. Explanations can contain grammar mistakes too: one reply
 gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also marks a correct sentence typed in romaji
 (`kinou eiga wo mimashita`) as an error, only because it isn't written in Japanese characters.
-- **The adversarial suite (EV4) found 3 breaks out of 27 attacks** ([`doc/adversarial.md`](doc/adversarial.md),
-  live run before the guardrail fix): a fake `<system>` tag made the sensei answer only the attacker's word,
-  and phone numbers reached the model. Both are now stopped by the guardrails; poisoned corpus documents,
-  system prompt leaks, out-of-scope requests and malformed input held; a 28,000-character message ends with
-  a checker timeout, not a crash.
+- **The adversarial suite (EV4): 0 breaks out of 27 attacks** in the last live run
+  ([`doc/adversarial.md`](doc/adversarial.md), 2026-11-01): 8 blocked by the guardrails, 19 held. The run
+  before the guardrail fixes had 3 breaks (a fake `<system>` tag made the sensei answer only the attacker's
+  word, and phone numbers reached the model). Two malformed inputs (a very long word, a 28,000-character
+  message) hold only because the turn times out, with an error line rather than a crash.
 - **Guardrails are pattern-based (EV2).** Emails, French/Japanese/international phone numbers, cards and
   prefixed API keys (`sk-`, `ghp_`, `AKIA`) are masked before the model call and again in the reply, while it
   streams (the last word and any digit run are held back until they are complete). An injection (English,
   French, Japanese, or a fake `<system>` tag) is refused before the call: nothing is sent to the model or
   stored; the learner gets a plain refusal, not an error. A request that is not about Japanese (code, maths
   homework, "forget Japanese") is refused the same way, by patterns only: anything that mentions Japanese is
-  let through, and the embedding tier planned in the user stories is not built. Rules are set in
+  let through. Rules are set in
   `[guardrails]` of `config.toml`. Patterns are easy to get around (a reworded or leetspeak injection, a number
-  spelled out in words). The offline adversarial run shows 0 breaks; the live report in `doc/adversarial.md`
-  predates this change and must be run again with `--live`.
+  spelled out in words); the 27 attacks of the suite all failed in the last live run.
 - **The judge only checks what has a source (EV1).** After a reply, `trust/eval.py` checks each claim against the
   passages the agent kept and the tool results of the turn, and flags what they do not support
   (`[unverified]`, `[contradicted]`). A reply built on no passage and no tool (the model answering from memory)
@@ -346,9 +345,9 @@ gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also ma
   and it adds a model call after each sourced reply (about 16 s on the reference laptop). The turn is
   already over when it runs: in the web UI the session takes the next message at `TurnFinished`, and the
   verdict follows on the previous reply's stream. Turn it off with `[eval] enabled = false`. Structured replies (checker, corrector) are not judged.
-- **The learner ledger is mostly used (M3).** Verified corrections are written to `errors`, the
-  curriculum agent keeps the `srs_cards`, and both are read back at the start of a session; `facts` is
-  never written (no agent has the `ledger_*` tools).
+- **The learner ledger holds errors and flashcards (M3).** Verified corrections are written to `errors`
+  by the orchestrator after the corrector's run, not by an agent through a tool; the curriculum agent keeps
+  the `srs_cards` with its own tools; both are read back at the start of a session.
 - **The time MCP server needs `uv`.** Without `uvx` on the PATH, Sensai says the server is unavailable
   and goes on without it.
 - **One learner, one machine.** SQLite, one learner profile (`default`), no accounts; the knowledge
@@ -365,8 +364,8 @@ gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also ma
 | 4 | Multi-agent: orchestrator, per-agent context, ReAct corrector, trace view |
 | 5 | Knowledge & routing: router, compression, RAG + external MCP, judge |
 | 6 | Three-star finish: personas & prompts, curriculum agent, advanced RAG, guardrails |
-| 7 | Surface & proof: web UI, semantic cache, adversarial suite |
-| 8 | Delivery: demo script, crew vs monolith measurement, fallback videos, README |
+| 7 | Surface & proof: web UI, adversarial suite (the semantic cache is out of scope) |
+| 8 | Delivery: demo script and seeded database, feature video, README |
 
 Rule: never start a layer until the previous layer's contracts are **merged**.
 
@@ -376,8 +375,7 @@ Rule: never start a layer until the previous layer's contracts are **merged**.
 
 One package per domain, each owned by one member so parallel branches rarely touch the same files.
 The folders have no `__init__.py`: Python imports them as namespace packages. The module map below
-says where each piece of code lives, and where the planned ones go, so new code always has an
-obvious home.
+says where each piece of code lives, so new code always has an obvious home.
 
 ```
 sensai/
@@ -395,8 +393,11 @@ agents/           one TOML spec per agent: sensei (default), checker (T5, hands 
                   demo/ping and demo/pong (loop stopped by the guards)
 scripts/          benchmark.py: model benchmark, results in doc/benchmark.md    (C)
                   adversarial.py + adversarial_cases.toml: EV4 suite, report in doc/adversarial.md (C)
+                  evaluate.py: EV1 answer evaluation across models               (D)
+                  seed_demo.py + demo_seed.toml: the keynote's demo database     (A)
 tests/            one folder per package, mirroring sensai/
-doc/              work plan, architecture diagrams, previous README
+doc/              features, user stories, scenarios, evaluation method, benchmark, adversarial report,
+                  memory notes, demo script, work plan, architecture diagrams
 config.toml       project configuration
 routing.toml      routes: which agent starts a turn, with the router's rules and examples
 corpus/           grammar notes for RAG, one "# Title [N5]" header per section
@@ -407,7 +408,7 @@ Runtime files (`data/*.db`, `logs/`) are created on first run and never committe
 
 ### Module map
 
-Built modules, then planned ones with the layer that adds them.
+Every module and what it does.
 
 | Package | Module | What it does |
 |---------|--------|--------------|

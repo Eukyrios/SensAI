@@ -138,8 +138,6 @@ sections. The model reranker stays the default: 3.5 s more per turn for the righ
   three times faster, but its answers need checking.
 - **`num_ctx` is back to 8192** in `agents/sensei.toml` (it was lowered to 2048 in #200). It costs
   no measurable speed and gives the model the whole recent conversation.
-- **To do:** run `gemma4:12b-it-qat` once Ollama is upgraded, and measure the other team laptops
-  (rule 4 of the plan: the same settings must behave the same everywhere).
 
 ## Limits
 
