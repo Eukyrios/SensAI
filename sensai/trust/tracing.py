@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from ..core.events import (
     AgentRunFinished,
     AgentRunStarted,
+    ContextCompressed,
     Event,
     FaithfulnessChecked,
     GuardrailTriggered,
@@ -38,6 +39,7 @@ class TurnTracer:
         self.guardrails_triggered: list[str] = []
         self.route: RouteDecided | None = None
         self.faithfulness: FaithfulnessChecked | None = None
+        self.compressions: list[ContextCompressed] = []
         self._retrievals: dict[str, Retrieved] = {}
 
     def process_event(self, event: Event) -> None:
@@ -62,6 +64,8 @@ class TurnTracer:
                 self.route = route
             case FaithfulnessChecked() as check:
                 self.faithfulness = check
+            case ContextCompressed() as compressed:
+                self.compressions.append(compressed)
             case GuardrailTriggered(rule=rule):
                 self.guardrails_triggered.append(rule)
 
@@ -74,6 +78,7 @@ class TurnTracer:
         if not self.agent_traces:
             lines.append("  (no agent execution captured)")
         lines.extend(_format_agent_run(number, trace) for number, trace in enumerate(self.agent_traces, 1))
+        lines.extend(_format_compression(event) for event in self.compressions)
         if self.faithfulness is not None:
             lines.append(_format_faithfulness(self.faithfulness))
         if self.guardrails_triggered:
@@ -86,6 +91,7 @@ class TurnTracer:
         self.guardrails_triggered.clear()
         self.route = None
         self.faithfulness = None
+        self.compressions.clear()
         self._retrievals.clear()
 
     def _start_agent_run(self, run_id: str, agent: str) -> None:
@@ -119,6 +125,10 @@ def _format_faithfulness(check: FaithfulnessChecked) -> str:
     relevance = f", relevance {check.relevance:.2f}" if check.relevance is not None else ""
     flagged = f"; flagged: {len(check.flagged)}" if check.flagged else ""
     return f"  Faithfulness: {check.faithfulness:.2f}{relevance} ({check.supported} supported){flagged}"
+
+
+def _format_compression(event: ContextCompressed) -> str:
+    return f"  Context compressed: {event.messages} messages, {event.tokens_before:,} -> {event.tokens_after:,} tokens"
 
 
 def _format_route(route: RouteDecided) -> str:

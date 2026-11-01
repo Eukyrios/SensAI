@@ -99,3 +99,17 @@ def test_defaults_are_not_shared_between_configs():
     first, second = make_config(), make_config()
     first["memory"]["summary"]["enabled"] = False
     assert second["memory"]["summary"]["enabled"] is True
+
+
+def test_compress_reports_what_was_folded():
+    session = make_session(ScriptedClient("S1"), keep_recent=4)
+    session.history = turns(10)
+    result = compress(session, session.spec, 1000, tokens_of)
+    assert (result.messages, result.tokens_before) == (6, tokens_of(session.history[:6]))
+    assert result.tokens_after == tokens_of([{"role": "system", "content": "S1"}])
+
+
+def test_compress_reports_nothing_below_the_trigger():
+    session = make_session(ScriptedClient("S1"))
+    session.history = turns(2, 10)
+    assert compress(session, session.spec, 10_000, tokens_of) is None

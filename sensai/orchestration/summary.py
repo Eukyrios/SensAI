@@ -20,6 +20,13 @@ SUMMARY_INSTRUCTIONS = (
 
 
 @dataclass(frozen=True)
+class Compression:
+    messages: int
+    tokens_before: int
+    tokens_after: int
+
+
+@dataclass(frozen=True)
 class SummaryProvider:
     text: str
     name: str = "summary"
@@ -45,21 +52,23 @@ def summarize(session: Session, spec: AgentSpec, older: list[Message], previous:
     return "".join(piece for piece in pieces if isinstance(piece, str)).strip()
 
 
-def compress(session: Session, spec: AgentSpec, window_tokens: int, estimate) -> None:
+def compress(session: Session, spec: AgentSpec, window_tokens: int, estimate) -> Compression | None:
     """Fold the oldest turns into session.summary once the window passes the trigger ratio."""
     settings = session.config["memory"]["summary"]
     if not settings["enabled"]:
-        return
+        return None
     pending = session.history[session.summarized:]
     keep = settings["keep_recent"]
     if len(pending) <= keep or estimate(pending) <= settings["trigger"] * window_tokens:
-        return
+        return None
     older = pending[:len(pending) - keep]
     try:
         text = summarize(session, spec, older, session.summary,
                          int(window_tokens * SUMMARY_MAX_SHARE))
     except OllamaError:
-        return
-    if text:
-        session.summary = text
-        session.summarized += len(older)
+        return None
+    if not text:
+        return None
+    session.summary = text
+    session.summarized += len(older)
+    return Compression(len(older), estimate(older), estimate([{"role": "system", "content": text}]))

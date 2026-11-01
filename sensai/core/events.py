@@ -117,6 +117,14 @@ class TurnFinished(_Base):
 
 
 @dataclass(frozen=True, kw_only=True)
+class ContextCompressed(_Base):
+    """Old turns were folded into the running summary (M2): `messages` turns, `tokens_before` -> `tokens_after`."""
+    messages: int
+    tokens_before: int
+    tokens_after: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class FaithfulnessChecked(_Base):
     """The judge's verdict on a reply, checked against the passages and tool results the agent had (EV1).
     `flagged` lists the claims the sources do not support: {"claim", "status", "reasoning"}."""
@@ -132,4 +140,4 @@ class FaithfulnessChecked(_Base):
 
 Event = (TurnStarted | AgentRunStarted | AgentRunFinished | Thinking | Token | StructuredOutput
          | ToolCall | ToolResult | Retrieved | RouteDecided | HandoffEvent | GuardrailTriggered | Error | TurnFinished
-         | FaithfulnessChecked)
+         | FaithfulnessChecked | ContextCompressed)

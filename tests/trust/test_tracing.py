@@ -89,3 +89,11 @@ def test_trace_shows_the_faithfulness_verdict():
     assert "Faithfulness: 0.50, relevance 0.90 (1 supported); flagged: 1" in tracer.format_trace()
     tracer.process_event(FaithfulnessChecked(turn_id="t", faithfulness=None, error="down"))
     assert "Faithfulness: not checked (down)" in tracer.format_trace()
+
+
+def test_trace_lists_context_compression():
+    from sensai.core.events import ContextCompressed, TurnStarted
+    tracer = TurnTracer()
+    tracer.process_event(TurnStarted(turn_id="t1", session_id="s", user_input="hi"))
+    tracer.process_event(ContextCompressed(turn_id="t1", messages=4, tokens_before=1180, tokens_after=160))
+    assert "Context compressed: 4 messages, 1,180 -> 160 tokens" in tracer.format_trace()
