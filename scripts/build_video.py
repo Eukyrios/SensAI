@@ -301,10 +301,13 @@ class Encoder:
 
     def __init__(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+        self.partial = path.with_name(f"{path.stem}.part{path.suffix}")
         self.process = subprocess.Popen(
             ["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
              "-s", f"{WIDTH}x{HEIGHT}", "-r", str(FPS), "-i", "-",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", str(path)],
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+             "-movflags", "+faststart", str(self.partial)],
             stdin=subprocess.PIPE)
 
     def add(self, frames: Iterator[Image.Image]) -> int:
@@ -316,7 +319,8 @@ class Encoder:
 
     def close(self) -> None:
         self.process.stdin.close()
-        self.process.wait()
+        if self.process.wait() == 0:
+            self.partial.replace(self.path)
 
 
 def record_step(step: Step, env: dict[str, str]) -> list[Chunk]:
