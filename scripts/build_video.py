@@ -2,16 +2,22 @@
 # terms, then a real run of Sensai showing it, recorded and drawn as a terminal; ffmpeg joins it all into
 # one MP4. Run `python -m scripts.build_video` with Ollama running.
 
+import codecs
+import os
 import re
+import select
+import subprocess
+import sys
 import textwrap
-import tomllib
+import time
 import unicodedata
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from sensai.core.config import resolve
+from sensai.core.config import load_toml, resolve
 
 FEATURES_PATH = resolve("scripts/video_features.toml")
 WIDTH, HEIGHT = 1280, 720
@@ -28,6 +34,14 @@ MARGIN, HEADER_HEIGHT = 24, 56
 COLUMNS = (WIDTH - 2 * MARGIN) // CELL_WIDTH
 ROWS = (HEIGHT - HEADER_HEIGHT - MARGIN) // LINE_HEIGHT
 ANSI_CODE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+PROMPT = "\n> "
+READ_SLICE_S = 0.1
+STEP_TIMEOUT_S = 300
+FPS = 15
+TYPING_CHARS_PER_S = 20
+MAX_GAP_S = 1.5
+TITLE_S = 4
+END_HOLD_S = 2
 
 
 @dataclass(frozen=True)
@@ -48,10 +62,22 @@ class Feature:
     steps: tuple[Step, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True)
+class Chunk:
+    at_s: float
+    text: str
+    typed: bool = False
+
+
+@dataclass(frozen=True)
+class Moment:
+    video_s: float
+    real_s: float
+    chunk: Chunk
+
+
 def load_features(path: Path = FEATURES_PATH) -> list[Feature]:
-    with open(path, "rb") as file:
-        data = tomllib.load(file)
-    return [feature_from(entry) for entry in data["features"]]
+    return [feature_from(entry) for entry in load_toml(path)["features"]]
 
 
 def feature_from(entry: dict) -> Feature:
@@ -135,3 +161,153 @@ class TerminalPainter:
             font = self.cjk if cell_width(char) == 2 or not self.latin.getmask(char).getbbox() else self.latin
             draw.text((MARGIN + column * CELL_WIDTH, top), char, font=font, fill=TEXT)
             column += cell_width(char)
+
+
+class Recorder:
+
+    def __init__(self, command: list[str], env: dict[str, str]):
+        self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, env=env)
+        self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self.started = time.monotonic()
+        self.chunks: list[Chunk] = []
+        self.output = ""
+        self.answered_from = 0
+
+    def now(self) -> float:
+        return time.monotonic() - self.started
+
+    def read_until_prompt(self) -> None:
+        deadline = time.monotonic() + STEP_TIMEOUT_S
+        while not self.prompt_is_back() and time.monotonic() < deadline:
+            if not self._read_some():
+                return
+
+    def prompt_is_back(self) -> bool:
+        return len(self.output) > self.answered_from and self.output.endswith(PROMPT)
+
+    def type_line(self, line: str) -> None:
+        self.chunks.append(Chunk(self.now(), line + "\n", typed=True))
+        self.process.stdin.write((line + "\n").encode())
+        self.process.stdin.flush()
+        self.answered_from = len(self.output)
+
+    def finish(self) -> list[Chunk]:
+        if self.process.stdin:
+            self.process.stdin.close()
+        while self._read_some():
+            pass
+        self.process.wait()
+        return self.chunks
+
+    def _read_some(self) -> bool:
+        ready, _, _ = select.select([self.process.stdout], [], [], READ_SLICE_S)
+        if not ready:
+            return self.process.poll() is None
+        data = os.read(self.process.stdout.fileno(), 4096)
+        if not data:
+            return False
+        text = self.decoder.decode(data)
+        self.output += text
+        self.chunks.append(Chunk(self.now(), text))
+        return True
+
+
+def record_chat(step: Step, env: dict[str, str]) -> list[Chunk]:
+    recorder = Recorder([sys.executable, "-m", "sensai", *step.args], env)
+    for line in step.inputs:
+        recorder.read_until_prompt()
+        recorder.type_line(line)
+    recorder.read_until_prompt()
+    return recorder.finish()
+
+
+def record_shell(step: Step, env: dict[str, str]) -> list[Chunk]:
+    recorder = Recorder(["bash", "-c", step.command], env)
+    recorder.chunks.append(Chunk(0.0, f"$ {step.command}\n", typed=True))
+    return recorder.finish()
+
+
+def timeline(chunks: list[Chunk]) -> list[Moment]:
+    moments: list[Moment] = []
+    video_s, real_s, free_at = 0.0, 0.0, 0.0
+    for chunk in chunks:
+        video_s = max(video_s + min(chunk.at_s - real_s, MAX_GAP_S), free_at)
+        real_s = chunk.at_s
+        moments.append(Moment(video_s, real_s, chunk))
+        if chunk.typed:
+            free_at = video_s + typing_seconds(chunk.text)
+    return moments
+
+
+def typing_seconds(text: str) -> float:
+    return len(text) / TYPING_CHARS_PER_S
+
+
+def screen_at(moments: list[Moment], video_s: float) -> Screen:
+    screen = Screen()
+    for moment in moments:
+        if moment.video_s > video_s:
+            break
+        screen.write(shown_text(moment, video_s))
+    return screen
+
+
+def shown_text(moment: Moment, video_s: float) -> str:
+    if not moment.chunk.typed:
+        return moment.chunk.text
+    typed_chars = int((video_s - moment.video_s) * TYPING_CHARS_PER_S)
+    return moment.chunk.text[:typed_chars]
+
+
+def real_clock(moments: list[Moment], video_s: float) -> float:
+    shown = [moment for moment in moments if moment.video_s <= video_s]
+    if not shown:
+        return 0.0
+    last = shown[-1]
+    following = moments[len(shown)] if len(shown) < len(moments) else None
+    if following is None or following.video_s == last.video_s:
+        return last.real_s + (video_s - last.video_s)
+    ratio = (following.real_s - last.real_s) / (following.video_s - last.video_s)
+    return last.real_s + (video_s - last.video_s) * ratio
+
+
+def clock_label(seconds: float) -> str:
+    minutes, rest = divmod(seconds, 60)
+    return f"real time {int(minutes):02d}:{rest:04.1f}"
+
+
+def step_frames(moments: list[Moment], header: str, painter: TerminalPainter) -> Iterator[Image.Image]:
+    end_s = (moments[-1].video_s if moments else 0.0) + END_HOLD_S
+    for frame in range(int(end_s * FPS)):
+        video_s = frame / FPS
+        lines = screen_at(moments, video_s).visible()
+        yield painter.draw(lines, header, clock_label(real_clock(moments, video_s)))
+
+
+def title_frames(feature: Feature) -> Iterator[Image.Image]:
+    card = draw_title(feature)
+    for _ in range(TITLE_S * FPS):
+        yield card
+
+
+class Encoder:
+
+    def __init__(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.process = subprocess.Popen(
+            ["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+             "-s", f"{WIDTH}x{HEIGHT}", "-r", str(FPS), "-i", "-",
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", str(path)],
+            stdin=subprocess.PIPE)
+
+    def add(self, frames: Iterator[Image.Image]) -> int:
+        count = 0
+        for image in frames:
+            self.process.stdin.write(image.tobytes())
+            count += 1
+        return count
+
+    def close(self) -> None:
+        self.process.stdin.close()
+        self.process.wait()
