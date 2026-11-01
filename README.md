@@ -267,8 +267,9 @@ in `config.toml` (`:memory:` for tests).
   budget: the last 3 unresolved `errors` from earlier sessions ("Last time you wrote …") and the
   `srs_cards` due today (`srs.due_cards`), so the tutor can bring a mistake up and propose a review.
 - **SRS cards** are scheduled by `memory/srs.py` (SM-2: a right answer pushes the next review further,
-  a wrong one brings it back to tomorrow). The `curriculum` agent (`agents/curriculum.toml`) runs after the answer and `TurnFinished` are
-  out, never before. It calls its own tools `srs_add_card` and `srs_review` (one validated step per reply,
+  a wrong one brings it back to tomorrow). The `curriculum` agent (`agents/curriculum.toml`) starts once the answer and `TurnFinished` are
+  out, in the background: the turn does not wait for it, and the next question can be asked while it
+  works. It calls its own tools `srs_add_card` and `srs_review` (one validated step per reply,
   at most `[curriculum] max_steps`) to add new cards and grade the ones the learner practised. A failure there is swallowed. Turn it off with `[curriculum] enabled = false`.
 
 ## Features
@@ -342,8 +343,9 @@ gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also ma
   passages the agent kept and the tool results of the turn, and flags what they do not support
   (`[unverified]`, `[contradicted]`). A reply built on no passage and no tool (the model answering from memory)
   has nothing to be checked against and is not judged. The judge is the same local model, so it can be wrong,
-  and it adds a model call after each sourced reply (about 40 s on a laptop CPU/GPU mix); turn it off with
-  `[eval] enabled = false`. Structured replies (checker, corrector) are not judged.
+  and it adds a model call after each sourced reply (about 16 s on the reference laptop). The turn is
+  already over when it runs: in the web UI the session takes the next message at `TurnFinished`, and the
+  verdict follows on the previous reply's stream. Turn it off with `[eval] enabled = false`. Structured replies (checker, corrector) are not judged.
 - **The learner ledger is mostly used (M3).** Verified corrections are written to `errors`, the
   curriculum agent keeps the `srs_cards`, and both are read back at the start of a session; `facts` is
   never written (no agent has the `ledger_*` tools).
@@ -726,6 +728,8 @@ python -m pytest --cov          # locally
 ## User stories
 
 Two user stories per feature, with acceptance criteria and how each one is verified: see [`doc/user_stories.md`](doc/user_stories.md).
+
+How each feature is built (what the catalogue asks, modules, flow, settings, choices, tests, limits, and the features we did not take): see [`doc/features.md`](doc/features.md).
 
 ## Team
 
