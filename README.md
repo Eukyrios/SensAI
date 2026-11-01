@@ -729,6 +729,8 @@ python -m pytest --cov          # locally
 
 Two user stories per feature, with acceptance criteria and how each one is verified: see [`doc/user_stories.md`](doc/user_stories.md).
 
+How each feature is built (what the catalogue asks, modules, flow, settings, choices, tests, limits, and the features we did not take): see [`doc/features.md`](doc/features.md).
+
 ## Team
 
 | Member | Role | GitHub | Owns |

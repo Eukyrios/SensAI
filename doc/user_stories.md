@@ -79,6 +79,10 @@ $ python -m sensai --model nope
 ## M1 — Session persistence & profile
 
 ### M1-1 · Pick up where I left off
+
+**As a** returning learner, **I want** to resume my previous conversation after restarting Sensai,
+**so that** I don't have to re-explain what we were working on.
+
 - [x] After quitting and restarting, `--session <id>` reloads the previous session's messages from the database.
 - [x] A follow-up that refers to yesterday's lesson is answered correctly.
 - [x] Every turn is stored with the question, the reply and its latency.
@@ -118,9 +122,14 @@ with "You are learning well, Alex": the name comes from the stored profile, neve
 
 ## T5 — Structured output
 
-### T5-2 · Agents that can't corrupt each other
-- [x] A handoff payload that doesn't match the target agent's schema is rejected before the agent runs.
-- [x] The rejection is visible in the trace with the offending payload.
+### T5-1 · Mistakes recorded in the same shape every time
+**As a** learner, **I want** each correction to come as the same fields (my sentence, the error,
+the correction, the rule), **so that** my mistakes can be stored and reviewed later.
+
+- [x] The checker's output (the corrector's, from layer 4) is validated against its JSON schema.
+- [x] An invalid output gets exactly one repair attempt with the validation error.
+- [x] If the repair also fails, an `Error(kind="invalid_output")` event appears in the trace with the invalid reply.
+- [x] ...and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
 
 **Verified by:** `tests/orchestration/test_structured.py` (valid, repairable and broken outputs); demo: `python -m sensai --agent checker`, then "私は学校を行きます".
 
