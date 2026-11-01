@@ -1,7 +1,7 @@
 # Features shown in the video built by `python -m scripts.build_video`, in the order and categories of
 # the features catalogue. Each step is either a chat (inputs typed into `python -m sensai`, with its
 # arguments), a shell command (`display` is what the video shows instead of a long command) or a browser
-# session on the web page (`actions`: say: <message>, trace, models). Every run
+# session on the web page (`actions`: say: <message>, trace, models); `env` adds settings to one step. Every run
 # uses a fresh copy of the seeded demo database ($DEMO_DB) and its own event log ($DEMO_LOG).
 # rating: number of stars in the catalogue; 0 is the base feature.
 
@@ -27,6 +27,20 @@ built = "Sessions are stored in SQLite and resumed by id; the learner profile is
 kind = "chat"
 args = ["--session", "demo-food"]
 inputs = ["What did I learn to order last time?"]
+
+[[features]]
+category = "Memory & Context"
+code = "M2"
+name = "Token Budgeting & Semantic Compression"
+rating = 2
+built = "Each agent gets a context sized to its budget; old turns are folded into a running summary near the cap."
+
+# A low trigger so that the 4 stored messages of demo-food are enough to start a compression.
+[[features.steps]]
+kind = "chat"
+args = ["--session", "demo-food"]
+inputs = ["And how do I ask for the bill?", "/trace"]
+env = { SENSAI_MEMORY__SUMMARY__TRIGGER = "0.02", SENSAI_MEMORY__SUMMARY__KEEP_RECENT = "2" }
 
 [[features]]
 category = "Memory & Context"

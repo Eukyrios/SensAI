@@ -67,6 +67,7 @@ class Step:
     command: str = ""
     display: str = ""
     actions: tuple[str, ...] = ()
+    env: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -106,7 +107,8 @@ def load_features(path: Path = FEATURES_PATH) -> list[Feature]:
 
 def feature_from(entry: dict) -> Feature:
     steps = tuple(Step(step["kind"], tuple(step.get("args", ())), tuple(step.get("inputs", ())),
-                       step.get("command", ""), step.get("display", ""), tuple(step.get("actions", ())))
+                       step.get("command", ""), step.get("display", ""), tuple(step.get("actions", ())),
+                       tuple(step.get("env", {}).items()))
                   for step in entry["steps"])
     return Feature(entry["category"], entry["code"], entry["name"], entry["rating"], entry["built"], steps)
 
@@ -456,6 +458,7 @@ def shot_spans(shots: list[Shot]) -> list[tuple[Shot, float, float]]:
 
 
 def record_step(step: Step, env: dict[str, str]) -> list[Chunk]:
+    env = {**env, **dict(step.env)}
     return record_shell(step, env) if step.kind == "shell" else record_chat(step, env)
 
 

@@ -32,6 +32,13 @@ def test_feature_from_reads_chat_and_shell_steps():
     assert feature.steps == (Step("chat", ("--agent", "checker"), ("hi",)), Step("shell", command="ls", display="list"))
 
 
+def test_a_step_can_add_its_own_settings():
+    feature = feature_from({"category": "Memory", "code": "M2", "name": "Compression", "rating": 2, "built": "b",
+                            "steps": [{"kind": "shell", "command": "echo $SENSAI_X", "env": {"SENSAI_X": "on"}}]})
+    chunks = build_video.record_step(feature.steps[0], dict(os.environ))
+    assert "".join(chunk.text for chunk in chunks[1:]) == "on\n"
+
+
 def test_rating_label():
     assert rating_label(0) == "base feature"
     assert rating_label(3) == "★" * 3
