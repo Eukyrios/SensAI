@@ -428,7 +428,8 @@ class TerminalRecorder:
         self.master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLUMNS, 0, 0))
         self.process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, cwd=resolve("."),
-                                        env={**env, "TERM": "xterm-256color"}, start_new_session=True)
+                                        env={**env, "TERM": "xterm-256color", "PROMPT_TOOLKIT_NO_CPR": "1"},
+                                        start_new_session=True)
         os.close(slave)
         self.screen = pyte.Screen(COLUMNS, ROWS)
         self.stream = pyte.ByteStream(self.screen)
@@ -436,6 +437,7 @@ class TerminalRecorder:
         self.shots: list[Shot] = []
         self.busy = False
         self.changed_at = self.started
+        self.lines_at_enter = 0
 
     def run(self, action: str) -> None:
         name, _, argument = action.partition(":")
@@ -444,6 +446,7 @@ class TerminalRecorder:
             self.type_text(argument)
         elif name in TTY_KEYS:
             self.busy = name == "enter"
+            self.lines_at_enter = self.written_lines()
             os.write(self.master, TTY_KEYS[name].encode())
             self.pump(0.2)
         elif name == "pause":
@@ -451,7 +454,7 @@ class TerminalRecorder:
         elif name == "quiet":
             self.wait_quiet(float(argument))
         elif name == "replying":
-            self.wait_for_text("replying", float(argument))
+            self.wait_for_reply(float(argument))
         else:
             raise ValueError(f"unknown tty action {action!r}")
 
@@ -460,11 +463,14 @@ class TerminalRecorder:
             os.write(self.master, char.encode())
             self.pump(1 / TYPING_CHARS_PER_S)
 
-    def wait_for_text(self, text: str, then_s: float) -> None:
+    def wait_for_reply(self, then_s: float) -> None:
         deadline = time.monotonic() + STEP_TIMEOUT_S
-        while not any(text in line for line in self.screen.display) and time.monotonic() < deadline:
+        while self.written_lines() < self.lines_at_enter + 3 and time.monotonic() < deadline:
             self.pump(0.2)
         self.pump(then_s)
+
+    def written_lines(self) -> int:
+        return sum(1 for line in self.screen.display if line.strip())
 
     def wait_quiet(self, seconds: float) -> None:
         deadline = time.monotonic() + STEP_TIMEOUT_S

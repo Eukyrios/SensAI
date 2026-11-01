@@ -543,7 +543,7 @@ then runs as a normal turn.
 the partial answer is what the history keeps; no confirmation step, since nothing is lost.
 
 **Checked by:** `tests/surfaces/test_cli.py` (`test_escape_stops_the_reply_and_keeps_the_chat`,
-`test_escape_then_a_new_line_redirects_the_conversation`).
+`test_escape_then_a_new_line_redirects_the_conversation`); the feature video records it in a real terminal.
 
 **Limits:** the resume half (editing a past message to fork a branch) is not part of Sensai; Escape needs a
 terminal, so the piped CLI and the web page cannot interrupt a reply.

@@ -763,14 +763,22 @@ and its 2 history messages. The page's trace window shows the last turn's trace 
 - [x] The next line is answered at once, with that partial reply as context.
 
 **Verified by:** `tests/surfaces/test_cli.py` (`test_escape_stops_the_reply_and_keeps_the_chat`,
-`test_escape_then_a_new_line_redirects_the_conversation`).
+`test_escape_then_a_new_line_redirects_the_conversation`); the X2 part of the feature video, recorded in a
+real terminal.
 
-**Example** (illustration, not a captured run):
+**Example:**
 
 ```
-> Explain all the uses of the particle に in detail
-The particle に (ni) has several uses. 1. Destination: 学校に行きます...   (Esc)
-> just the destination one, with one example
+> Explain every use of the particle に, with three examples each
+Hello, Alex! Let's review the particle に (ni) together. ...
+**1. Destination (Where you go)** ... 駅に行きます (eki ni ikimasu) - I go to the station.
+**2. Time (When something
+[interrupted]
+
+> Just the destination use, with one example
+Understood, Alex. Let's focus on the destination use of the particle に (ni). It marks the place you are
+moving toward.
+*   東京に行きます (Tokyo ni ikimasu) - I go to Tokyo.
 ```
 
 ---
