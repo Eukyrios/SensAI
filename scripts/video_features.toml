@@ -1,6 +1,7 @@
 # Features shown in the video built by `python -m scripts.build_video`, in the order and categories of
 # the features catalogue. Each step is either a chat (inputs typed into `python -m sensai`, with its
-# arguments) or a shell command (`display` is what the video shows instead of a long command). Every run
+# arguments), a shell command (`display` is what the video shows instead of a long command) or a browser
+# session on the web page (`actions`: say: <message>, trace, models). Every run
 # uses a fresh copy of the seeded demo database ($DEMO_DB) and its own event log ($DEMO_LOG).
 # rating: number of stars in the catalogue; 0 is the base feature.
 
@@ -202,15 +203,9 @@ category = "UX & Lifecycle"
 code = "X1"
 name = "Web UI"
 rating = 1
-built = "A FastAPI backend streams the same events to the browser as server-sent events."
+built = "The same sessions in the browser: replies stream into the page, with metrics, the trace and a model switch."
 
 [[features.steps]]
-kind = "shell"
-display = "python -m sensai.surfaces.web, then a turn over HTTP"
-command = """$PYTHON -m sensai.surfaces.web --port 8791 >/dev/null 2>&1 &
-server=$!
-for i in $(seq 1 40); do curl -s localhost:8791/api/health >/dev/null && break; sleep 0.5; done
-session=$(curl -s -X POST localhost:8791/api/sessions | $PYTHON -c 'import json, sys; print(json.load(sys.stdin)["id"])')
-curl -sN -X POST localhost:8791/api/sessions/$session/turns -H 'content-type: application/json' -d '{"text": "how do I say cat?"}' | grep '^event' | uniq -c
-kill $server
-"""
+kind = "browser"
+display = "python -m sensai.surfaces.web, then http://127.0.0.1:8792 in Chrome"
+actions = ["say: how do I say cat?", "say: When do I use the particle に?", "trace", "models"]

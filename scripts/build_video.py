@@ -1,8 +1,11 @@
 # Feature video: for each feature of scripts/video_features.toml, a title card in the features catalogue's
 # terms, then a real run of Sensai showing it, recorded and drawn as a terminal; ffmpeg joins it all into
-# one MP4. Run `python -m scripts.build_video` with Ollama running.
+# one MP4. Run `python -m scripts.build_video` with Ollama running. A browser step drives the real web page
+# in headless Chrome (Playwright) and records it by screenshots.
 
 import argparse
+import asyncio
+import io
 import codecs
 import os
 import re
@@ -13,11 +16,13 @@ import tempfile
 import textwrap
 import time
 import unicodedata
+import urllib.request
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
+from playwright.async_api import Page, async_playwright
 
 from sensai.core.config import load_toml, resolve
 
@@ -48,6 +53,10 @@ MAX_GAP_S = 1.5
 READ_PAUSE_S = 4
 TITLE_S = 7
 END_HOLD_S = 6
+BROWSER_PORT = 8792
+BROWSER_SHOTS_PER_S = 5
+BROWSER_ZOOM = 1.25
+SERVER_START_S = 30
 
 
 @dataclass(frozen=True)
@@ -57,6 +66,7 @@ class Step:
     inputs: tuple[str, ...] = ()
     command: str = ""
     display: str = ""
+    actions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -77,6 +87,13 @@ class Chunk:
 
 
 @dataclass(frozen=True)
+class Shot:
+    real_s: float
+    png: bytes
+    busy: bool
+
+
+@dataclass(frozen=True)
 class Moment:
     video_s: float
     real_s: float
@@ -89,7 +106,8 @@ def load_features(path: Path = FEATURES_PATH) -> list[Feature]:
 
 def feature_from(entry: dict) -> Feature:
     steps = tuple(Step(step["kind"], tuple(step.get("args", ())), tuple(step.get("inputs", ())),
-                       step.get("command", ""), step.get("display", "")) for step in entry["steps"])
+                       step.get("command", ""), step.get("display", ""), tuple(step.get("actions", ())))
+                  for step in entry["steps"])
     return Feature(entry["category"], entry["code"], entry["name"], entry["rating"], entry["built"], steps)
 
 
@@ -160,6 +178,12 @@ class TerminalPainter:
         draw.text((WIDTH - MARGIN - 260, 16), clock, font=self.header_font, fill=DIM)
         for row, line in enumerate(lines):
             self._draw_line(draw, line, HEADER_HEIGHT + row * LINE_HEIGHT)
+        return image
+
+    def draw_page(self, screenshot: Image.Image, header: str, clock: str) -> Image.Image:
+        image = self.draw([], header, clock)
+        page = screenshot.convert("RGB").resize((WIDTH, HEIGHT - HEADER_HEIGHT))
+        image.paste(page, (0, HEADER_HEIGHT))
         return image
 
     def _draw_line(self, draw: ImageDraw.ImageDraw, line: str, top: int) -> None:
@@ -325,6 +349,112 @@ class Encoder:
             self.partial.replace(self.path)
 
 
+class BrowserRecorder:
+
+    def __init__(self, page: Page):
+        self.page = page
+        self.started = time.monotonic()
+        self.shots: list[Shot] = []
+        self.busy = False
+        self.done = False
+
+    async def capture(self) -> None:
+        while not self.done:
+            png = await self.page.screenshot(type="png")
+            self.shots.append(Shot(time.monotonic() - self.started, png, self.busy))
+            await asyncio.sleep(1 / BROWSER_SHOTS_PER_S)
+
+    async def run(self, action: str) -> None:
+        name, _, argument = action.partition(":")
+        if name == "say":
+            await self.say(argument.strip())
+        elif name == "trace":
+            await self.show_and_close("#menu-btn", "#open-trace-btn", "#close-trace-btn")
+        elif name == "models":
+            await self.show_and_close(None, "#open-modal-btn", "#close-modal-btn")
+        else:
+            raise ValueError(f"unknown browser action {action!r}")
+
+    async def say(self, text: str) -> None:
+        await self.page.click("#user-input")
+        await self.page.type("#user-input", text, delay=1000 / TYPING_CHARS_PER_S)
+        self.busy = True
+        await self.page.keyboard.press("Enter")
+        await self.page.wait_for_function("!document.getElementById('send-button').disabled",
+                                          timeout=STEP_TIMEOUT_S * 1000)
+        self.busy = False
+        await asyncio.sleep(READ_PAUSE_S)
+
+    async def show_and_close(self, menu: str | None, open_button: str, close_button: str) -> None:
+        if menu:
+            await self.page.click(menu)
+            await asyncio.sleep(1)
+        await self.page.click(open_button)
+        await asyncio.sleep(READ_PAUSE_S * 2)
+        await self.page.click(close_button)
+        await asyncio.sleep(1)
+
+
+async def drive_browser(step: Step) -> list[Shot]:
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(channel="chrome", headless=True)
+        viewport = {"width": round(WIDTH / BROWSER_ZOOM), "height": round((HEIGHT - HEADER_HEIGHT) / BROWSER_ZOOM)}
+        page = await browser.new_page(viewport=viewport, device_scale_factor=BROWSER_ZOOM)
+        await page.goto(f"http://127.0.0.1:{BROWSER_PORT}/", wait_until="networkidle")
+        recorder = BrowserRecorder(page)
+        capture = asyncio.create_task(recorder.capture())
+        for action in step.actions:
+            await recorder.run(action)
+        await asyncio.sleep(END_HOLD_S)
+        recorder.done = True
+        await capture
+        await browser.close()
+    return recorder.shots
+
+
+def record_browser(step: Step, env: dict[str, str]) -> list[Shot]:
+    server = subprocess.Popen([sys.executable, "-m", "sensai.surfaces.web", "--port", str(BROWSER_PORT)],
+                              env=env, cwd=resolve("."), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        wait_for_server()
+        return asyncio.run(drive_browser(step))
+    finally:
+        server.terminate()
+        server.wait()
+
+
+def wait_for_server() -> None:
+    deadline = time.monotonic() + SERVER_START_S
+    while time.monotonic() < deadline:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{BROWSER_PORT}/api/health", timeout=1)
+            return
+        except OSError:
+            time.sleep(0.5)
+    raise RuntimeError(f"the web backend did not start on port {BROWSER_PORT}")
+
+
+def browser_frames(shots: list[Shot], header: str, painter: TerminalPainter) -> Iterator[Image.Image]:
+    for shot, real_s, video_s in shot_spans(shots):
+        page = Image.open(io.BytesIO(shot.png))
+        for frame in range(round(video_s * FPS)):
+            clock = clock_label(shot.real_s + min(frame / FPS, video_s) * real_s / video_s)
+            yield painter.draw_page(page, header, clock)
+
+
+def shot_spans(shots: list[Shot]) -> list[tuple[Shot, float, float]]:
+    spans = []
+    start = 0
+    for index in range(1, len(shots) + 1):
+        if index < len(shots) and shots[index].png == shots[start].png:
+            continue
+        end_s = shots[index].real_s if index < len(shots) else shots[-1].real_s + 1 / BROWSER_SHOTS_PER_S
+        real_s = end_s - shots[start].real_s
+        spans.append((shots[start], real_s, min(real_s, MAX_GAP_S) if shots[start].busy else real_s))
+        start = index
+    return spans
+
+
 def record_step(step: Step, env: dict[str, str]) -> list[Chunk]:
     return record_shell(step, env) if step.kind == "shell" else record_chat(step, env)
 
@@ -341,8 +471,12 @@ def add_feature(encoder: Encoder, painter: TerminalPainter, feature: Feature, en
     encoder.add(title_frames(feature))
     header = f"{feature.code}  {feature.name}"
     for step in feature.steps:
-        print(f"  {feature.code}: {step.command or ' / '.join(step.inputs)}", flush=True)
-        encoder.add(step_frames(timeline(record_step(step, env)), header, painter))
+        print(f"  {feature.code}: {step.display or step.command or ' / '.join(step.inputs or step.actions)}",
+              flush=True)
+        if step.kind == "browser":
+            encoder.add(browser_frames(record_browser(step, env), header, painter))
+        else:
+            encoder.add(step_frames(timeline(record_step(step, env)), header, painter))
 
 
 def main(argv: list[str] | None = None) -> None:

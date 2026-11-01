@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from scripts import build_video
-from scripts.build_video import (Chunk, Recorder, Screen, Step, clock_label, feature_from, load_features,
-                                 rating_label, real_clock, record_shell, screen_at, timeline)
+from scripts.build_video import (Chunk, Recorder, Screen, Shot, Step, clock_label, feature_from, load_features,
+                                 rating_label, real_clock, record_shell, screen_at, shot_spans,
+                                 timeline)
 
 FONTS_INSTALLED = Path(build_video.LATIN_FONT).exists() and Path(build_video.CJK_FONT).exists()
 FAKE_CHAT = "import sys\nwhile True:\n    print('\\n> ', end='', flush=True)\n    line = sys.stdin.readline()\n" \
@@ -21,7 +22,7 @@ def test_the_shipped_features_follow_the_catalogue():
     codes = [feature.code for feature in features]
     assert len(codes) == len(set(codes)) and codes[0] == "B1"
     assert all(0 <= feature.rating <= 3 and feature.steps for feature in features)
-    assert all(step.kind in ("chat", "shell") for feature in features for step in feature.steps)
+    assert all(step.kind in ("chat", "shell", "browser") for feature in features for step in feature.steps)
 
 
 def test_feature_from_reads_chat_and_shell_steps():
@@ -80,6 +81,14 @@ def test_the_clock_shows_real_time_during_a_shortened_wait():
     assert real_clock(moments, halfway) == pytest.approx(15.0)
     assert real_clock(moments, moments[1].video_s + 1) == pytest.approx(31.0)
     assert real_clock([], 1.0) == 0.0
+
+
+def test_browser_waits_for_the_model_are_shortened_but_reading_time_is_kept():
+    shots = [Shot(0.0, b"page", False), Shot(0.2, b"typing", False), Shot(0.4, b"waiting", True),
+             Shot(20.0, b"reply", False), Shot(30.0, b"reply", False)]
+    spans = [(shot.png, real_s, video_s) for shot, real_s, video_s in shot_spans(shots)]
+    assert spans[2] == (b"waiting", pytest.approx(19.6), build_video.MAX_GAP_S)
+    assert spans[3][0] == b"reply" and spans[3][1] == spans[3][2] == pytest.approx(10.2)
 
 
 def test_clock_label():
