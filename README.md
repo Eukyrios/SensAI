@@ -343,7 +343,7 @@ gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also ma
   `[eval] enabled = false`. Structured replies (checker, corrector) are not judged.
 - **The learner ledger is mostly used (M3).** Verified corrections are written to `errors`, the
   curriculum agent keeps the `srs_cards`, and both are read back at the start of a session; `facts` is
-  never written (no agent has the `ledger_*` tools).
+  never written (no agent has the `ledger_*` tools). Details and what to do next: [`doc/m3_limits.md`](doc/m3_limits.md).
 - **The time MCP server needs `uv`.** Without `uvx` on the PATH, Sensai says the server is unavailable
   and goes on without it.
 - **One learner, one machine.** SQLite, one learner profile (`default`), no accounts; the knowledge
