@@ -297,7 +297,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ✅ backend and single-page frontend (`frontend/index.html`, no build step) |
 | EV4 | Adversarial suite | ★★ | 7 | ✅ 27 attacks, one command, report in [`doc/adversarial.md`](doc/adversarial.md) |
-| A6 | Semantic cache (optional) | ★★ | 7 | ⏳ |
+| A6 | Semantic cache (optional) | ★★ | 7 | out of the scope |
 
 ✅ done · 🚧 in progress · ⏳ to do — **Never cut:** T1, R2, A1, A2, EV1, EV2.
 
