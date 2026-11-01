@@ -65,10 +65,22 @@ in SQLite with their prompt hash.
   and tokens. A prompt or persona change shows as a new hash, so two versions are compared on the
   same numbers; `prompt_version` rolls back to the better one.
 
-## Not covered yet
+## Faithfulness across models (EV1)
 
-- **Faithfulness across models (EV1):** `python -m scripts.evaluate` scores each reply (faithfulness and
-  relevance) with the judge, but it has only run on one model and one question here, and no results table is
-  published yet. A reply with no source to check against is not scored.
-- **Correction accuracy:** the benchmark grades the sensei; no fixed set of wrong sentences yet
-  measures how often the checker and corrector find the right correction.
+`python -m scripts.evaluate --models qwen3.5:4b qwen3.5:9b --limit 5 --report doc/evaluation_results.json`
+asks both models the same questions through the real pipeline (tools and corpus included) and has the
+same judge (`qwen3.5:9b`) check every reply against the sources it had. Run on 2026-11-01:
+
+| Model | Replies judged | Faithfulness | Relevance |
+|---|---|---|---|
+| `qwen3.5:4b` | 5/5 | 0.78 | 1.00 |
+| `qwen3.5:9b` | 4/5 | 1.00 | 1.00 |
+
+The 4B answers every question but invents details its sources do not hold (a reading of 鬱積 given as
+"fusaaku", a meaning added from memory); the judge flags them as unverified. One 9B reply used no source,
+so it was not scored. Every reply and flagged claim is in [`evaluation_results.json`](evaluation_results.json).
+
+## What it does not measure
+
+- **Correction accuracy:** the benchmark grades the sensei; the checker and corrector are checked by unit
+  tests and by the scenario runs, not by a scored set of wrong sentences.

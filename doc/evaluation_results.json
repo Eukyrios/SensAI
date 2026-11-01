@@ -1,0 +1,115 @@
+[
+  {
+    "model": "qwen3.5:4b",
+    "questions": [
+      {
+        "question": "Conjugate 食べる in the polite negative past.",
+        "reply": "Here is the conjugation of 食べる (taberu) in the polite negative past form:\n\n食べませんでした (tabemasendeshita) — I did not eat.\n\nSince 食べる is an *ichidan* verb, we drop the る and add the polite negative past ending ませんでした.\n\nWould you like to try conjugating another verb?\n\nSources: [verbs.md § Polite present: the ます-form]",
+        "faithfulness": 0.75,
+        "relevance": 1.0,
+        "flagged": [
+          {
+            "claim": "食べませんでした means 'I did not eat'.",
+            "status": "UNVERIFIED",
+            "reasoning": "The sources provide the Japanese text and reading but do not explicitly define the meaning 'I did not eat'."
+          }
+        ],
+        "status": "judged"
+      },
+      {
+        "question": "What does the word 猫 mean?",
+        "reply": "I apologize for the confusion. The character 猫 (neko) is not in the local kanji table, so I cannot provide its readings or meaning from memory. Let me try looking it up in the dictionary instead.\n\n猫 (neko) — cat.\n\nThis is a noun, and it is at the N5 level of the JLPT.\n\nWould you like to see an example sentence using this word?",
+        "faithfulness": 1.0,
+        "relevance": 1.0,
+        "flagged": [],
+        "status": "judged"
+      },
+      {
+        "question": "Give the reading and meaning of the word 飛行機.",
+        "reply": "I apologize, but the word \"飛行機\" is not found in the local dictionary.\n\nHowever, I know that \"飛行機\" (hikouki) means airplane.\n\nWould you like to try another word?",
+        "faithfulness": 0.5,
+        "relevance": 1.0,
+        "flagged": [
+          {
+            "claim": "'飛行機' means airplane.",
+            "status": "UNVERIFIED",
+            "reasoning": "The source does not provide the meaning of the word; this information comes from general knowledge, not the provided sources."
+          }
+        ],
+        "status": "judged"
+      },
+      {
+        "question": "What is the て-form of 飲む?",
+        "reply": "The verb 飲む (nomu) is a godan verb, so its te-form is formed by changing the ending う to って.\n\nThe te-form of 飲む is:\n飲んで (nonde) — to drink (te-form).\n\nThis connects to other patterns, like saying \"I drink water\" (水を飲みます - mizu o nomimasu), but using the te-form, you can say \"I drink water and eat rice\" (水を飲んでご飯を食べます - mizu o nonde gohan o tabemasu).\n\nSources: [verbs.md § The て-form: building the connective form]",
+        "faithfulness": 1.0,
+        "relevance": 1.0,
+        "flagged": [],
+        "status": "judged"
+      },
+      {
+        "question": "What are the readings of the kanji 鬱?",
+        "reply": "The kanji 鬱 has the following readings:\n\n- On'yomi: ウツ (utsu)\n- Kun'yomi: ふさ.ぐ (fusa gu)\n\nIt means \"gloom, depression, melancholy\" and is a Level N1 kanji.\n\nExamples:\n- 鬱陶しい (utsuushii) — gloomy, oppressive.\n- 鬱積 (fusaaku) — to accumulate.\n\nWould you like to try using 鬱 in a sentence?",
+        "faithfulness": 0.67,
+        "relevance": 1.0,
+        "flagged": [
+          {
+            "claim": "鬱陶しい is read utsuushii.",
+            "status": "UNVERIFIED",
+            "reasoning": "The source does not provide readings for example words like 鬱陶しい."
+          },
+          {
+            "claim": "鬱積 is read fusaaku.",
+            "status": "UNVERIFIED",
+            "reasoning": "The source does not provide readings for example words like 鬱積."
+          }
+        ],
+        "status": "judged"
+      }
+    ]
+  },
+  {
+    "model": "qwen3.5:9b",
+    "questions": [
+      {
+        "question": "Conjugate 食べる in the polite negative past.",
+        "reply": "To conjugate the verb 食べる (taberu) into the polite negative past, we first need to find its polite present form and then apply the negative and past endings.\n\nLet's break it down:\n1.  **Dictionary form:** 食べる (taberu)\n2.  **Polite present:** 食べます (tabemasu)\n3.  **Polite negative present:** 食べません (tabemasen)\n4.  **Polite negative past:** 食べませんでした (tabemasendeshita)\n\nHere is the result:\n\n食べませんでした (tabemasendeshita) — did not eat (polite).\n\nSources: [verbs.md § Polite present: the ます-form]",
+        "faithfulness": 1.0,
+        "relevance": 1.0,
+        "flagged": [],
+        "status": "judged"
+      },
+      {
+        "question": "What does the word 猫 mean?",
+        "reply": "The word 猫 (neko) means \"cat\".\n\nHere are a few examples:\n- 猫が好きです (neko ga suki desu) — I like cats.\n- 猫がいます (neko ga imasu) — There is a cat.\n- 黒い猫 (kuroi neko) — black cat.\n\nWould you like to learn how to say \"I have a cat\" or \"The cat is sleeping\"?",
+        "faithfulness": null,
+        "relevance": null,
+        "flagged": [],
+        "status": "no sources"
+      },
+      {
+        "question": "Give the reading and meaning of the word 飛行機.",
+        "reply": "Let's look up the reading and meaning of the word 飛行機.\n\nThe word 飛行機 is not found in the local dictionary. However, I can tell you that it is a common word for \"airplane\" in Japanese. The reading is hikouki (ひこうき).\n\nひこうき (hikouki) — airplane.",
+        "faithfulness": 1.0,
+        "relevance": 1.0,
+        "flagged": [],
+        "status": "judged"
+      },
+      {
+        "question": "What is the て-form of 飲む?",
+        "reply": "To find the て-form of the verb **飲む** (to drink), let's look it up.\n\nThe て-form of **飲む** (to drink) is **飲んで** (nonde).\n\nHere is the rule for Godan verbs ending in む:\nDrop the む and add んで.\n飲む (nomu) → のんで (nonde).\n\nSources: [verbs.md § The て-form: building the connective form]",
+        "faithfulness": 1.0,
+        "relevance": 1.0,
+        "flagged": [],
+        "status": "judged"
+      },
+      {
+        "question": "What are the readings of the kanji 鬱?",
+        "reply": "Let me look up the readings for the kanji 鬱.\n\nThe kanji 鬱 has the following readings:\n\n- On'yomi: ウツ (utsu)\n- Kun'yomi: ふさぐ (fusagu)\n\nThis kanji means \"gloom, depression, melancholy\" and is used in advanced Japanese (JLPT N1 level). It has 29 strokes.\n\nWould you like to know more about how this kanji is used in words or sentences?",
+        "faithfulness": 1.0,
+        "relevance": 1.0,
+        "flagged": [],
+        "status": "judged"
+      }
+    ]
+  }
+]
