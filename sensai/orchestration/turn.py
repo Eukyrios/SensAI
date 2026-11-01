@@ -1,7 +1,8 @@
 # run_turn(): one learner turn as a stream of events. It saves the question, lets the orchestrator
 # run the agents, then keeps the last agent's answer, with the turn and its agent runs, or rolls the
-# question back. Once the answer and TurnFinished are out, the curriculum agent updates the learner's
-# srs_cards.
+# question back. Once the answer and TurnFinished are out, the judge's verdict follows in the same
+# stream, while the curriculum agent updates the learner's srs_cards in the background
+# (Session.settle() waits for it).
 
 import asyncio
 import re
@@ -45,10 +46,10 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[Event]:
             yield event
     yield turn.finished_event()
     if turn.crew.ok:
+        session.run_in_background(run_curriculum(session, turn.turn_id))
         verdict_event = await turn.check_faithfulness(learner_text)
         if verdict_event is not None:
             yield verdict_event
-        await run_curriculum(session, turn.turn_id)
 
 
 # What may still grow into PII is kept back: the last word (an email) and the digit groups before it

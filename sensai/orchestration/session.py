@@ -1,5 +1,8 @@
-# Session: one learner conversation with its agent, stored history, profile and model client.
+# Session: one learner conversation with its agent, stored history, profile and model client, and the
+# work still running in the background after a turn.
 
+import asyncio
+from collections.abc import Coroutine
 from dataclasses import replace
 
 from ..core.agent_spec import AgentSpec, spec_for
@@ -33,6 +36,7 @@ class Session:
         self.stored = False
         self.summary = ""
         self.summarized = 0
+        self.background: set[asyncio.Task] = set()
 
     @classmethod
     def resume(cls, config: dict, session_id: str, client: OllamaClient | None = None,
@@ -69,6 +73,14 @@ class Session:
 
     def can_think(self, model: str) -> bool:
         return "thinking" in self.client.capabilities(model)
+
+    def run_in_background(self, work: Coroutine) -> None:
+        task = asyncio.create_task(work)
+        self.background.add(task)
+        task.add_done_callback(self.background.discard)
+
+    async def settle(self) -> None:
+        await asyncio.gather(*self.background)
 
     def reset(self) -> None:
         self.history.clear()
