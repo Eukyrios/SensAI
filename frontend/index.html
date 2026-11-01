@@ -381,6 +381,9 @@
             note('text-red-400 bg-red-500/10 border-red-500/20', `[${data.kind}] ${data.message}`);
           } else if (name === 'GuardrailTriggered') {
             note('text-amber-400 bg-amber-500/10 border-amber-500/20', `[Garde-fou : ${data.rule}] ${data.action} (${data.side})`);
+          } else if (name === 'ContextCompressed') {
+            note('text-sky-400 bg-sky-500/10 border-sky-500/20',
+                 `Contexte compressé : ${data.messages} messages, ${data.tokens_before.toLocaleString('fr-FR')} → ${data.tokens_after.toLocaleString('fr-FR')} tokens`);
           } else if (name === 'FaithfulnessChecked') {
             showFaithfulness(data, notes);
           } else if (name === 'TurnFinished') {

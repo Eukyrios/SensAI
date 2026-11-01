@@ -175,7 +175,7 @@ def build_context(session: Session, spec: AgentSpec, handoff: Handoff | None = N
     system = system_prompt(spec)
     window = builder.budget(spec) - builder.estimator.estimate(system)
     if spec.strategy != "react":
-        compress(session, spec, window, builder.estimator.estimate_messages)
+        session.compression = compress(session, spec, window, builder.estimator.estimate_messages)
     builder.providers.extend(_summary_blocks(session))
     return builder.build(spec, session.history[session.summarized:][-max_turns * 2:], system=system)
 

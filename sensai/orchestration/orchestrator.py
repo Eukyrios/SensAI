@@ -13,9 +13,10 @@ import asyncio
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import aclosing
+from dataclasses import asdict
 from ..core.agent_spec import AgentSpec, spec_for
 from ..core.errors import ErrorKind
-from ..core.events import AgentRunFinished, Error, Event, HandoffEvent, Retrieved, RouteDecided, Token
+from ..core.events import AgentRunFinished, ContextCompressed, Error, Event, HandoffEvent, Retrieved, RouteDecided, Token
 from ..core.handoff import Handoff
 from ..knowledge.retrieval import Retrieval
 from ..memory.ledger import Ledger
@@ -109,7 +110,11 @@ class Orchestrator:
             note = retrieval.context_note()
             if note:
                 extra.append(TextBlock("rag", priority=1, max_share=0.35, text=note))
-        async with aclosing(run.events(build_context(self.session, run.spec, handoff, extra))) as run_events:
+        messages = build_context(self.session, run.spec, handoff, extra)
+        if self.session.compression is not None:
+            yield ContextCompressed(turn_id=self.turn_id, **asdict(self.session.compression))
+            self.session.compression = None
+        async with aclosing(run.events(messages)) as run_events:
             try:
                 async for event in self._until(run_events, deadline):
                     yield event

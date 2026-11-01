@@ -17,7 +17,7 @@ from ..core.agent_spec import SpecError
 from ..core.persona import persona_for, persona_names
 from ..core.config import load_config, resolve
 from ..core.errors import ErrorKind
-from ..core.events import (AgentRunStarted, Error, Event, FaithfulnessChecked, GuardrailTriggered, HandoffEvent,
+from ..core.events import (AgentRunStarted, ContextCompressed, Error, Event, FaithfulnessChecked, GuardrailTriggered, HandoffEvent,
                            StructuredOutput, Thinking, Token, ToolCall, ToolResult, TurnFinished)
 from ..core.handoff import Handoff
 from ..llm.ollama import OllamaError
@@ -327,6 +327,9 @@ class CLIRenderer:
                 self._show_reasoning(text)
             case Token(text=text):
                 self._show_answer_text(text)
+            case ContextCompressed() as compressed:
+                self.out.end_line()
+                print(dim(compression_line(compressed)))
             case GuardrailTriggered(side=side, rule=rule, action=action):
                 self.out.end_line()
                 print(f"[guardrail] {side} {action}: {rule}", file=sys.stderr)
@@ -407,6 +410,11 @@ def usage_line(finished: TurnFinished) -> str:
         parts.append(f"first token {finished.ttft_ms / 1000:.1f}s")
     parts.append(f"{finished.total_duration_ns / 1e9:.1f}s")
     return " · ".join(parts)
+
+
+def compression_line(event: ContextCompressed) -> str:
+    return (f"[context] compressed {event.messages} messages: "
+            f"{event.tokens_before:,} -> {event.tokens_after:,} tokens")
 
 
 def dim(text: str) -> str:

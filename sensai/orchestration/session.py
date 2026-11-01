@@ -33,6 +33,7 @@ class Session:
         self.stored = False
         self.summary = ""
         self.summarized = 0
+        self.compression = None  # set by build_context, read once by the orchestrator to emit an event
 
     @classmethod
     def resume(cls, config: dict, session_id: str, client: OllamaClient | None = None,
