@@ -123,12 +123,16 @@ rating = 1
 built = "Every prompt is stored under its content hash and every agent run records the hash it used."
 
 [[features.steps]]
+kind = "chat"
+inputs = ["how do I say good morning?", "/persona strict", "how do I say good morning?"]
+
+[[features.steps]]
 kind = "shell"
 display = "session.prompts.metrics(\"sensei\")"
 command = """$PYTHON -c "import os, sqlite3
 from sensai.memory.prompts import PromptStore
 db = sqlite3.connect(os.environ['DEMO_DB']); db.row_factory = sqlite3.Row
-for row in PromptStore(db).metrics('sensei'): print(row)"
+for row in PromptStore(db).metrics('sensei'): print(dict(row))"
 """
 
 [[features]]
