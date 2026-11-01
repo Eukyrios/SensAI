@@ -2,12 +2,14 @@
 # terms, then a real run of Sensai showing it, recorded and drawn as a terminal; ffmpeg joins it all into
 # one MP4. Run `python -m scripts.build_video` with Ollama running.
 
+import argparse
 import codecs
 import os
 import re
 import select
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import unicodedata
@@ -19,7 +21,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 from sensai.core.config import load_toml, resolve
 
+from . import seed_demo
+
 FEATURES_PATH = resolve("scripts/video_features.toml")
+VIDEO_PATH = resolve("videos/sensai_features.mp4")
 WIDTH, HEIGHT = 1280, 720
 LATIN_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 CJK_FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
@@ -50,6 +55,7 @@ class Step:
     args: tuple[str, ...] = ()
     inputs: tuple[str, ...] = ()
     command: str = ""
+    display: str = ""
 
 
 @dataclass(frozen=True)
@@ -82,7 +88,7 @@ def load_features(path: Path = FEATURES_PATH) -> list[Feature]:
 
 def feature_from(entry: dict) -> Feature:
     steps = tuple(Step(step["kind"], tuple(step.get("args", ())), tuple(step.get("inputs", ())),
-                       step.get("command", "")) for step in entry["steps"])
+                       step.get("command", ""), step.get("display", "")) for step in entry["steps"])
     return Feature(entry["category"], entry["code"], entry["name"], entry["rating"], entry["built"], steps)
 
 
@@ -167,7 +173,7 @@ class Recorder:
 
     def __init__(self, command: list[str], env: dict[str, str]):
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, env=env)
+                                        stderr=subprocess.STDOUT, env=env, cwd=resolve("."))
         self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self.started = time.monotonic()
         self.chunks: list[Chunk] = []
@@ -224,7 +230,7 @@ def record_chat(step: Step, env: dict[str, str]) -> list[Chunk]:
 
 def record_shell(step: Step, env: dict[str, str]) -> list[Chunk]:
     recorder = Recorder(["bash", "-c", step.command], env)
-    recorder.chunks.append(Chunk(0.0, f"$ {step.command}\n", typed=True))
+    recorder.chunks.append(Chunk(0.0, f"$ {step.display or step.command}\n", typed=True))
     return recorder.finish()
 
 
@@ -311,3 +317,42 @@ class Encoder:
     def close(self) -> None:
         self.process.stdin.close()
         self.process.wait()
+
+
+def record_step(step: Step, env: dict[str, str]) -> list[Chunk]:
+    return record_shell(step, env) if step.kind == "shell" else record_chat(step, env)
+
+
+def demo_env(workdir: Path) -> dict[str, str]:
+    db_path = workdir / "demo.db"
+    seed_demo.seed(db_path).conn.close()
+    return {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHON": sys.executable, "SENSAI_STORAGE__DB_PATH": str(db_path),
+            "SENSAI_LOGGING__PATH": str(workdir / "sensai.jsonl"), "DEMO_DB": str(db_path),
+            "DEMO_LOG": str(workdir / "sensai.jsonl")}
+
+
+def add_feature(encoder: Encoder, painter: TerminalPainter, feature: Feature, env: dict[str, str]) -> None:
+    encoder.add(title_frames(feature))
+    header = f"{feature.code}  {feature.name}"
+    for step in feature.steps:
+        print(f"  {feature.code}: {step.command or ' / '.join(step.inputs)}", flush=True)
+        encoder.add(step_frames(timeline(record_step(step, env)), header, painter))
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Build the feature video from real Sensai runs")
+    parser.add_argument("--only", nargs="*", default=[], help="feature codes to include (default: all)")
+    parser.add_argument("--out", type=Path, default=VIDEO_PATH, help=f"video file (default: {VIDEO_PATH})")
+    args = parser.parse_args(argv)
+    features = [feature for feature in load_features() if not args.only or feature.code in args.only]
+    encoder, painter = Encoder(args.out), TerminalPainter()
+    with tempfile.TemporaryDirectory(prefix="sensai-video-") as workdir:
+        env = demo_env(Path(workdir))
+        for feature in features:
+            add_feature(encoder, painter, feature, env)
+    encoder.close()
+    print(f"Video written to {args.out}")
+
+
+if __name__ == "__main__":
+    main()
