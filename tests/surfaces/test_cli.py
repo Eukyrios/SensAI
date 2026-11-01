@@ -424,6 +424,16 @@ async def test_escape_stops_the_reply_and_keeps_the_chat(monkeypatch, capsys):
     assert partial["role"] == "assistant" and partial["content"].startswith("t0 ")
 
 
+async def test_escape_then_a_new_line_redirects_the_conversation(monkeypatch, capsys):
+    client = SlowClient(delay=0.3, count=10)
+    session = live_session(client)
+    await live(monkeypatch, session, ["first\r", 1.0, "\x1b", 0.3, "only the short version\r", 4.0, "/quit\r"])
+    roles = [message["role"] for message in session.history]
+    assert roles == ["user", "assistant", "user", "assistant"]
+    assert session.history[2]["content"] == "only the short version"
+    assert session.history[1]["content"].startswith("t0 ") and "t9" not in session.history[1]["content"]
+
+
 async def test_escape_while_idle_does_nothing(monkeypatch):
     client = FakeClient()
     await live(monkeypatch, live_session(client), ["\x1b", 0.3, "\x04"])
