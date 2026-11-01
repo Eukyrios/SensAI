@@ -60,3 +60,7 @@ def test_report_and_main(tmp_path, capsys):
     path = tmp_path / "report.md"
     assert adversarial.main(["--only", "bad-emp", "--report", str(path), "--strict"]) == 0
     assert "bad-empty" in path.read_text(encoding="utf-8") and "malformed input" in capsys.readouterr().out
+
+
+def test_the_report_shows_control_characters_as_escapes():
+    assert adversarial._shown("he\x00llo \x1b[31mred") == "he\\x00llo \\x1b[31mred"
