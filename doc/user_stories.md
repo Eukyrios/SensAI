@@ -23,8 +23,8 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [EV2](#ev2--content--privacy-guardrails) | Content & privacy guardrails | ★★★ | 6 | D | ✅ built |
 | [A5](#a5--persona) | Persona | ★ | 6 | A | ✅ built |
 | [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ✅ built |
-| [X1](#x1--web-ui) | Web UI | ★ | 7 | A · D | ⏳ |
-| [EV4](#ev4--adversarial-testing) | Adversarial testing | ★★ | 7 | C | ⏳ |
+| [X1](#x1--web-ui) | Web UI | ★ | 7 | A · D | ✅ built |
+| [EV4](#ev4--adversarial-testing) | Adversarial testing | ★★ | 7 | C | ✅ built |
 | [A6](#a6--semantic-cache) | Semantic cache (optional) | ★★ | 7 | B | ⏳ |
 
 Owners: A = Core, B = Memory, C = Knowledge, D = Trust & surface (see the README's Team section).
@@ -79,11 +79,8 @@ $ python -m sensai --model nope
 ## M1 — Session persistence & profile
 
 ### M1-1 · Pick up where I left off
-**As a** returning learner, **I want** to resume my previous conversation after restarting Sensai,
-**so that** I don't have to re-explain what we were working on.
-
 - [x] After quitting and restarting, `--session <id>` reloads the previous session's messages from the database.
-- [ ] A follow-up that refers to yesterday's lesson is answered correctly.
+- [x] A follow-up that refers to yesterday's lesson is answered correctly.
 - [x] Every turn is stored with the question, the reply and its latency.
 
 **Verified by:** `tests/memory/test_repository.py`; demo: quit, restart, ask "what were we studying?".
@@ -121,14 +118,9 @@ with "You are learning well, Alex": the name comes from the stored profile, neve
 
 ## T5 — Structured output
 
-### T5-1 · Mistakes recorded in the same shape every time
-**As a** learner, **I want** each correction to come as the same fields (my sentence, the error,
-the correction, the rule), **so that** my mistakes can be stored and reviewed later.
-
-- [x] The checker's output (the corrector's, from layer 4) is validated against its JSON schema.
-- [x] An invalid output gets exactly one repair attempt with the validation error.
-- [x] If the repair also fails, an `Error(kind="invalid_output")` event appears in the trace with the invalid reply.
-- [x] ...and I still get a normal reply from the sensei (degrade-to-sensei, orchestrator, layer 4).
+### T5-2 · Agents that can't corrupt each other
+- [x] A handoff payload that doesn't match the target agent's schema is rejected before the agent runs.
+- [x] The rejection is visible in the trace with the offending payload.
 
 **Verified by:** `tests/orchestration/test_structured.py` (valid, repairable and broken outputs); demo: `python -m sensai --agent checker`, then "私は学校を行きます".
 
@@ -211,7 +203,7 @@ review from 1 day to 6 days.
 - [x] `conjugate` returns the requested form (e.g. the て-form) and `kanji` returns readings and stroke count.
 - [x] Tools work both with native tool calling and with the prompted fallback, chosen from `/api/show`.
 
-**Verified by:** `tests/knowledge/test_japanese.py` (conjugator, dictionary, kanji), `tests/orchestration/test_tool_use.py`
+**Verified by:** `tests/knowledge/test_japanese.py` (conjugator, dictionary, kanji), `tests/orchestration/test_tool_use.py` (native and prompted paths), `tests/orchestration/test_knowledge_turn.py` (sensei calls a tool in a turn); demo: "what does 食べる mean, and its て-form?" then `/trace`.
 
 **Example:**
 
@@ -221,8 +213,6 @@ review from 1 day to 6 days.
 [tool] conjugate {"verb": "食べる", "form": "ta"}
 ```
 The word 食べる (taberu) means "to eat". Its past form is 食べた (tabeta) - ate.
-(native and prompted paths), `tests/orchestration/test_knowledge_turn.py` (sensei calls a tool in a turn);
-demo: "what does 食べる mean, and its て-form?" then `/trace`.
 
 ### T1-2 · Plug in an existing MCP server
 **As a** developer of the tutor, **I want** to connect a pre-existing MCP server next to our own tools,
@@ -234,7 +224,7 @@ demo: "what does 食べる mean, and its て-form?" then `/trace`.
 - [x] Our own tools are also served as an MCP server (`python -m sensai.knowledge.mcp_server`) and work through the same client.
 - [ ] Demo with the pre-existing server (`uvx mcp-server-time`, configured in `config.toml`): run once on the demo machine.
 
-**Verified by:** `tests/knowledge/test_mcp_stdio.py` (real stdio subprocess: our server and a fake one with pagination,
+**Verified by:** `tests/knowledge/test_mcp_stdio.py` (real stdio subprocess: our server and a fake one with pagination, ping, errors, timeout, crash); `tests/orchestration/test_knowledge_turn.py` (servers start once, unavailable ones reported); demo: the banner lists `[mcp] time: get_current_time, convert_time`, then "what time is it in Tokyo?".
 
 **Example:**
 
@@ -397,7 +387,7 @@ says `sensei by floor`.
 - [x] When the verification contradicts the first idea, the final answer is revised.
 - [x] The loop stops after a fixed number of steps and works on a context of about 800 tokens.
 
-**Verified by:** `tests/knowledge/test_react.py` (scripted outputs), `tests/orchestration/test_tool_use.py` (the
+**Verified by:** `tests/knowledge/test_react.py` (scripted outputs), `tests/orchestration/test_tool_use.py` (corrector as an agent: steps streamed, invented Observation cut, final answer before any tool sent back); `tests/orchestration/test_knowledge_turn.py` (checker → corrector → sensei; only a verified correction is written to `errors`).
 
 **Example:**
 
@@ -478,7 +468,7 @@ trust them and read further.
 - [x] The retrieved chunks are visible in the trace.
 - [x] A question the corpus doesn't cover is answered without a fake citation.
 
-**Verified by:** `tests/knowledge/test_rag_and_mcp.py`, `tests/knowledge/test_retrieval.py`,
+**Verified by:** `tests/knowledge/test_rag_and_mcp.py`, `tests/knowledge/test_retrieval.py`, `tests/orchestration/test_knowledge_turn.py` (passages in the sensei's prompt, a `Sources:` line when it cites nothing); demo: "when do I use は vs が?" then "how do I say cat?" (no source).
 
 **Example:**
 
@@ -559,7 +549,7 @@ $ python -m scripts.evaluate --models qwen3.5:9b --limit 1
 - [x] Chunks below the relevance threshold are dropped, and their scores show in the trace.
 - [x] On the same question, the reranked answer cites a better source than R1 did.
 
-**Verified by:** `tests/knowledge/test_advanced_rag.py`, `tests/knowledge/test_retrieval.py` (model reranker,
+**Verified by:** `tests/knowledge/test_advanced_rag.py`, `tests/knowledge/test_retrieval.py` (model reranker, hybrid and lexical fallbacks); demo: `/trace` shows each candidate's cosine score → rerank score.
 
 **Example:**
 
