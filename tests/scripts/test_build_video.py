@@ -63,6 +63,11 @@ def test_timeline_shortens_long_waits_and_waits_for_typing():
     assert moments[3].video_s == pytest.approx(typing + build_video.MAX_GAP_S + 0.5)
 
 
+def test_the_next_question_waits_for_a_reading_pause():
+    moments = timeline([Chunk(0.0, "a reply"), Chunk(0.5, "next?\n", typed=True)])
+    assert moments[1].video_s == pytest.approx(0.5 + build_video.READ_PAUSE_S)
+
+
 def test_typed_text_appears_letter_by_letter():
     moments = timeline([Chunk(0.0, "hello\n", typed=True)])
     assert screen_at(moments, 2 / build_video.TYPING_CHARS_PER_S).lines == ["he"]

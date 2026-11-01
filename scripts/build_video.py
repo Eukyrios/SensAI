@@ -43,10 +43,11 @@ PROMPT = "\n> "
 READ_SLICE_S = 0.1
 STEP_TIMEOUT_S = 300
 FPS = 15
-TYPING_CHARS_PER_S = 20
+TYPING_CHARS_PER_S = 14
 MAX_GAP_S = 1.5
-TITLE_S = 4
-END_HOLD_S = 2
+READ_PAUSE_S = 4
+TITLE_S = 7
+END_HOLD_S = 6
 
 
 @dataclass(frozen=True)
@@ -238,7 +239,8 @@ def timeline(chunks: list[Chunk]) -> list[Moment]:
     moments: list[Moment] = []
     video_s, real_s, free_at = 0.0, 0.0, 0.0
     for chunk in chunks:
-        video_s = max(video_s + min(chunk.at_s - real_s, MAX_GAP_S), free_at)
+        pause = READ_PAUSE_S if chunk.typed and moments else 0.0
+        video_s = max(video_s + min(chunk.at_s - real_s, MAX_GAP_S), free_at) + pause
         real_s = chunk.at_s
         moments.append(Moment(video_s, real_s, chunk))
         if chunk.typed:
