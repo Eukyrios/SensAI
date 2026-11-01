@@ -1,11 +1,14 @@
 # Tests for the per-agent context: token estimate, calibration, providers, budget and build_context().
 
 from dataclasses import dataclass, replace
+from datetime import date, timedelta
 
 import pytest
 
 from sensai.core.agent_spec import AgentSpec
 from sensai.core.handoff import Handoff
+from sensai.memory import srs
+from sensai.memory.ledger import Ledger
 from sensai.orchestration.context import ContextBuilder, ContextProvider, TokenEstimator, build_context
 from sensai.orchestration.session import Session
 from tests.conftest import memory_repository
@@ -116,3 +119,49 @@ def test_build_context_fits_the_profile_note_and_history_in_the_agent_budget():
     assert system.index("N5 learner") < system.index("checker agent looked at this turn first")
     assert '"rule": "use に"' in system
     assert messages[1:] == [user("question")]
+
+
+def _ledger_session():
+    repo = memory_repository()
+    return Session(make_config(), client=FakeClient(), repo=repo), Ledger(repo.conn)
+
+
+def test_first_message_gets_past_mistakes_and_due_cards():
+    session, ledger = _ledger_session()
+    ledger.create("corrector", "errors", sentence="私は映画に見ます", correction="私は映画を見ます",
+                  error_type="particle")
+    srs.add_card(ledger, "メニュー", "menyuu — menu", date.today())
+    session.history = [user("hello")]
+    system = build_context(session, session.spec)[0]["content"]
+    assert 'Last time you wrote "私は映画に見ます"' in system
+    assert "メニュー = menyuu — menu" in system
+
+
+def test_resolved_errors_current_session_and_future_cards_are_left_out():
+    session, ledger = _ledger_session()
+    session.record("user", "hi")
+    ledger.create("corrector", "errors", sentence="done", correction="ok", error_type="x", resolved=1)
+    ledger.create("corrector", "errors", session_id=session.id, sentence="now", correction="ok", error_type="x")
+    srs.add_card(ledger, "later", "later", date.today() + timedelta(days=3))
+    session.history = [user("hello")]
+    system = build_context(session, session.spec)[0]["content"]
+    assert "Last time" not in system and "due for review" not in system
+
+
+def test_only_the_latest_mistakes_are_kept():
+    session, ledger = _ledger_session()
+    for n in range(5):
+        ledger.create("corrector", "errors", sentence=f"s{n}", correction="c", error_type="x")
+    session.history = [user("hello")]
+    system = build_context(session, session.spec)[0]["content"]
+    assert "s4" in system and "s2" in system and "s1" not in system
+
+
+def test_ledger_notes_wait_for_a_new_session_and_a_conversational_agent():
+    session, ledger = _ledger_session()
+    ledger.create("corrector", "errors", sentence="s", correction="c", error_type="x")
+    session.history = [user("a"), {"role": "assistant", "content": "b"}, user("c")]
+    assert "Last time" not in build_context(session, session.spec)[0]["content"]
+    session.history = [user("a")]
+    structured = replace(session.spec, output_schema={"type": "object"})
+    assert "Last time" not in build_context(session, structured)[0]["content"]

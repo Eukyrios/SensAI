@@ -169,7 +169,7 @@ the checker's validated JSON, never free text:
 back until I've mastered them.
 
 - [x] Writing a wrong sentence adds a row to `errors` (sentence, correction, error type), once the corrector verified it.
-- [ ] In the next session, the tutor brings up that exact mistake.
+- [x] In the next session, the tutor brings up that exact mistake.
 - [ ] The agent writes these records itself through tools, not through hard-coded calls.
 
 **Verified by:** ledger tests; demo: wrong sentence, restart, the tutor mentions it.
@@ -179,15 +179,15 @@ back until I've mastered them.
 > 私は映画に見ます
 
 The corrector's verified correction is written to the `errors` table (`sentence` 私は映画に見ます,
-`correction` 私は映画を見ます, `error_type` particle). *Target, not built yet:* in the next session
-the tutor opens with "Last time you wrote 映画に見ます; remember を for what you watch".
+`correction` 私は映画を見ます, `error_type` particle). In the next session the tutor is given the
+latest unresolved mistakes and can open with "Last time you wrote 映画に見ます; remember を for what you watch".
 
 ### M3-2 · Vocabulary reviewed right before I forget it
 **As a** learner, **I want** new words to come back on a spaced-repetition schedule,
 **so that** I review each word just before I would forget it.
 
 - [x] Words I learn become `srs_cards` with a next review date.
-- [ ] Cards due today are proposed at the start of a session.
+- [x] Cards due today are proposed at the start of a session.
 - [x] Answering a card correctly pushes its next review further away; a wrong answer brings it closer.
 
 **Verified by:** SRS scheduling tests with fixed dates.

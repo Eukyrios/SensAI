@@ -6,7 +6,8 @@
 # agent (the sensei) answers instead, unless Ollama is down, the budget is spent or it already ran.
 # A run gets the tools its spec lists (T1); an agent with rag = true first gets the corpus passages for
 # the question (R1, R2), and its answer ends with their citations if the model did not cite them itself.
-# A verified correction from the ReAct corrector (A1) is written to the learner's errors (M3).
+# A verified correction from the ReAct corrector (A1) is written to the learner's errors (M3); an error is
+# marked resolved when the learner later writes its correction.
 
 import asyncio
 import sqlite3
@@ -140,6 +141,17 @@ class Orchestrator:
         for run in self.runs:
             if run.ok and run.spec.strategy == "react":
                 self._record_error(run)
+        self._resolve_errors()
+
+    def _resolve_errors(self) -> None:
+        """An unresolved error is resolved when the learner writes its correction without the mistake."""
+        ledger = Ledger(self.session.repo.conn)
+        try:
+            for row in ledger.list("errors", resolved=0):
+                if row["correction"] in self.question and row["sentence"] not in self.question:
+                    ledger.update("corrector", "errors", row["id"], resolved=1)
+        except (sqlite3.Error, ValueError):
+            return
 
     def _record_error(self, run: AgentRun) -> None:
         data = run.data or {}

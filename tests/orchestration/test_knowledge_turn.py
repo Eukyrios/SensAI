@@ -133,6 +133,17 @@ async def test_a_wrong_sentence_goes_checker_corrector_sensei_and_is_recorded():
         ("私は学校を行きます", "私は学校に行きます", "particle", session.id)]
 
 
+async def test_writing_the_correction_resolves_the_recorded_error():
+    session = knowledge_session(Client(["Good."], ["Good."]), FixedRetriever([]))
+    ledger = Ledger(session.repo.conn)
+    ledger.create("corrector", "errors", sentence="私は学校を行きます", correction="私は学校に行きます",
+                  error_type="particle")
+    await collect(session, "私は学校を行きますか?")
+    assert ledger.list("errors", resolved=1) == []
+    await collect(session, "私は学校に行きます")
+    assert len(ledger.list("errors", resolved=1)) == 1
+
+
 async def test_an_unverified_correction_is_not_recorded():
     client = Client(CHECKED, "Final Answer: x", "Final Answer: x", "Final Answer: x", ["Explained."])
     session = knowledge_session(client, FixedRetriever([]), agents={"default": "checker"})

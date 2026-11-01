@@ -4,18 +4,23 @@
 # estimated from the text and can be corrected from the prompt_eval_count Ollama reports.
 
 import json
+import sqlite3
+from datetime import date
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from ..core.agent_spec import AgentSpec
 from ..core.handoff import Handoff
 from ..core.messages import Message
+from ..memory import srs
+from ..memory.ledger import Ledger
 from .executor import system_prompt
 from .session import Session
 from .summary import SummaryProvider, compress
 
 DEFAULT_CHARS_PER_TOKEN = 3.5
 REPLY_RESERVE = 0.25
+LEDGER_MAX_ITEMS = 3
 
 
 @runtime_checkable
@@ -120,10 +125,53 @@ class ContextBuilder:
         return kept[::-1]
 
 
+class ErrorsProvider:
+    """The learner's latest unresolved mistakes from earlier sessions (M3), for the tutor to bring up."""
+    name = "errors"
+    priority = 1
+    max_share = 0.1
+
+    def __init__(self, ledger: Ledger, session_id: str):
+        self.ledger = ledger
+        self.session_id = session_id
+
+    def render(self, budget: int) -> str | None:
+        rows = [row for row in _safe_list(self.ledger, "errors", resolved=0)
+                if row["session_id"] != self.session_id][-LEDGER_MAX_ITEMS:]
+        if not rows:
+            return None
+        lines = [f"- Last time you wrote \"{row['sentence']}\"; it should be \"{row['correction']}\" "
+                 f"({row['error_type']})." for row in reversed(rows)]
+        return ("Mistakes this learner made in earlier sessions. Remind them of one briefly, once, "
+                "when it fits:\n" + "\n".join(lines))
+
+
+class DueCardsProvider:
+    """The srs_cards due today (M3): the tutor proposes a quick review at the start of a session."""
+    name = "due_cards"
+    priority = 1
+    max_share = 0.1
+
+    def __init__(self, ledger: Ledger, today: date | None = None):
+        self.ledger = ledger
+        self.today = today
+
+    def render(self, budget: int) -> str | None:
+        try:
+            cards = srs.due_cards(self.ledger, self.today or date.today())[:LEDGER_MAX_ITEMS * 2]
+        except sqlite3.Error:
+            return None
+        if not cards:
+            return None
+        lines = [f"- {card['front']} = {card['back']}" for card in cards]
+        return ("Vocabulary cards due for review today. Offer to review them, asking for the meaning of "
+                "one word at a time:\n" + "\n".join(lines))
+
+
 def build_context(session: Session, spec: AgentSpec, handoff: Handoff | None = None,
                   extra: list[ContextProvider] | None = None) -> list[Message]:
     max_turns = session.config["memory"]["max_history_turns"]
-    builder = ContextBuilder(_blocks(session, handoff) + list(extra or []))
+    builder = ContextBuilder(_blocks(session, handoff, spec) + list(extra or []))
     system = system_prompt(spec)
     window = builder.budget(spec) - builder.estimator.estimate(system)
     if spec.strategy != "react":
@@ -138,13 +186,28 @@ def handoff_note(handoff: Handoff) -> str:
             f"Use its findings to answer the learner's last message: {findings}")
 
 
-def _blocks(session: Session, handoff: Handoff | None) -> list[ContextProvider]:
-    blocks = []
+def _blocks(session: Session, handoff: Handoff | None, spec: AgentSpec) -> list[ContextProvider]:
+    blocks = _ledger_blocks(session, spec)
     if session.profile:
         blocks.append(TextBlock("profile", priority=2, max_share=0.2, text=session.profile["content"]))
     if handoff is not None:
         blocks.append(TextBlock("handoff", priority=1, max_share=0.3, text=handoff_note(handoff)))
     return blocks
+
+
+def _ledger_blocks(session: Session, spec: AgentSpec) -> list[ContextProvider]:
+    """Past mistakes and due cards, for a conversational agent, on the first message of a session."""
+    if spec.output_schema is not None or any(m["role"] == "assistant" for m in session.history):
+        return []
+    ledger = Ledger(session.repo.conn)
+    return [ErrorsProvider(ledger, session.id), DueCardsProvider(ledger)]
+
+
+def _safe_list(ledger: Ledger, table: str, **filters) -> list[sqlite3.Row]:
+    try:
+        return ledger.list(table, **filters)
+    except sqlite3.Error:
+        return []
 
 
 def _summary_blocks(session: Session) -> list[ContextProvider]:
