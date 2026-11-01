@@ -258,7 +258,11 @@ in `config.toml` (`:memory:` for tests).
   `Ledger(conn, owners=...)`). Any other agent gets `WriteNotAllowed`; reads are open to everyone.
 - `ledger.tools(agent)` returns four tools (`ledger_create`, `ledger_read`, `ledger_update`,
   `ledger_delete`) bound to that agent, so the model drives the CRUD itself and the ownership check
-  still applies. They are not registered on an agent yet.
+  still applies. They are not registered on an agent yet, and nothing writes `facts` (reserved).
+- **Read back at the start of a session** (`orchestration/context.py`): for a conversational agent (no
+  output schema), the first message of a session gets two context blocks, each capped at 10% of the
+  budget: the last 3 unresolved `errors` from earlier sessions ("Last time you wrote …") and the
+  `srs_cards` due today (`srs.due_cards`), so the tutor can bring a mistake up and propose a review.
 - **SRS cards** are scheduled by `memory/srs.py` (SM-2: a right answer pushes the next review further,
   a wrong one brings it back to tomorrow). The `curriculum` agent (`agents/curriculum.toml`) runs after the answer and `TurnFinished` are
   out, never before. It calls its own tools `srs_add_card` and `srs_review` (one validated step per reply,
@@ -276,7 +280,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | B1 | CLI chatbot (streaming, history, errors) | 👍 | 1–2 | ✅ |
 | M1 | Session persistence & profile | ★ | 2 | ✅ |
 | T5 | Structured output (JSON schema, one repair) | ★ | 3 | ✅ checker, corrector, classifier and handoffs |
-| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; not read back yet, `facts` unused |
+| M3 | Structured memory (errors, SRS, facts) | ★★ | 3, 6 | 🚧 SRS cards by the curriculum agent; verified corrections written to `errors`; past errors and due cards injected at session start; `facts` reserved, unused |
 | T1 | Tools (dictionary, conjugate, kanji) + MCP | ★★★ | 3, 5 | ✅ sensei calls them (native or prompted); MCP stdio client, own MCP server, pre-existing time server configured |
 | EV3 | Logging, metrics, per-turn trace | ★★ | 3-4 | ✅ JSONL event log, `/metrics`, `/trace` |
 | A2 | Multi-agent orchestration + router | ★★★ | 4-5 | ✅ handoffs, guards, fallback, three-tier router |
@@ -337,9 +341,9 @@ gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also ma
   has nothing to be checked against and is not judged. The judge is the same local model, so it can be wrong,
   and it adds a model call after each sourced reply (about 40 s on a laptop CPU/GPU mix); turn it off with
   `[eval] enabled = false`. Structured replies (checker, corrector) are not judged.
-- **The learner ledger is half used (M3).** Verified corrections are written to `errors` and the
-  curriculum agent keeps the `srs_cards`, but no agent brings past errors up again, and `facts` is
-  never written.
+- **The learner ledger is mostly used (M3).** Verified corrections are written to `errors`, the
+  curriculum agent keeps the `srs_cards`, and both are read back at the start of a session; `facts` is
+  never written (no agent has the `ledger_*` tools).
 - **The time MCP server needs `uv`.** Without `uvx` on the PATH, Sensai says the server is unavailable
   and goes on without it.
 - **One learner, one machine.** SQLite, one learner profile (`default`), no accounts; the knowledge
