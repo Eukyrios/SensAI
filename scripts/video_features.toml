@@ -1,7 +1,8 @@
 # Features shown in the video built by `python -m scripts.build_video`, in the order and categories of
 # the features catalogue. Each step is either a chat (inputs typed into `python -m sensai`, with its
 # arguments), a shell command (`display` is what the video shows instead of a long command) or a browser
-# session on the web page (`actions`: say: <message>, trace, models); `env` adds settings to one step. Every run
+# session on the web page (`actions`: say: <message>, trace, models), or a tty session of the live CLI
+# (`actions`: type: <text>, enter, esc, pause: <s>, replying: <s>, quiet: <s>); `env` adds settings to one step. Every run
 # uses a fresh copy of the seeded demo database ($DEMO_DB) and its own event log ($DEMO_LOG).
 # rating: number of stars in the catalogue; 0 is the base feature.
 
@@ -223,3 +224,17 @@ built = "The same sessions in the browser: replies stream into the page, with me
 kind = "browser"
 display = "python -m sensai.surfaces.web, then http://127.0.0.1:8792 in Chrome"
 actions = ["say: how do I say cat?", "say: When do I use the particle に?", "trace", "models"]
+
+[[features]]
+category = "UX & Lifecycle"
+code = "X2"
+name = "Branching - Resume & Interrupt"
+rating = 2
+built = "Interrupt: Esc stops a reply while it streams, and the next line redirects the conversation at once."
+
+[[features.steps]]
+kind = "tty"
+display = "python -m sensai in a terminal: Esc mid-reply, then a new instruction"
+actions = ["pause: 3", "type: Explain every use of the particle に, with three examples each", "enter",
+           "replying: 4", "esc", "pause: 2", "type: Just the destination use, with one example", "enter",
+           "quiet: 5", "type: /quit", "enter"]

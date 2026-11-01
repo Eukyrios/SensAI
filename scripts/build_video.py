@@ -1,18 +1,23 @@
 # Feature video: for each feature of scripts/video_features.toml, a title card in the features catalogue's
 # terms, then a real run of Sensai showing it, recorded and drawn as a terminal; ffmpeg joins it all into
 # one MP4. Run `python -m scripts.build_video` with Ollama running. A browser step drives the real web page
-# in headless Chrome (Playwright) and records it by screenshots.
+# in headless Chrome (Playwright) and records it by screenshots; a tty step runs the live CLI in a
+# pseudo-terminal (so keys like Escape work) and records its screen through a terminal emulator (pyte).
 
 import argparse
 import asyncio
+import fcntl
 import io
 import codecs
 import os
+import pty
 import re
 import select
+import struct
 import subprocess
 import sys
 import tempfile
+import termios
 import textwrap
 import time
 import unicodedata
@@ -21,6 +26,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pyte
 from PIL import Image, ImageDraw, ImageFont
 from playwright.async_api import Page, async_playwright
 
@@ -57,6 +63,8 @@ BROWSER_PORT = 8792
 BROWSER_SHOTS_PER_S = 5
 BROWSER_ZOOM = 1.25
 SERVER_START_S = 30
+TTY_SNAPSHOTS_PER_S = 10
+TTY_KEYS = {"enter": "\r", "esc": "\x1b"}
 
 
 @dataclass(frozen=True)
@@ -90,7 +98,7 @@ class Chunk:
 @dataclass(frozen=True)
 class Shot:
     real_s: float
-    png: bytes
+    content: bytes | tuple[str, ...]
     busy: bool
 
 
@@ -414,6 +422,103 @@ async def drive_browser(step: Step) -> list[Shot]:
     return recorder.shots
 
 
+class TerminalRecorder:
+
+    def __init__(self, command: list[str], env: dict[str, str]):
+        self.master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLUMNS, 0, 0))
+        self.process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, cwd=resolve("."),
+                                        env={**env, "TERM": "xterm-256color"}, start_new_session=True)
+        os.close(slave)
+        self.screen = pyte.Screen(COLUMNS, ROWS)
+        self.stream = pyte.ByteStream(self.screen)
+        self.started = time.monotonic()
+        self.shots: list[Shot] = []
+        self.busy = False
+        self.changed_at = self.started
+
+    def run(self, action: str) -> None:
+        name, _, argument = action.partition(":")
+        argument = argument.strip()
+        if name == "type":
+            self.type_text(argument)
+        elif name in TTY_KEYS:
+            self.busy = name == "enter"
+            os.write(self.master, TTY_KEYS[name].encode())
+            self.pump(0.2)
+        elif name == "pause":
+            self.pump(float(argument))
+        elif name == "quiet":
+            self.wait_quiet(float(argument))
+        elif name == "replying":
+            self.wait_for_text("replying", float(argument))
+        else:
+            raise ValueError(f"unknown tty action {action!r}")
+
+    def type_text(self, text: str) -> None:
+        for char in text:
+            os.write(self.master, char.encode())
+            self.pump(1 / TYPING_CHARS_PER_S)
+
+    def wait_for_text(self, text: str, then_s: float) -> None:
+        deadline = time.monotonic() + STEP_TIMEOUT_S
+        while not any(text in line for line in self.screen.display) and time.monotonic() < deadline:
+            self.pump(0.2)
+        self.pump(then_s)
+
+    def wait_quiet(self, seconds: float) -> None:
+        deadline = time.monotonic() + STEP_TIMEOUT_S
+        self.pump(1.0)
+        while time.monotonic() - self.changed_at < seconds and time.monotonic() < deadline:
+            self.pump(0.2)
+        self.busy = False
+
+    def pump(self, seconds: float) -> None:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([self.master], [], [], 1 / TTY_SNAPSHOTS_PER_S)
+            if ready:
+                self._read()
+            self._snapshot()
+
+    def finish(self) -> list[Shot]:
+        deadline = time.monotonic() + STEP_TIMEOUT_S
+        while self.process.poll() is None and time.monotonic() < deadline:
+            self.pump(0.2)
+        if self.process.poll() is None:
+            self.process.kill()
+        os.close(self.master)
+        return self.shots
+
+    def _read(self) -> None:
+        try:
+            self.stream.feed(os.read(self.master, 65536))
+        except OSError:
+            pass
+
+    def _snapshot(self) -> None:
+        lines = tuple(self.screen.display)
+        now = time.monotonic()
+        if not self.shots or self.shots[-1].content != lines:
+            self.changed_at = now
+            self.shots.append(Shot(now - self.started, lines, self.busy))
+
+
+def record_tty(step: Step, env: dict[str, str]) -> list[Shot]:
+    recorder = TerminalRecorder([sys.executable, "-m", "sensai", *step.args], {**env, **dict(step.env)})
+    for action in step.actions:
+        recorder.run(action)
+    recorder.pump(END_HOLD_S)
+    return recorder.finish()
+
+
+def tty_frames(shots: list[Shot], header: str, painter: TerminalPainter) -> Iterator[Image.Image]:
+    for shot, real_s, video_s in shot_spans(shots):
+        for frame in range(round(video_s * FPS)):
+            clock = clock_label(shot.real_s + min(frame / FPS, video_s) * real_s / video_s)
+            yield painter.draw(list(shot.content), header, clock)
+
+
 def record_browser(step: Step, env: dict[str, str]) -> list[Shot]:
     server = subprocess.Popen([sys.executable, "-m", "sensai.surfaces.web", "--port", str(BROWSER_PORT)],
                               env=env, cwd=resolve("."), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -438,7 +543,7 @@ def wait_for_server() -> None:
 
 def browser_frames(shots: list[Shot], header: str, painter: TerminalPainter) -> Iterator[Image.Image]:
     for shot, real_s, video_s in shot_spans(shots):
-        page = Image.open(io.BytesIO(shot.png))
+        page = Image.open(io.BytesIO(shot.content))
         for frame in range(round(video_s * FPS)):
             clock = clock_label(shot.real_s + min(frame / FPS, video_s) * real_s / video_s)
             yield painter.draw_page(page, header, clock)
@@ -448,7 +553,7 @@ def shot_spans(shots: list[Shot]) -> list[tuple[Shot, float, float]]:
     spans = []
     start = 0
     for index in range(1, len(shots) + 1):
-        if index < len(shots) and shots[index].png == shots[start].png:
+        if index < len(shots) and shots[index].content == shots[start].content:
             continue
         end_s = shots[index].real_s if index < len(shots) else shots[-1].real_s + 1 / BROWSER_SHOTS_PER_S
         real_s = end_s - shots[start].real_s
@@ -478,6 +583,8 @@ def add_feature(encoder: Encoder, painter: TerminalPainter, feature: Feature, en
               flush=True)
         if step.kind == "browser":
             encoder.add(browser_frames(record_browser(step, env), header, painter))
+        elif step.kind == "tty":
+            encoder.add(tty_frames(record_tty(step, env), header, painter))
         else:
             encoder.add(step_frames(timeline(record_step(step, env)), header, painter))
 
