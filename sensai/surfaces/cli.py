@@ -130,10 +130,17 @@ def plain_chat(session: Session, logger: JsonlLogger | None = None) -> None:
             print()
             return
         try:
-            if not asyncio.run(handle_line(session, line, renderer, logger)):
+            if not asyncio.run(handle_line_and_settle(session, line, renderer, logger)):
                 return
         except KeyboardInterrupt:
             continue
+
+
+async def handle_line_and_settle(session: Session, line: str, renderer: "CLIRenderer",
+                                 logger: JsonlLogger | None = None) -> bool:
+    keep_going = await handle_line(session, line, renderer, logger)
+    await session.settle()
+    return keep_going
 
 
 async def live_chat(session: Session, logger: JsonlLogger | None = None) -> None:
@@ -163,6 +170,7 @@ class LiveChat:
                 await self.process_lines()
             finally:
                 reader.cancel()
+                await self.session.settle()
 
     def toolbar(self) -> str:
         if self.status:

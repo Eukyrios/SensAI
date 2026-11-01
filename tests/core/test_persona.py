@@ -56,3 +56,9 @@ def test_bad_persona_files_are_rejected(tmp_path, text, problem):
 def test_unknown_persona():
     with pytest.raises(SpecError, match="unknown persona 'nobody'"):
         persona_for("nobody", make_config())
+
+
+@pytest.mark.parametrize("name", ["../config", "teacher/../../config", "/etc/passwd", "a b", ""])
+def test_a_persona_name_cannot_leave_the_personas_folder(name):
+    with pytest.raises(SpecError, match="invalid persona name"):
+        persona_for(name, make_config())

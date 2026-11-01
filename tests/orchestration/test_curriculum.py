@@ -37,7 +37,9 @@ def cards(session):
 
 
 async def collect(session, text):
-    return [e async for e in run_turn(session, text)]
+    events = [e async for e in run_turn(session, text)]
+    await session.settle()
+    return events
 
 
 async def test_agent_adds_cards_through_its_tool_after_the_answer():
@@ -46,6 +48,14 @@ async def test_agent_adds_cards_through_its_tool_after_the_answer():
     assert [c["front"] for c in cards(session)] == ["猫"]
     assert type(events[-1]).__name__ == "TurnFinished"
     assert len(session.client.calls) == 3
+
+
+async def test_the_turn_ends_before_the_curriculum_runs():
+    session = session_with(CAT_ANSWER, ADD_CAT, DONE)
+    [e async for e in run_turn(session, "What is cat?")]
+    assert cards(session) == [] and len(session.background) == 1
+    await session.settle()
+    assert [c["front"] for c in cards(session)] == ["猫"] and not session.background
 
 
 async def test_curriculum_run_emits_no_event_to_the_surface():
