@@ -198,7 +198,10 @@ rebuilt after `Session.resume`.
 in `config.toml` (`:memory:` for tests).
 
 - **Connection** (`db.py`): one `connect(path)` with `PRAGMA foreign_keys = ON`,
-  `journal_mode = WAL`, and `row_factory = sqlite3.Row`.
+  `journal_mode = WAL`, and `row_factory = sqlite3.Row`. The connection is shared by every thread
+  (the async facade, the web UI), so it is a `LockedConnection`: a reentrant lock guards each
+  statement and fetch, and `with conn:` holds it for the whole transaction, so two threads can never
+  interleave statements or commit a half-finished transaction.
 - **Schema** (`migrations/001_init.sql`, `002_active_leaf_and_profile.sql`, `003_ledger.sql`,
   `004_prompt_versions.sql`): `sessions` → `messages` (FK, cascade) → `turns`
   (links a user and an assistant message, with `latency_ms`/`tokens`) → `agent_runs` (one row
