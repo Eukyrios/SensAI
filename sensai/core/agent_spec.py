@@ -3,6 +3,7 @@
 # Its system prompt is versioned by content hash; `prompt_version` pins it to an earlier hash.
 
 import hashlib
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from .config import load_toml, resolve
 from .handoff import handoff_schema
 
 REQUIRED = ("name", "model", "num_ctx")
+AGENT_NAME = re.compile(r"[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)?")
 PROMPT_HASH_LENGTH = 12
 
 
@@ -81,6 +83,8 @@ def _with_handoff_field(spec: AgentSpec, path: str | Path) -> AgentSpec:
 
 
 def spec_for(name: str, config: dict) -> AgentSpec:
+    if not AGENT_NAME.fullmatch(name):
+        raise SpecError(f"invalid agent name '{name}'")
     agents = config["agents"]
     path = resolve(agents["dir"]) / f"{name}.toml"
     if not path.exists():

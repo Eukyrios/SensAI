@@ -2,6 +2,7 @@
 # (name, description, tone, scope). Applying one appends it to an agent's system prompt, so each
 # persona gets its own prompt hash; agents with structured output are left as they are.
 
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from .agent_spec import AgentSpec, SpecError
 from .config import load_toml, resolve
 
 REQUIRED = ("name", "description", "tone", "scope")
+PERSONA_NAME = re.compile(r"[A-Za-z0-9_-]+")
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,8 @@ def load_persona(path: str | Path) -> Persona:
 
 
 def persona_for(name: str, config: dict) -> Persona:
+    if not PERSONA_NAME.fullmatch(name):
+        raise SpecError(f"invalid persona name '{name}'")
     path = resolve(config["personas"]["dir"]) / f"{name}.toml"
     if not path.exists():
         raise SpecError(f"unknown persona '{name}' (no {path})")

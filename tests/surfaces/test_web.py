@@ -1,12 +1,14 @@
 # Web UI backend: the FastAPI routes and the SSE encoding of the event stream.
 
+import asyncio
 import json
 
 from fastapi.testclient import TestClient
 
-from sensai.core.events import Token, TurnStarted
+from sensai.core.events import Token, TurnFinished, TurnStarted
 from sensai.llm.ollama import OllamaError
 from sensai.surfaces.web import __main__ as web_main
+from sensai.surfaces.web import app as web_app
 from sensai.surfaces.web.app import create_app
 from sensai.surfaces.web.sse import event_message, sse_stream
 from tests.fakes import FakeClient, events_stream, make_config
@@ -73,7 +75,7 @@ def test_turn_in_an_unknown_session_is_404():
 def test_turn_while_another_runs_is_409():
     client = make_client()
     session_id = client.post("/api/sessions").json()["id"]
-    client.app.state.sessions.busy.add(session_id)
+    asyncio.run(client.app.state.sessions.turn_lock(session_id).acquire())
     assert client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"}).status_code == 409
 
 
@@ -81,7 +83,37 @@ def test_a_finished_turn_frees_the_session():
     client = make_client()
     session_id = client.post("/api/sessions").json()["id"]
     client.post(f"/api/sessions/{session_id}/turns", json={"text": "hello"})
-    assert session_id not in client.app.state.sessions.busy
+    assert not client.app.state.sessions.turn_lock(session_id).locked()
+
+
+async def finished_then_verdict(session, text):
+    yield TurnFinished(turn_id="t1", model="qwen3.5:9b")
+    yield Token(turn_id="t1", run_id="r1", text="after")
+
+
+async def test_the_session_is_free_once_the_turn_finishes(monkeypatch):
+    monkeypatch.setattr(web_app, "run_turn", finished_then_verdict)
+    lock = asyncio.Lock()
+    events = web_app.turn_events(lock, None, "hello")
+    await anext(events)
+    assert not lock.locked()
+    await events.aclose()
+
+
+async def test_a_stream_that_never_starts_never_holds_the_session():
+    lock = asyncio.Lock()
+    await web_app.turn_events(lock, None, "hello").aclose()
+    assert not lock.locked()
+
+
+async def test_a_finished_stream_leaves_the_next_turn_lock_alone(monkeypatch):
+    monkeypatch.setattr(web_app, "run_turn", finished_then_verdict)
+    lock = asyncio.Lock()
+    events = web_app.turn_events(lock, None, "hello")
+    await anext(events)
+    await lock.acquire()
+    await events.aclose()
+    assert lock.locked()
 
 
 class ServeRecorder:

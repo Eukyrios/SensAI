@@ -1,6 +1,7 @@
 # Web UI backend (X1): a FastAPI app over the event stream. It only subscribes to what the
 # orchestration emits; the turn logic stays in sensai.orchestration.
 
+import asyncio
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
@@ -9,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ...llm.ollama import OllamaClient
+from ...core.events import Event, TurnFinished
 from ...orchestration.session import Session
 from ...orchestration.turn import run_turn
 from .frontend import add_frontend_route
@@ -58,15 +60,21 @@ def show_session(session_id: str, request: Request) -> dict:
 def start_turn(session_id: str, turn: TurnRequest, request: Request) -> StreamingResponse:
     pool: SessionPool = request.app.state.sessions
     session = open_session(pool, session_id)
-    if session_id in pool.busy:
+    lock = pool.turn_lock(session_id)
+    if lock.locked():
         raise HTTPException(409, "a turn is already running in this session")
-    pool.busy.add(session_id)
-    return StreamingResponse(sse_stream(turn_events(pool, session, turn.text)), media_type="text/event-stream")
+    return StreamingResponse(sse_stream(turn_events(lock, session, turn.text)), media_type="text/event-stream")
 
 
-async def turn_events(pool: SessionPool, session: Session, text: str) -> AsyncIterator:
+async def turn_events(lock: asyncio.Lock, session: Session, text: str) -> AsyncIterator[Event]:
+    await lock.acquire()
+    holding = True
     try:
         async for event in run_turn(session, text):
+            if holding and isinstance(event, TurnFinished):
+                lock.release()
+                holding = False
             yield event
     finally:
-        pool.busy.discard(session.id)
+        if holding:
+            lock.release()

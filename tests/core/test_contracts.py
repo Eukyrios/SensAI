@@ -135,3 +135,13 @@ def test_corrector_is_a_react_agent_with_the_own_tools():
     spec = load_spec(resolve("agents/corrector.toml"))
     assert (spec.strategy, spec.handoffs, spec.num_ctx) == ("react", ("sensei",), 1024)
     assert set(spec.tools) == {"dictionary", "conjugate", "kanji"}
+
+
+@pytest.mark.parametrize("name", ["../config", "demo/../../config", "/etc/passwd", "a/b/c", "sensei.toml", ""])
+def test_an_agent_name_cannot_leave_the_agents_folder(name):
+    with pytest.raises(SpecError, match="invalid agent name"):
+        spec_for(name, make_config())
+
+
+def test_an_agent_in_a_subfolder_is_still_found():
+    assert spec_for("demo/ping", make_config()).name == "demo/ping"
