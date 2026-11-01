@@ -61,7 +61,7 @@ Limit: iterating a cursor with `for row in cursor` is not locked (nothing in the
 - `Session.resume(config, id)` reloads a stored session (`python -m sensai --session <id>`). The session row
   is created with its first message, so an empty session leaves nothing behind.
 - Why a tree and not a list: `parent_id` and `active_leaf_id` are the basis for editing a past message and
-  forking a branch. The schema allows it; the chat does not expose it yet.
+  forking a branch. The schema allows it; the chat does not expose it.
 
 ## 3. The learner ledger (M3)
 
@@ -82,7 +82,6 @@ Three tables, one class (`Ledger`, opened with `open_ledger(config)`).
 |-------|-----------|---------|
 | `errors` | the orchestrator, after a verified correction from the corrector (A1); marked resolved when the learner later writes the correction | `ErrorsProvider`, first message of a session |
 | `srs_cards` | the curriculum agent, through `srs_add_card` and `srs_review` | `DueCardsProvider`, and the curriculum agent's own prompt (known cards) |
-| `facts` | nobody (reserved) | nobody |
 
 ### Read back at the start of a session (commit `d971e87`)
 
@@ -159,21 +158,19 @@ The whole suite is 697 tests at 95.6% coverage (the CI bar is 85%). Coverage of 
 User stories: M1-1, M1-2 (persistence and profile), M2-1, M2-2 (budget and compression), M3-1, M3-2
 (mistakes and spaced repetition) in [`user_stories.md`](user_stories.md).
 
-## 7. What is not done
+## 7. Limits
 
-- **`facts` is never written.** Giving the `ledger_*` tools to the sensei would add four tools to a 9B
-  model that already has `dictionary`, `conjugate`, `kanji`, `time` and RAG passages. The risk is worse
-  answers and malformed tool calls, so it is left out on purpose until it can be measured. Details in
-  [`m3_limits.md`](m3_limits.md).
+- **No agent is given the `ledger_*` tools**, so the `facts` table has no writer. Giving them to the sensei
+  would add four tools to a 9B model that already has `dictionary`, `conjugate`, `kanji`, `time` and RAG
+  passages, with a risk of worse answers and malformed tool calls; we chose not to.
 - **`errors` are written by code, not by an agent's tool** (`Orchestrator.record_errors`), and an error is
   resolved by a simple text match (the correction appears in the learner's message, the mistake does not).
   A learner who only quotes the correction in a question resolves it too early.
 - **The recall happens on the first message only**, and the sensei is told to offer a review whatever the
   question is, so a very specific first question can get an unrelated offer.
-- **Token calibration is not wired in.** `TokenEstimator.calibrate()` exists and is tested, but nothing
-  calls it with the real `prompt_eval_count`, and the builder is rebuilt for each agent run, so the 3.5
-  characters-per-token estimate is the one in use. The budget is safe (25% reserve) but not self-correcting,
-  and Japanese text, which has more tokens per character, is the case where the estimate is weakest.
+- **Token counts are estimated, not measured.** The budget uses 3.5 characters per token for every text;
+  Ollama's real `prompt_eval_count` is not fed back. The 25% reply reserve keeps the budget safe, and
+  Japanese text, which has more tokens per character, is the case where the estimate is weakest.
 - **Branches are stored, not exposed.** The tree and `set_active_leaf()` exist; there is no command or
   button to edit a past message.
 - **One learner, one database file.** A single profile (`default`), no accounts.

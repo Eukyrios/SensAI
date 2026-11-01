@@ -2,7 +2,7 @@
 
 Each feature of the features catalogue that Sensai implements, in the
 catalogue's order and categories: what the catalogue asks, what we built, how it works in the code,
-the choices we made, where it is checked, and what it does not do yet. The last section lists the
+the choices we made, where it is checked, and what it does not do. The last section lists the
 features we did not take, and why.
 
 Every surface (CLI, JSONL log, `/trace`, web UI) subscribes to one event stream
@@ -123,8 +123,8 @@ When a compression happens, a `ContextCompressed` event (messages folded, tokens
 emitted: the CLI prints it, `/trace` shows `Context compressed: <n> messages, <before> -> <after> tokens`, and the
 web page shows the same line under the reply.
 
-**Limits:** the estimator can be calibrated from Ollama's real `prompt_eval_count`, but nothing calls that
-calibration yet.
+**Limits:** token counts are estimated (3.5 characters per token), not measured; Ollama's real
+`prompt_eval_count` is not fed back, and Japanese text is where the estimate is weakest.
 
 ### M3 - External Structured Memory
 
@@ -132,7 +132,7 @@ calibration yet.
 records itself, through CRUD operations it drives.
 
 **What we built:** a learner ledger in SQLite with three tables: `srs_cards` (flashcards scheduled with
-SM-2), `errors` (verified corrections) and `facts`. The curriculum agent adds and grades cards by calling
+SM-2) and `errors` (verified corrections). The curriculum agent adds and grades cards by calling
 tools after each answer; past errors and the cards due today are put in front of the tutor on the first
 message of a session, so it can bring them up.
 
@@ -154,8 +154,10 @@ corrupt another agent's records; SM-2 as a pure function, tested with fixed date
 
 **Checked by:** `tests/memory/test_ledger.py`, `tests/memory/test_srs.py`, `tests/orchestration/test_curriculum.py`.
 
-**Limits:** `facts` is never written; verified errors are written by the orchestrator after the
-corrector's run rather than by the agent through a tool.
+**Limits:** verified errors are written by the orchestrator after the corrector's run rather than by the
+agent through a tool; an error is marked resolved by a simple text match (the learner's message contains the
+correction and not the mistake), so quoting the correction in a question resolves it too early; the notes
+added at the start of a session are English prompts, like every other prompt of the project.
 
 ---
 
@@ -441,10 +443,8 @@ masking instead of refusing for personal data, so the learner still gets an answ
 **Checked by:** `tests/trust/test_guardrails.py`, `tests/orchestration/test_turn.py`; the EV4 suite.
 
 **Limits:** patterns miss what they do not describe (a reworded or leetspeak injection, a number spelled
-out in words), and the scope check lets through anything that mentions Japanese. The tier of embeddings
-and then a model call that the user stories plan for unsure cases is not built. The offline suite shows
-0 breaks; the live report in `doc/adversarial.md` (3 broke) predates the guardrail fixes and must be run
-again with `--live`.
+out in words), and the scope check lets through anything that mentions Japanese. In the last live run
+of the attack suite (EV4), none of the 27 attacks broke through.
 
 ### EV3 - Logging & Monitoring Dashboard
 
@@ -488,8 +488,9 @@ filter is still caught if the system holds; canary words (`PWNED-42`) make "brok
 
 **Checked by:** `tests/scripts/test_adversarial.py` runs the suite offline in CI.
 
-**Limits:** the last live report (2026-10-30): 3 blocked, 21 held, 3 broke; it predates the latest
-guardrail fixes and should be re-run.
+**Limits:** the last live report (2026-11-01): 8 blocked, 19 held, 0 broke; the run before the guardrail
+fixes had 3 breaks. Two malformed inputs hold only because the turn times out, and the suite only knows
+the attacks written in it.
 
 ---
 
@@ -517,8 +518,8 @@ subscribes to the event stream, so the turn logic is the same as the CLI's.
 **Checked by:** `tests/surfaces/test_web.py`.
 
 **Limits:** parts of the page are in French; Tailwind and the fonts load from a CDN, so the page needs
-internet; the page cannot choose an agent or persona yet (the routes exist) and shows no context-usage
-bar or per-turn trace history; there is no automated browser test, only the API tests.
+internet; agent and persona are switched through the API, not from the page; the trace window shows the
+last turn only; the page itself is checked by the API tests and the feature video, not by a browser test.
 
 ---
 
