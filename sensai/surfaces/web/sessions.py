@@ -1,5 +1,8 @@
 # The web app's open sessions: created on demand, resumed from storage the first time a stored
-# session is asked for, and kept in memory with their model, persona and history.
+# session is asked for, and kept in memory with their model, persona and history. Each session has a
+# lock held while one of its turns runs.
+
+import asyncio
 
 from fastapi import HTTPException
 
@@ -15,12 +18,15 @@ class SessionPool:
         self.client = client
         self.repo = open_repository(config)
         self.open: dict[str, Session] = {}
-        self.busy: set[str] = set()
+        self.turn_locks: dict[str, asyncio.Lock] = {}
 
     def new(self) -> Session:
         session = Session(self.config, self.client, repo=self.repo)
         self.open[session.id] = session
         return session
+
+    def turn_lock(self, session_id: str) -> asyncio.Lock:
+        return self.turn_locks.setdefault(session_id, asyncio.Lock())
 
     def get(self, session_id: str) -> Session:
         if session_id not in self.open:
