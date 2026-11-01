@@ -48,7 +48,7 @@ def summarize(session: Session, spec: AgentSpec, older: list[Message], previous:
         {"role": "user", "content": request},
     ]
     pieces = session.client.chat_stream(spec.model, messages, num_ctx=spec.num_ctx,
-                                        temperature=SUMMARY_TEMPERATURE)
+                                        temperature=SUMMARY_TEMPERATURE, num_predict=max_tokens)
     return "".join(piece for piece in pieces if isinstance(piece, str)).strip()
 
 
@@ -67,8 +67,10 @@ def compress(session: Session, spec: AgentSpec, window_tokens: int, estimate) ->
                          int(window_tokens * SUMMARY_MAX_SHARE))
     except OllamaError:
         return None
-    if not text:
+    before = estimate(older) + estimate([{"role": "system", "content": session.summary}])
+    after = estimate([{"role": "system", "content": text}])
+    if not text or after >= before:
         return None
     session.summary = text
     session.summarized += len(older)
-    return Compression(len(older), estimate(older), estimate([{"role": "system", "content": text}]))
+    return Compression(len(older), before, after)

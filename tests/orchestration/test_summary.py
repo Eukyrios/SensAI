@@ -40,6 +40,7 @@ def test_summarize_sends_previous_summary_and_new_turns():
     assert model == session.spec.model
     assert "old" in messages[1]["content"] and "user: 000" in messages[1]["content"]
     assert options["num_ctx"] == session.spec.num_ctx
+    assert options["num_predict"] == 200
 
 
 def test_no_compression_below_the_trigger():
@@ -113,3 +114,10 @@ def test_compress_reports_nothing_below_the_trigger():
     session = make_session(ScriptedClient("S1"))
     session.history = turns(2, 10)
     assert compress(session, session.spec, 10_000, tokens_of) is None
+
+
+def test_a_summary_longer_than_the_turns_it_replaces_is_dropped():
+    session = make_session(ScriptedClient("word " * 2000), keep_recent=4)
+    session.history = turns(10)
+    assert compress(session, session.spec, 1000, tokens_of) is None
+    assert (session.summary, session.summarized) == ("", 0)
