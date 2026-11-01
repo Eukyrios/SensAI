@@ -17,6 +17,7 @@ venv/
 data/*.db
 data/*.db-*
 logs/
+videos/
 
 # Web frontend (layer 7)
 node_modules/

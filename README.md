@@ -109,7 +109,8 @@ In a terminal, the input line stays usable while a reply streams:
   spec), its reasoning is shown dim before the answer. It is never part of the reply or the history.
   Reasoning is off by default: it can take several times longer than the answer itself.
 - **Esc** stops the reply being generated and keeps the chat. The question and the part of the
-  reply already written stay in the history, so the model knows what it had said ("continue" works).
+  reply already written stay in the history, so the model knows what it had said ("continue" works),
+  and the next line redirects it at once, without waiting for the reply to finish (X2, interrupt).
 - **Ctrl-D** (or `/quit`) quits, without running questions still queued. **Ctrl-C** does nothing,
   so it can't end a lesson by accident.
 
@@ -297,6 +298,7 @@ Committed: six of the seven ★★★ features (T2 is declined on purpose — a 
 | A5 | Switchable personas mid-session | ★ | 6 | ✅ |
 | A4 | Prompt versioning (content hash) | ★ | 6 | ✅ |
 | X1 | Web UI (FastAPI + SSE) | ★ | 7 | ✅ backend and single-page frontend (`frontend/index.html`, no build step) |
+| X2 | Branching: interrupt | ★★ | 8 | ✅ Esc stops a reply mid-stream and the next line redirects it |
 | EV4 | Adversarial suite | ★★ | 7 | ✅ 27 attacks, one command, report in [`doc/adversarial.md`](doc/adversarial.md) |
 | A6 | Semantic cache (optional) | ★★ | 7 | out of the scope |
 
@@ -365,7 +367,7 @@ gave the stem of 飲む as "飲ん (non)" instead of 飲み. The checker also ma
 | 5 | Knowledge & routing: router, compression, RAG + external MCP, judge |
 | 6 | Three-star finish: personas & prompts, curriculum agent, advanced RAG, guardrails |
 | 7 | Surface & proof: web UI, adversarial suite (the semantic cache is out of scope) |
-| 8 | Delivery: demo script and seeded database, feature video, README |
+| 8 | Delivery: interrupting a reply (X2), demo script and seeded database, feature video, README |
 
 Rule: never start a layer until the previous layer's contracts are **merged**.
 

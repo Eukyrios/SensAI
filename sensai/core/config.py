@@ -1,4 +1,5 @@
 # Layered configuration: defaults < config.toml < SENSAI_<SECTION>__<KEY> env vars < CLI arguments.
+# Nested tables take one more __ per level: SENSAI_MEMORY__SUMMARY__TRIGGER.
 
 import copy
 import os
@@ -80,14 +81,26 @@ def _merge_into(base: dict, override: Mapping) -> None:
 
 
 def _values_from_env(env: Mapping[str, str], config: dict) -> dict:
-    out: dict[str, dict[str, Any]] = {}
+    out: dict[str, Any] = {}
     for name, raw in env.items():
         if not name.startswith(ENV_PREFIX) or "__" not in name:
             continue
-        section, key = name[len(ENV_PREFIX):].lower().split("__", 1)
-        current = config.get(section, {}).get(key)
-        out.setdefault(section, {})[key] = _convert_env_value(raw, current)
+        path = name[len(ENV_PREFIX):].lower().split("__")
+        _set_path(out, path, _convert_env_value(raw, _get_path(config, path)))
     return out
+
+
+def _get_path(config: dict, path: list[str]) -> Any:
+    value: Any = config
+    for key in path:
+        value = value.get(key) if isinstance(value, dict) else None
+    return value
+
+
+def _set_path(out: dict, path: list[str], value: Any) -> None:
+    for key in path[:-1]:
+        out = out.setdefault(key, {})
+    out[path[-1]] = value
 
 
 def _convert_env_value(raw: str, current: Any) -> Any:

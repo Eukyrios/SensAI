@@ -57,9 +57,11 @@ class OllamaClient:
 
     def chat_stream(self, model: str, messages: list[Message], *, num_ctx: int,
                     temperature: float = 0.3, think: bool = False,
-                    format: dict | str | None = None,
-                    tools: list[dict] | None = None) -> Iterator[str | Thought | ToolRequest]:
+                    format: dict | str | None = None, tools: list[dict] | None = None,
+                    num_predict: int | None = None) -> Iterator[str | Thought | ToolRequest]:
         payload = _chat_payload(model, messages, num_ctx, temperature, think, format)
+        if num_predict is not None:
+            payload["options"]["num_predict"] = num_predict
         if tools:
             payload["tools"] = tools
         response = self._post("/api/chat", payload, stream=True)

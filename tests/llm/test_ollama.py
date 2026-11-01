@@ -316,3 +316,9 @@ def test_chat_stream_sends_no_tools_key_without_tools(monkeypatch, client):
     sent = patch_post(monkeypatch, FakeResponse(lines=[{"message": {"content": "a"}, "done": True}]))
     list(client.chat_stream("m", [], **OPTS))
     assert "tools" not in sent["json"]
+
+
+def test_chat_stream_caps_the_reply_length_when_asked(monkeypatch, client):
+    sent = patch_post(monkeypatch, FakeResponse(lines=[{"done": True}]))
+    list(client.chat_stream("m", [{"role": "user", "content": "hi"}], num_ctx=2048, num_predict=300))
+    assert sent["json"]["options"]["num_predict"] == 300
