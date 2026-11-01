@@ -109,8 +109,10 @@ folded into a running summary by the model and leave the window.
 **How it works:**
 - `sensai/orchestration/context.py`: `ContextBuilder` with a `TokenEstimator` (characters per token,
   3.5 by default); each provider has a `priority` and a `max_share`.
-- `sensai/orchestration/summary.py`: `compress()` checks the trigger, `summarize()` asks the model for
-  the updated summary (at most 25% of the window), and `SummaryProvider` puts it in the prompt.
+- `sensai/orchestration/summary.py`: `compress()` checks the trigger, `summarize()` gives the model the
+  folded turns as a transcript to describe (not to answer) and asks for half their size, capped with
+  `num_predict`; a summary that is not smaller than what it replaces is dropped. `SummaryProvider` puts it
+  in the prompt. On the seeded lesson: 11 messages, 262 -> 121 tokens.
 - Settings: `[memory] max_history_turns`, `[memory.summary] enabled, trigger, keep_recent`.
 
 **Choices:** a budget per agent rather than per session, since the checker, corrector and sensei have
