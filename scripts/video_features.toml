@@ -1,0 +1,38 @@
+# Features shown in the video built by `python -m scripts.build_video`, in the order and categories of
+# the features catalogue. Each step is either a chat (inputs typed into `python -m sensai`, with its
+# arguments) or a shell command. Every run uses the seeded demo database (scripts/seed_demo.py).
+# rating: number of stars in the catalogue; 0 is the base feature.
+
+[[features]]
+category = "Base"
+code = "B1"
+name = "Functional CLI chatbot"
+rating = 0
+built = "A local chatbot on Ollama: replies stream token by token and follow-ups use the history."
+
+[[features.steps]]
+kind = "chat"
+inputs = ["how do I say cat?", "what did I just ask you?"]
+
+[[features]]
+category = "Memory & Context"
+code = "M1"
+name = "Session Persistence & Profiles"
+rating = 1
+built = "Sessions are stored in SQLite and resumed by id; the learner profile is injected into every prompt."
+
+[[features.steps]]
+kind = "chat"
+args = ["--session", "demo-food"]
+inputs = ["What did I learn to order last time?"]
+
+[[features]]
+category = "Tools"
+code = "T1"
+name = "MCP"
+rating = 3
+built = "Own tools (dictionary, conjugate, kanji) and a pre-existing MCP server (time), called mid-answer."
+
+[[features.steps]]
+kind = "chat"
+inputs = ["What time is it in Tokyo right now?", "/trace"]
