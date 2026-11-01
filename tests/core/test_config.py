@@ -71,3 +71,10 @@ def test_resolve():
 
 def test_memory_profile_defaults_to_default():
     assert load_config(env={})["memory"]["profile"] == "default"
+
+
+def test_env_reaches_nested_tables():
+    config = load_config(env={"SENSAI_MEMORY__SUMMARY__TRIGGER": "0.02", "SENSAI_MEMORY__SUMMARY__ENABLED": "false"})
+    assert config["memory"]["summary"]["trigger"] == 0.02
+    assert config["memory"]["summary"]["enabled"] is False
+    assert config["memory"]["summary"]["keep_recent"] == DEFAULTS["memory"]["summary"]["keep_recent"]
