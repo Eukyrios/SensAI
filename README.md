@@ -714,8 +714,9 @@ fail, it silently stops protecting the code.
 
 ## CI
 
-Code is pushed to the mirror repo. Every push runs the tests with coverage
-(**blocking under 85%**, reports kept as artifacts for 90 days); if everything passes on `main`,
+Code is pushed to the mirror repo. Every push runs the tests with coverage on Python 3.10 (the
+oldest version the subject allows) and 3.12 (**blocking under 85%**, reports kept as artifacts for
+90 days); if everything passes on `main`,
 the full history is pushed to the Epitech repo.
 
 ```bash

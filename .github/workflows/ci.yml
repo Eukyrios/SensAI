@@ -20,14 +20,18 @@ env:
 
 jobs:
   test:
-    name: Tests & coverage
+    name: Tests & coverage (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]   # the subject asks for 3.10 or newer
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: requirements*.txt
 
@@ -61,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports-${{ github.sha }}
+          name: test-reports-${{ matrix.python-version }}-${{ github.sha }}
           path: reports/
           retention-days: 90
 
