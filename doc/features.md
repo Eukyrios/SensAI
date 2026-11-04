@@ -30,6 +30,7 @@ Owners: A = Core (Eukyrios), B = Memory (EvansRamin), C = Knowledge (DanielLoww)
 | Evaluation | EV3 | Logging & Monitoring Dashboard | 2 stars | D |
 | Evaluation | EV4 | Adversarial Testing | 2 stars | C |
 | UX & Lifecycle | X1 | Web UI | 1 star | A, D |
+| UX & Lifecycle | X2 | Branching - Resume & Interrupt (interrupt) | 2 stars | A |
 
 ---
 
@@ -109,8 +110,10 @@ folded into a running summary by the model and leave the window.
 **How it works:**
 - `sensai/orchestration/context.py`: `ContextBuilder` with a `TokenEstimator` (characters per token,
   3.5 by default); each provider has a `priority` and a `max_share`.
-- `sensai/orchestration/summary.py`: `compress()` checks the trigger, `summarize()` asks the model for
-  the updated summary (at most 25% of the window), and `SummaryProvider` puts it in the prompt.
+- `sensai/orchestration/summary.py`: `compress()` checks the trigger, `summarize()` gives the model the
+  folded turns as a transcript to describe (not to answer) and asks for half their size, capped with
+  `num_predict`; a summary that is not smaller than what it replaces is dropped. `SummaryProvider` puts it
+  in the prompt. On the seeded lesson: 11 messages, 262 -> 121 tokens.
 - Settings: `[memory] max_history_turns`, `[memory.summary] enabled, trigger, keep_recent`.
 
 **Choices:** a budget per agent rather than per session, since the checker, corrector and sensei have
@@ -521,6 +524,30 @@ subscribes to the event stream, so the turn logic is the same as the CLI's.
 internet; agent and persona are switched through the API, not from the page; the trace window shows the
 last turn only; the page itself is checked by the API tests and the feature video, not by a browser test.
 
+### X2 - Branching - Resume & Interrupt
+
+**The catalogue asks:** resume (edit a past message and fork a branch) and interrupt (stop a generation
+mid-stream and redirect it with new instructions without waiting for it to finish). We built the interrupt.
+
+**What we built:** in the live CLI, Escape stops the reply while it streams; the question and the part
+already written stay in the history, and the next line is answered at once, with that partial reply as
+context. The input line stays usable during a reply, so the new instruction can be typed while the model
+is still writing.
+
+**How it works:** `sensai/surfaces/cli.py` runs each turn as an asyncio task (`LiveChat.handle`); Escape
+cancels it. The cancellation reaches `run_turn()` (`sensai/orchestration/turn.py`), which keeps the partial
+answer instead of rolling the question back, and `stream.py` stops reading from Ollama. The next queued line
+then runs as a normal turn.
+
+**Choices:** cancel the turn rather than ignore the rest of the stream, so the model stops generating and
+the partial answer is what the history keeps; no confirmation step, since nothing is lost.
+
+**Checked by:** `tests/surfaces/test_cli.py` (`test_escape_stops_the_reply_and_keeps_the_chat`,
+`test_escape_then_a_new_line_redirects_the_conversation`); the feature video records it in a real terminal.
+
+**Limits:** the resume half (editing a past message to fork a branch) is not part of Sensai; Escape needs a
+terminal, so the piped CLI and the web page cannot interrupt a reply.
+
 ---
 
 ## Features we did not take
@@ -537,7 +564,6 @@ Japanese and left the others out:
 | A3 | Human-in-the-Loop | No action of the tutor is risky enough to need a human approval step. |
 | A6 | Semantic Cache | Out of scope: the answers depend on the learner's history and profile, so a cached answer is rarely the right one. |
 | A7 | Automated Prompt Optimization | Prompt versions are compared by hand with A4; automating it needs a scored test set we did not build. |
-| X2 | Branching - Resume & Interrupt | Sessions are resumed (M1) and replies can be interrupted (B1); branching a conversation adds little for a learner. |
 | X3 | Export & Publication | Nothing a learner would publish. |
 | X4 | Questions & Forms | The curriculum's card reviews cover asking the learner questions. |
 | X5 | Scheduling | Spaced repetition (M3) already decides when to review; there is no background job to schedule. |
