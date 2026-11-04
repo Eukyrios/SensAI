@@ -24,6 +24,7 @@ Stories are written when a feature is specced, not at the end: they decide what 
 | [A5](#a5--persona) | Persona | ★ | 6 | A | ✅ built |
 | [A4](#a4--prompt-versioning) | Prompt versioning | ★ | 6 | A | ✅ built |
 | [X1](#x1--web-ui) | Web UI | ★ | 7 | A · D | ✅ built |
+| [X2](#x2--interrupt-a-reply) | Branching: interrupt | ★★ | 8 | A | ✅ built |
 | [EV4](#ev4--adversarial-testing) | Adversarial testing | ★★ | 7 | C | ✅ built |
 | A6 | Semantic cache (optional) | ★★ | 7 | B | out of scope |
 
@@ -749,6 +750,36 @@ event: TurnFinished
 Picking `qwen3.5:4b` in the page's model list after one question sends
 `PUT /api/sessions/<id>/model {"model": "qwen3.5:4b"}`; the session comes back with `"model": "qwen3.5:4b"`
 and its 2 history messages. The page's trace window shows the last turn's trace (`/trace`).
+
+---
+
+## X2 — Interrupt a reply
+
+### X2-1 · Stop a reply and redirect it
+**As a** learner, **I want** to stop a long answer as soon as I see it is not what I need,
+**so that** I can ask for something else without waiting for the end.
+
+- [x] Esc stops the reply mid-stream; the question and the part already written stay in the history.
+- [x] The next line is answered at once, with that partial reply as context.
+
+**Verified by:** `tests/surfaces/test_cli.py` (`test_escape_stops_the_reply_and_keeps_the_chat`,
+`test_escape_then_a_new_line_redirects_the_conversation`); the X2 part of the feature video, recorded in a
+real terminal.
+
+**Example:**
+
+```
+> Explain every use of the particle に, with three examples each
+Hello, Alex! Let's review the particle に (ni) together. ...
+**1. Destination (Where you go)** ... 駅に行きます (eki ni ikimasu) - I go to the station.
+**2. Time (When something
+[interrupted]
+
+> Just the destination use, with one example
+Understood, Alex. Let's focus on the destination use of the particle に (ni). It marks the place you are
+moving toward.
+*   東京に行きます (Tokyo ni ikimasu) - I go to Tokyo.
+```
 
 ---
 

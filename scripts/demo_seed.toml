@@ -23,6 +23,25 @@ messages = [
     { role = "assistant", content = "Almost: 見る takes を for what you watch. 私は映画を見ます (watashi wa eiga o mimasu) - I watch movies." },
 ]
 
+# A longer lesson, so that compression (M2) has something to fold in the feature video.
+[[sessions]]
+id = "demo-lesson"
+title = "A lesson on particles"
+messages = [
+    { role = "user", content = "What does the particle は do?" },
+    { role = "assistant", content = "は (wa) marks the topic: what the sentence is about. 私は学生です (watashi wa gakusei desu) - I am a student. Written は, it is read wa when it is a particle." },
+    { role = "user", content = "And が?" },
+    { role = "assistant", content = "が (ga) marks the subject, often new information or the answer to a question. 誰が来ましたか (dare ga kimashita ka) - who came? 田中さんが来ました (Tanaka-san ga kimashita) - Tanaka came." },
+    { role = "user", content = "When do I use を?" },
+    { role = "assistant", content = "を (o) marks the direct object, the thing an action is done to. 水を飲みます (mizu o nomimasu) - I drink water. 本を読みます (hon o yomimasu) - I read a book." },
+    { role = "user", content = "What about に?" },
+    { role = "assistant", content = "に (ni) marks a destination, a point in time or where something exists. 学校に行きます (gakkou ni ikimasu) - I go to school. 七時に起きます (shichi-ji ni okimasu) - I get up at seven." },
+    { role = "user", content = "And で?" },
+    { role = "assistant", content = "で (de) marks where an action happens, or the means used. 図書館で勉強します (toshokan de benkyou shimasu) - I study at the library. バスで行きます (basu de ikimasu) - I go by bus." },
+    { role = "user", content = "Can you give me one sentence with all of them?" },
+    { role = "assistant", content = "私は毎朝七時に駅でコーヒーを飲みます (watashi wa maiasa shichi-ji ni eki de koohii o nomimasu) - every morning at seven I drink coffee at the station. は topic, に time, で place, を object." },
+]
+
 # Flashcards for the curriculum agent; due_in_days 0 means due on the day of the demo.
 [[cards]]
 front = "メニュー"

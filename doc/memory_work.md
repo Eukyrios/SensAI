@@ -133,8 +133,10 @@ visible answer and `TurnFinished`, never before, so it cannot delay or alter the
 ### Compression (`orchestration/summary.py`)
 
 When the unsummarised history passes `[memory.summary] trigger` (70%) of the history budget, the model folds
-the oldest turns into a **running summary** (the new turns are merged into the previous summary, at most 25%
-of the window), keeping the 6 newest messages as they are. The summary goes into the prompt through
+the oldest turns into a **running summary** (the new turns are merged into the previous summary). The model
+gets them as a transcript to describe, not a chat to answer, and is asked for half their size, capped with
+`num_predict` and at most 25% of the window; a summary that is not smaller than what it replaces is dropped.
+The 6 newest messages are kept as they are. The summary goes into the prompt through
 `SummaryProvider`; the folded turns leave the window. The summary lives in the session and is rebuilt after
 `Session.resume`. If Ollama fails while summarising, the turn goes on with the plain window.
 
